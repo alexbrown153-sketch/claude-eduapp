@@ -397,12 +397,293 @@ function genGeometry(tier) {
   return { 1: geoT1, 2: geoT2, 3: geoT3, 4: geoT4, 5: geoT5 }[tier]();
 }
 
+// ---------- Ratio & Proportion ----------
+
+function ratioT1() {
+  const factor = randInt(2, 6);
+  let p = randInt(1, 6);
+  let q = randInt(1, 6);
+  const a = p * factor;
+  const b = q * factor;
+  const pqGcd = gcd(p, q);
+  p /= pqGcd;
+  q /= pqGcd;
+  const divisor = gcd(a, b);
+  return {
+    topic: 'ratio', subtopic: 'simplify', difficulty: 1, source: 'generated',
+    prompt: `Simplify the ratio ${a}:${b} to its simplest form.`,
+    answerType: 'text', correctAnswer: `${p}:${q}`, choices: null,
+    explanation: `Divide both parts by ${divisor}: ${a}:${b} = ${a / divisor}:${b / divisor}`,
+  };
+}
+
+function ratioT2() {
+  const rA = randInt(2, 9);
+  const rB = randInt(2, 9);
+  const scale = randInt(2, 8);
+  const givenA = rA * scale;
+  const answer = rB * scale;
+  const itemA = pick(['flour', 'red paint', 'sand', 'juice concentrate']);
+  const itemB = pick(['sugar', 'white paint', 'cement', 'water']);
+  return {
+    topic: 'ratio', subtopic: 'proportion', difficulty: 2, source: 'generated',
+    prompt: `A mixture uses ${itemA} and ${itemB} in the ratio ${rA}:${rB}. If you use ${givenA} units of ${itemA}, how many units of ${itemB} do you need?`,
+    answerType: 'numeric', correctAnswer: String(answer), choices: null,
+    explanation: `${givenA} ÷ ${rA} = ${scale} (scale factor). ${rB} × ${scale} = ${answer}`,
+  };
+}
+
+function ratioT3() {
+  const p1 = randInt(1, 6);
+  const p2 = randInt(1, 6);
+  const unit = randInt(2, 9);
+  const total = (p1 + p2) * unit;
+  const askSmaller = Math.random() < 0.5;
+  const smaller = Math.min(p1, p2) * unit;
+  const larger = Math.max(p1, p2) * unit;
+  return {
+    topic: 'ratio', subtopic: 'sharing', difficulty: 3, source: 'generated',
+    prompt: `Share ${total} sweets in the ratio ${p1}:${p2}. How many sweets are in the ${askSmaller ? 'smaller' : 'larger'} share?`,
+    answerType: 'numeric', correctAnswer: String(askSmaller ? smaller : larger), choices: null,
+    explanation: `${p1} + ${p2} = ${p1 + p2} parts. ${total} ÷ ${p1 + p2} = ${unit} per part. Smaller share: ${Math.min(p1, p2)} × ${unit} = ${smaller}. Larger share: ${Math.max(p1, p2)} × ${unit} = ${larger}`,
+  };
+}
+
+function ratioT4() {
+  const perUnit = pick([0.5, 1, 1.5, 2, 2.5, 3, 4]);
+  const n1 = randInt(2, 6);
+  const n2 = randInt(3, 12);
+  const cost1 = round2(perUnit * n1);
+  const answer = round2(perUnit * n2);
+  const item = pick(['pens', 'notebooks', 'stickers', 'chocolate bars']);
+  return {
+    topic: 'ratio', subtopic: 'proportion', difficulty: 4, source: 'generated',
+    prompt: `If ${n1} ${item} cost £${cost1}, how much do ${n2} ${item} cost?`,
+    answerType: 'numeric', correctAnswer: String(answer), choices: null,
+    explanation: `£${cost1} ÷ ${n1} = £${round2(perUnit)} per item. £${round2(perUnit)} × ${n2} = £${answer}`,
+  };
+}
+
+function ratioT5() {
+  const p1 = randInt(2, 5);
+  const p2 = p1 + randInt(2, 5);
+  const unit = randInt(2, 8);
+  const total = (p1 + p2) * unit;
+  const girls = p2 * unit;
+  return {
+    topic: 'ratio', subtopic: 'ratio-totals', difficulty: 5, source: 'generated',
+    prompt: `The ratio of boys to girls in a class is ${p1}:${p2}. There are ${total} pupils in total. How many girls are there?`,
+    answerType: 'numeric', correctAnswer: String(girls), choices: null,
+    explanation: `${p1} + ${p2} = ${p1 + p2} parts. ${total} ÷ ${p1 + p2} = ${unit} per part. Girls: ${p2} × ${unit} = ${girls}`,
+  };
+}
+
+function genRatio(tier) {
+  return { 1: ratioT1, 2: ratioT2, 3: ratioT3, 4: ratioT4, 5: ratioT5 }[tier]();
+}
+
+// ---------- Algebra basics ----------
+
+function mkAlgebra(prompt, answer, tier, explanation, subtopic = 'equations') {
+  return {
+    topic: 'algebra', subtopic, difficulty: tier, source: 'generated',
+    prompt, answerType: 'numeric', correctAnswer: String(answer), choices: null, explanation,
+  };
+}
+
+function algebraT1() {
+  const variant = pick(['add', 'sub', 'mul']);
+  const x = randInt(2, 15);
+  if (variant === 'add') {
+    const a = randInt(2, 15);
+    const b = x + a;
+    return mkAlgebra(`x + ${a} = ${b}. What is x?`, x, 1, `x = ${b} - ${a} = ${x}`);
+  }
+  if (variant === 'sub') {
+    const a = randInt(2, 15);
+    const b = x - a;
+    return mkAlgebra(`x - ${a} = ${b}. What is x?`, x, 1, `x = ${b} + ${a} = ${x}`);
+  }
+  const a = randInt(2, 9);
+  const b = x * a;
+  return mkAlgebra(`${a}x = ${b}. What is x?`, x, 1, `x = ${b} ÷ ${a} = ${x}`);
+}
+
+function algebraT2() {
+  const x = randInt(2, 12);
+  const a = randInt(2, 9);
+  const b = randInt(1, 20);
+  const c = a * x + b;
+  return mkAlgebra(`${a}x + ${b} = ${c}. What is x?`, x, 2,
+    `${a}x = ${c} - ${b} = ${a * x}. x = ${a * x} ÷ ${a} = ${x}`);
+}
+
+function algebraT3() {
+  const a = randInt(2, 9);
+  const b = randInt(2, 9);
+  const variant = pick(['2a+b', '3a-b', 'a2']);
+  if (variant === '2a+b') {
+    const answer = 2 * a + b;
+    return {
+      topic: 'algebra', subtopic: 'substitution', difficulty: 3, source: 'generated',
+      prompt: `If a = ${a} and b = ${b}, what is 2a + b?`,
+      answerType: 'numeric', correctAnswer: String(answer), choices: null,
+      explanation: `2 × ${a} + ${b} = ${2 * a} + ${b} = ${answer}`,
+    };
+  }
+  if (variant === '3a-b') {
+    const aa = Math.max(a, b + 1);
+    const answer = 3 * aa - b;
+    return {
+      topic: 'algebra', subtopic: 'substitution', difficulty: 3, source: 'generated',
+      prompt: `If a = ${aa} and b = ${b}, what is 3a - b?`,
+      answerType: 'numeric', correctAnswer: String(answer), choices: null,
+      explanation: `3 × ${aa} - ${b} = ${3 * aa} - ${b} = ${answer}`,
+    };
+  }
+  const answer = a * a + b;
+  return {
+    topic: 'algebra', subtopic: 'substitution', difficulty: 3, source: 'generated',
+    prompt: `If a = ${a} and b = ${b}, what is a² + b?`,
+    answerType: 'numeric', correctAnswer: String(answer), choices: null,
+    explanation: `${a}² + ${b} = ${a * a} + ${b} = ${answer}`,
+  };
+}
+
+function algebraT4() {
+  const start = randInt(1, 10);
+  const step = randInt(2, 8);
+  const terms = [start, start + step, start + 2 * step, start + 3 * step];
+  const next = start + 4 * step;
+  return {
+    topic: 'algebra', subtopic: 'sequences', difficulty: 4, source: 'generated',
+    prompt: `What is the next number in the sequence: ${terms.join(', ')}, ?`,
+    answerType: 'numeric', correctAnswer: String(next), choices: null,
+    explanation: `Each term increases by ${step}. ${terms[3]} + ${step} = ${next}`,
+  };
+}
+
+function algebraT5() {
+  if (Math.random() < 0.5) {
+    const a = randInt(2, 6);
+    const b = randInt(1, 10);
+    const n = randInt(5, 20);
+    const answer = a * n + b;
+    return {
+      topic: 'algebra', subtopic: 'sequences', difficulty: 5, source: 'generated',
+      prompt: `The nth term of a sequence is ${a}n + ${b}. What is the ${n}th term?`,
+      answerType: 'numeric', correctAnswer: String(answer), choices: null,
+      explanation: `${a} × ${n} + ${b} = ${a * n} + ${b} = ${answer}`,
+    };
+  }
+  const x = randInt(2, 10);
+  const c = randInt(1, 4);
+  const a = c + randInt(1, 4);
+  const b = randInt(1, 10);
+  const d = (a - c) * x + b;
+  return {
+    topic: 'algebra', subtopic: 'equations', difficulty: 5, source: 'generated',
+    prompt: `${a}x + ${b} = ${c}x + ${d}. What is x?`,
+    answerType: 'numeric', correctAnswer: String(x), choices: null,
+    explanation: `Subtract ${c}x from both sides: ${a - c}x + ${b} = ${d}. Subtract ${b}: ${a - c}x = ${d - b}. Divide by ${a - c}: x = ${x}`,
+  };
+}
+
+function genAlgebra(tier) {
+  return { 1: algebraT1, 2: algebraT2, 3: algebraT3, 4: algebraT4, 5: algebraT5 }[tier]();
+}
+
+// ---------- Data handling & statistics ----------
+
+const FRUITS = ['Apples', 'Bananas', 'Oranges', 'Grapes', 'Pears'];
+
+function dataT1() {
+  const mean = randInt(5, 15);
+  const a = mean + randInt(-2, 2);
+  const b = mean + randInt(-2, 2);
+  const c = 3 * mean - a - b;
+  const nums = [a, b, c];
+  return {
+    topic: 'dataHandling', subtopic: 'mean', difficulty: 1, source: 'generated',
+    prompt: `Find the mean of these numbers: ${nums.join(', ')}`,
+    answerType: 'numeric', correctAnswer: String(mean), choices: null,
+    explanation: `(${nums.join(' + ')}) ÷ 3 = ${nums.reduce((s, n) => s + n, 0)} ÷ 3 = ${mean}`,
+  };
+}
+
+function dataT2() {
+  const nums = Array.from({ length: 5 }, () => randInt(1, 50));
+  const sorted = [...nums].sort((a, b) => a - b);
+  const median = sorted[2];
+  return {
+    topic: 'dataHandling', subtopic: 'median', difficulty: 2, source: 'generated',
+    prompt: `Find the median of these numbers: ${nums.join(', ')}`,
+    answerType: 'numeric', correctAnswer: String(median), choices: null,
+    explanation: `Sorted: ${sorted.join(', ')}. The middle value is ${median}`,
+  };
+}
+
+function dataT3() {
+  const chosen = shuffle(FRUITS).slice(0, 4);
+  const counts = chosen.map(() => randInt(2, 15));
+  const total = counts.reduce((s, n) => s + n, 0);
+  const pairs = chosen.map((f, i) => `${f} ${counts[i]}`).join(', ');
+  if (Math.random() < 0.5) {
+    return {
+      topic: 'dataHandling', subtopic: 'tables', difficulty: 3, source: 'generated',
+      prompt: `A survey of favourite fruits gave these results: ${pairs}. How many people were surveyed in total?`,
+      answerType: 'numeric', correctAnswer: String(total), choices: null,
+      explanation: `${counts.join(' + ')} = ${total}`,
+    };
+  }
+  const maxCount = Math.max(...counts);
+  const winner = chosen[counts.indexOf(maxCount)];
+  return {
+    topic: 'dataHandling', subtopic: 'tables', difficulty: 3, source: 'generated',
+    prompt: `A survey of favourite fruits gave these results: ${pairs}. Which fruit was the most popular?`,
+    answerType: 'text', correctAnswer: winner, choices: null,
+    explanation: `${winner} had the highest count: ${maxCount}`,
+  };
+}
+
+function dataT4() {
+  const nums = Array.from({ length: 5 }, () => randInt(1, 100));
+  const range = Math.max(...nums) - Math.min(...nums);
+  return {
+    topic: 'dataHandling', subtopic: 'range', difficulty: 4, source: 'generated',
+    prompt: `Find the range of these numbers: ${nums.join(', ')}`,
+    answerType: 'numeric', correctAnswer: String(range), choices: null,
+    explanation: `Range = highest - lowest = ${Math.max(...nums)} - ${Math.min(...nums)} = ${range}`,
+  };
+}
+
+function dataT5() {
+  const mean = randInt(5, 20);
+  const n = 5;
+  const known = Array.from({ length: n - 1 }, () => randInt(1, mean));
+  const total = mean * n;
+  const missing = total - known.reduce((s, x) => s + x, 0);
+  return {
+    topic: 'dataHandling', subtopic: 'mean', difficulty: 5, source: 'generated',
+    prompt: `The mean of five numbers is ${mean}. Four of the numbers are ${known.join(', ')}. What is the fifth number?`,
+    answerType: 'numeric', correctAnswer: String(missing), choices: null,
+    explanation: `Total = ${mean} × 5 = ${total}. ${total} - (${known.join(' + ')}) = ${total} - ${known.reduce((s, x) => s + x, 0)} = ${missing}`,
+  };
+}
+
+function genDataHandling(tier) {
+  return { 1: dataT1, 2: dataT2, 3: dataT3, 4: dataT4, 5: dataT5 }[tier]();
+}
+
 // ---------- Dispatch ----------
 
 const GENERATORS = {
   arithmetic: genArithmetic,
   fdp: genFdp,
   geometry: genGeometry,
+  ratio: genRatio,
+  algebra: genAlgebra,
+  dataHandling: genDataHandling,
 };
 
 export function getQuestion(topic, tier, usedWordProblemIds) {

@@ -8,6 +8,9 @@ const TOPIC_LABELS = {
   fdp: 'Fractions / %',
   geometry: 'Geometry',
   wordProblems: 'Word problems',
+  ratio: 'Ratio & proportion',
+  algebra: 'Algebra',
+  dataHandling: 'Data handling',
 };
 
 const el = (id) => document.getElementById(id);
