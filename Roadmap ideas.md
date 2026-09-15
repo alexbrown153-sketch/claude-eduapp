@@ -62,5 +62,10 @@ Future roadmap ideas
 
 56. Center the avatar and tiffin text on the top bar.
 57. On the home page, center the main section on the page.
-58. Center the avatar and tiffin text in the same way (center of the window on the top bar. 
+58. Center the avatar and tiffin text in the same way (center of the window on the top bar.
 59. Move the navigation buttons (home, progress, shop) to the top of the top bar and alongide the tiffin text and avatar.
+
+60. Change the tiffin text at the top to read "Tiffin 11+ Maths Prep" and increase the font by 25%
+61. Change the favicon used to something more suitable
+62. Change the browser tab description to "Tiffin Prep"
+63. On the home page center the main section (containing daily practice, session length etc) in the window. Move the joke and weather panel to the left to make room.
