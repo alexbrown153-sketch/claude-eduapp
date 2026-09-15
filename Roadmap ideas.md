@@ -51,4 +51,4 @@ done to here
 46. the correct answer animation isn't visible to the user
 47. Move the "exit" button to the right hand side of the question during a session
 48. Add the words "Tiffin 11+ Prep" to the center of the top bar
-49. 
+49. Move the clear all progress button to appear underneath the explanetory text - left justified.
