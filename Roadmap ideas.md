@@ -36,3 +36,5 @@ Future roadmap ideas
 33. When answering a question the "Check Answer" button should be in exactly the same place as the "Next question" button to avoid having to move the cursor.
 34. Introduce a more visible exit point from the question session which returns to the home page.
 35. Let's upgrade the avatar to be more character based. Also give more options over customising this character in the shop.
+36. Remove the "Sprint" icon/wording from the top bar. Replace with the avatar
+37. All buttons than return the user to the home page should be called "Home"
