@@ -2,7 +2,9 @@
 
 ## Project
 
-**11+ Maths Trainer** — a self-contained browser app for 11+ exam maths practice. Read `SPEC.md` in this repo first for the full product spec before writing code.
+**Sprint** (working name) — a self-contained browser app for 11+ exam maths practice, for one child sitting the exam on **Friday 2 October 2026**. Read `SPEC.md` in this repo first for the full product spec before writing code — all previously-open decisions are now settled and logged in SPEC.md §11.
+
+**Timeline matters here.** The build window is short (~2.5 weeks from spec date to exam). Get a working end-to-end slice — even just arithmetic questions in a basic session loop — usable in the first day or two, then layer in adaptive difficulty, the countdown/pacing view, progress tracking, and gamification. Don't block a usable v1 on having every topic or every feature built.
 
 ## Precedent / Style to Match
 
@@ -13,7 +15,7 @@ Alex has built similar self-contained browser apps before: **The Study** (a ches
 - Client-side only, static site: HTML/CSS/vanilla JS. Only reach for a framework or build step if it clearly earns its complexity — check with Alex before adding one.
 - No backend/server required for the MVP. Persist data via `localStorage`.
 - Should run by opening `index.html` directly or via a trivial static server — no complex build pipeline.
-- Responsive and touch-friendly (large tap targets, no hover-only interactions) — likely used on a tablet as well as a laptop.
+- **Touch-first, tablet-primary design** (iPad is the main target device): large tap targets, no hover-dependent interactions, portrait-friendly layout. Should still work on a laptop, but design for touch first, not as an afterthought.
 
 ## Data Model (starting point)
 
@@ -23,23 +25,19 @@ Alex has built similar self-contained browser apps before: **The Study** (a ches
 
 ## Key Behaviours to Implement
 
-1. **Session start screen** — choose session length/duration, optionally a topic focus.
-2. **Question engine** — selects the next question based on adaptive difficulty and weak-topic weighting.
-3. **Immediate feedback** per question, with a brief worked explanation shown on incorrect answers.
-4. **End-of-session summary** — score, accuracy, time, topics practiced, points/streak earned.
-5. **Progress view** — session history, per-topic mastery visualization, streak counter.
-6. **Gamification layer** — points, streaks, badges/milestones. Keep it lightweight, not the focus of engineering effort.
+1. **Session start screen** — choose session length/duration, optionally a topic focus. Should also surface "today's suggested focus" from the pacing plan (see 3 below).
+2. **Question engine** — selects the next question based on adaptive difficulty and weak-topic weighting. Arithmetic/number questions are procedurally generated; word/reasoning questions are drawn from a hand-authored bank.
+3. **Countdown & pacing view** — computes days remaining until 2 October 2026 and suggests a focus for "today" per the phased plan in `SPEC.md` §6a (diagnostic → weak-area drilling → exam-condition sessions → light pre-exam review). Should recompute gracefully from whatever "today" actually is, not assume a fixed start date.
+4. **Immediate feedback** per question, with a brief worked explanation shown on incorrect answers.
+5. **End-of-session summary** — score, accuracy, time, topics practiced, points/streak earned.
+6. **Progress view** — session history, per-topic mastery visualization, streak counter.
+7. **Gamification layer** — points, streaks, badges/milestones. Keep it lightweight, not the focus of engineering effort.
 
-## Open Decisions Before/During Build
+## Decisions (settled — see `SPEC.md` §11 for the full log)
 
-Pull these from `SPEC.md` §11 and flag them to Alex rather than silently assuming:
+Single profile (data model extensible, no profile-switching UI) · general 11+ topic coverage, not tied to one exam board · countdown/pacing plan included, exam date 2 Oct 2026 · tablet-primary/touch-first design · working name "Sprint" · mixed question sourcing (procedural arithmetic + hand-authored word/reasoning bank).
 
-- Number of child profiles needed.
-- Which exam board style the question bank should mirror (CEM, GL, ISEB, or a specific school's papers).
-- Whether to include an exam countdown / topic pacing plan.
-- Primary target device (tablet vs laptop).
-- App name, branding, and visual style.
-- How the question bank will be authored/sourced (procedural generation vs hand-authored vs mixed).
+If a genuinely new ambiguity comes up during the build that isn't covered by SPEC.md, flag it to Alex rather than guessing — per the correctness note below.
 
 ## Working Conventions
 
