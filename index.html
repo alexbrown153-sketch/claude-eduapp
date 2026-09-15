@@ -9,9 +9,16 @@
 <body>
 
 <header class="app-header">
-  <span class="app-title">Sprint</span>
-  <span id="header-countdown" class="header-countdown"></span>
-  <span id="header-points" class="header-points"></span>
+  <div class="header-top">
+    <span class="app-title">Sprint</span>
+    <span id="header-countdown" class="header-countdown"></span>
+    <span id="header-points" class="header-points"></span>
+  </div>
+  <nav class="breadcrumb-bar" aria-label="Breadcrumb">
+    <button id="home-btn" class="home-btn" aria-label="Home" title="Home">&#127968;</button>
+    <button id="breadcrumb-home" class="breadcrumb-link">Home</button>
+    <span id="breadcrumb-current" class="breadcrumb-current"></span>
+  </nav>
 </header>
 
 <main id="app">
@@ -42,10 +49,6 @@
       <button class="choice-btn chip" data-topic="algebra">Algebra</button>
       <button class="choice-btn chip" data-topic="dataHandling">Data handling</button>
     </div>
-
-    <button id="start-btn" class="primary-btn">Start session</button>
-    <button id="resume-btn" class="secondary-btn" hidden>Resume unfinished session</button>
-    <button id="goto-progress-btn" class="link-btn">View progress</button>
   </section>
 
   <!-- QUESTION SCREEN -->
@@ -99,8 +102,6 @@
     <h2 class="section-heading">Session complete!</h2>
     <div class="summary-card" id="summary-card"></div>
     <div id="new-badges" class="new-badges" hidden></div>
-    <button id="summary-restart-btn" class="primary-btn">Practice again</button>
-    <button id="summary-progress-btn" class="secondary-btn">View progress</button>
   </section>
 
   <!-- PROGRESS SCREEN -->
@@ -116,11 +117,26 @@
 
     <h3 class="section-subheading">Recent sessions</h3>
     <div id="session-history" class="session-history"></div>
-
-    <button id="progress-back-btn" class="secondary-btn">Back to start</button>
   </section>
 
 </main>
+
+<footer id="app-footer" class="app-footer">
+  <div class="footer-inner">
+    <div id="footer-start" class="footer-group">
+      <button id="start-btn" class="primary-btn">Start session</button>
+      <button id="resume-btn" class="secondary-btn" hidden>Resume unfinished session</button>
+      <button id="goto-progress-btn" class="link-btn">View progress</button>
+    </div>
+    <div id="footer-summary" class="footer-group">
+      <button id="summary-restart-btn" class="primary-btn">Practice again</button>
+      <button id="summary-progress-btn" class="secondary-btn">View progress</button>
+    </div>
+    <div id="footer-progress" class="footer-group">
+      <button id="progress-back-btn" class="secondary-btn">Back to start</button>
+    </div>
+  </div>
+</footer>
 
 <script type="module" src="js/app.js"></script>
 </body>

@@ -18,9 +18,40 @@ const el = (id) => document.getElementById(id);
 let numericBuffer = '';
 let mcqSelected = null;
 
+const SCREEN_LABELS = {
+  start: 'Home',
+  question: 'Practice',
+  summary: 'Summary',
+  progress: 'Progress',
+};
+
+// Screens with growing content (badges, mastery bars, session history) must
+// never bury their primary nav button below the fold — those buttons live in
+// the fixed footer instead of scrolling with the screen. The question screen
+// has no page-level footer action; its Check/Next buttons stay inline since
+// they're contextual to the question card, not page navigation.
 export function showScreen(name) {
   document.querySelectorAll('.screen').forEach((s) => s.classList.remove('active'));
   el(`screen-${name}`).classList.add('active');
+
+  document.querySelectorAll('.footer-group').forEach((g) => g.classList.remove('active'));
+  const footerGroup = el(`footer-${name}`);
+  el('app-footer').hidden = !footerGroup;
+  if (footerGroup) footerGroup.classList.add('active');
+
+  const currentEl = el('breadcrumb-current');
+  if (name === 'start') {
+    currentEl.hidden = true;
+    currentEl.textContent = '';
+  } else {
+    currentEl.hidden = false;
+    currentEl.textContent = ` / ${SCREEN_LABELS[name] || name}`;
+  }
+}
+
+export function bindGlobalHandlers({ onHome }) {
+  el('home-btn').addEventListener('click', onHome);
+  el('breadcrumb-home').addEventListener('click', onHome);
 }
 
 export function updateHeader(plan, meta) {

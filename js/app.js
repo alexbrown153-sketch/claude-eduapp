@@ -132,4 +132,6 @@ ui.bindSummaryHandlers({
 
 ui.bindProgressHandlers({ onBack: goToStart });
 
+ui.bindGlobalHandlers({ onHome: goToStart });
+
 goToStart();
