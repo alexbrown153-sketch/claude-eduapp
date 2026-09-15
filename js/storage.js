@@ -45,6 +45,7 @@ function defaultShopState() {
       avatar: 'avatar-default',
       frame: 'frame-none',
       accessory: 'accessory-none',
+      mood: 'mood-none',
       avatarColor: 'avatarColor-default',
     },
   };
@@ -144,5 +145,14 @@ export const Storage = {
   },
   clearInProgress() {
     localStorage.removeItem(`${NS}:inprogress`);
+  },
+
+  // Permanently erases every piece of this app's data (Settings > Clear all
+  // progress) — mastery, sessions, badges, shop purchases, custom questions,
+  // everything — so the app starts completely fresh.
+  resetAll() {
+    Object.keys(localStorage)
+      .filter((k) => k.startsWith(`${NS}:`))
+      .forEach((k) => localStorage.removeItem(k));
   },
 };

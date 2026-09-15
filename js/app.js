@@ -120,6 +120,16 @@ function onCityChange(city) {
   refreshWeather();
 }
 
+function handleClearProgress() {
+  const sure = window.confirm(
+    'This will permanently erase all progress, points, badges, purchases, and settings. This cannot be undone. Are you sure?',
+  );
+  if (!sure) return;
+  Storage.resetAll();
+  applyCosmetics(Storage.getShopState());
+  goToStart();
+}
+
 function handleCustomQuestionsFile(file) {
   const reader = new FileReader();
   reader.onload = () => {
@@ -252,9 +262,14 @@ ui.bindStartHandlers({
   onResume: resumeSession,
 });
 
-ui.bindSettingsHandlers({ onNameChange, onCityChange, onBack: goToStart });
+ui.bindSettingsHandlers({
+  onNameChange,
+  onCityChange,
+  onBack: goToStart,
+  onClearProgress: handleClearProgress,
+});
 
-ui.bindQuestionHandlers({ onCheck, onNext });
+ui.bindQuestionHandlers({ onCheck, onNext, onExit: goToStart });
 
 ui.bindSummaryHandlers({ onRestart: goToStart });
 

@@ -10,9 +10,8 @@
 
 <header class="app-header">
   <div class="header-top">
-    <span class="app-title">Sprint</span>
-    <span id="header-countdown" class="header-countdown"></span>
     <span id="header-avatar" class="header-avatar"></span>
+    <span id="header-countdown" class="header-countdown"></span>
     <div id="header-badges" class="header-badges" hidden></div>
     <span id="header-points" class="header-points"></span>
     <button id="nav-settings-btn" class="settings-btn" aria-label="Settings" title="Settings">&#9881;&#65039;</button>
@@ -79,6 +78,7 @@
   <!-- QUESTION SCREEN -->
   <section id="screen-question" class="screen">
     <div class="session-hud">
+      <button id="hud-exit-btn" class="hud-exit-btn" title="Exit to Home">&#10005; Exit</button>
       <span id="hud-avatar" class="hud-avatar"></span>
       <span id="hud-progress"></span>
       <span id="hud-score"></span>
@@ -113,13 +113,15 @@
 
       <div id="answer-mcq" class="answer-area mcq-grid" hidden></div>
 
-      <button id="check-btn" class="primary-btn">Check answer</button>
-    </div>
+      <div class="action-slot">
+        <button id="check-btn" class="primary-btn">Check answer</button>
+        <button id="next-btn" class="primary-btn" hidden>Next question</button>
+      </div>
 
-    <div id="feedback-panel" class="feedback-panel" hidden>
-      <p id="feedback-result" class="feedback-result"></p>
-      <p id="feedback-explanation" class="feedback-explanation"></p>
-      <button id="next-btn" class="primary-btn">Next question</button>
+      <div id="feedback-inline" class="feedback-inline" hidden>
+        <p id="feedback-result" class="feedback-result"></p>
+        <p id="feedback-explanation" class="feedback-explanation"></p>
+      </div>
     </div>
   </section>
 
@@ -140,8 +142,7 @@
     <div id="mastery-bars" class="mastery-bars"></div>
 
     <h3 class="section-subheading">Strengths &amp; weaknesses</h3>
-    <p class="heatmap-hint">Accuracy by topic and difficulty tier (T1 easiest &mdash; T5 hardest)</p>
-    <div class="heatmap-wrap" id="heatmap-wrap"></div>
+    <div id="strength-overview" class="strength-overview"></div>
 
     <h3 class="section-subheading">Badges</h3>
     <div id="badges-grid" class="badges-grid"></div>
@@ -185,6 +186,10 @@
       <input id="weather-city-input" class="name-input" type="text" placeholder="e.g. London" maxlength="40" autocomplete="off" />
     </div>
     <p class="weather-hint">Looks up today's weather for this city using a free weather service &mdash; needs an internet connection.</p>
+
+    <h3 class="section-subheading danger-heading">Danger zone</h3>
+    <p class="danger-hint">Permanently erases all progress, points, badges, purchases and settings, and starts fresh.</p>
+    <button id="clear-progress-btn" class="danger-btn">Clear all progress</button>
   </section>
 
 </div>
@@ -196,19 +201,19 @@
   <div class="footer-inner">
     <div id="footer-start" class="footer-group">
       <button id="start-btn" class="primary-btn">Start session</button>
-      <button id="resume-btn" class="secondary-btn" hidden>Resume unfinished session</button>
+      <button id="resume-btn" class="link-btn" hidden>Resume your unfinished session</button>
     </div>
     <div id="footer-summary" class="footer-group">
       <button id="summary-restart-btn" class="primary-btn">Practice again</button>
     </div>
     <div id="footer-progress" class="footer-group">
-      <button id="progress-back-btn" class="secondary-btn">Back to start</button>
+      <button id="progress-back-btn" class="secondary-btn">Home</button>
     </div>
     <div id="footer-shop" class="footer-group">
-      <button id="shop-back-btn" class="secondary-btn">Back to start</button>
+      <button id="shop-back-btn" class="secondary-btn">Home</button>
     </div>
     <div id="footer-settings" class="footer-group">
-      <button id="settings-back-btn" class="secondary-btn">Back to start</button>
+      <button id="settings-back-btn" class="secondary-btn">Home</button>
     </div>
   </div>
 </footer>

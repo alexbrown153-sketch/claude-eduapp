@@ -38,3 +38,14 @@ Future roadmap ideas
 35. Let's upgrade the avatar to be more character based. Also give more options over customising this character in the shop.
 36. Remove the "Sprint" icon/wording from the top bar. Replace with the avatar
 37. All buttons than return the user to the home page should be called "Home"
+
+done to here
+38. Make the scroll indicator buttons active so that clicking on them actually scrolls the screen.
+39. Make the scroll indicator icon larger
+40. Put some space between the joke and weather section and the main section. Make the joke and weather section a little wider.
+41. Remove the avatar from the question session.
+42. Add an animation reward for starting a streak.
+43. Delete the days to go indicator from the top bar.
+44. Add days to go into the "daily practice" section of the home page.
+45. On the home page, move the strongest and weakest areas into the "Daily practice" section
+46. 

@@ -64,12 +64,6 @@ button {
   padding: 14px 20px 8px;
 }
 
-.app-title {
-  font-size: 1.3rem;
-  font-weight: 800;
-  color: var(--primary-dark);
-}
-
 .header-countdown {
   font-size: 0.9rem;
   color: var(--ink-soft);
@@ -333,6 +327,15 @@ button {
   border-radius: 999px;
   padding: 4px 12px;
 }
+.hud-exit-btn {
+  background: var(--bad-bg);
+  color: var(--bad);
+  border: 1px solid var(--bad);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
 
 .question-card {
   background: var(--surface);
@@ -399,27 +402,54 @@ button {
 }
 .mcq-grid .choice-btn { min-height: 64px; font-size: 1.2rem; }
 
-.feedback-panel {
+/* Check-answer/Next-question share one fixed slot (see index.html) so the
+   button never moves between answering and advancing. */
+.action-slot { position: relative; }
+
+.feedback-inline {
   margin-top: 18px;
   border-radius: var(--radius);
   padding: 20px;
 }
-.feedback-panel.correct { background: var(--good-bg); }
-.feedback-panel.incorrect { background: var(--bad-bg); }
+.feedback-inline.correct { background: var(--good-bg); }
+.feedback-inline.incorrect { background: var(--bad-bg); }
 
 .feedback-result {
   font-size: 1.2rem;
   font-weight: 800;
   margin: 0 0 10px;
 }
-.feedback-panel.correct .feedback-result { color: var(--good); }
-.feedback-panel.incorrect .feedback-result { color: var(--bad); }
+.feedback-inline.correct .feedback-result { color: var(--good); }
+.feedback-inline.incorrect .feedback-result { color: var(--bad); }
 
 .feedback-explanation {
   font-size: 1rem;
   line-height: 1.5;
   color: var(--ink);
   margin: 0;
+}
+
+/* A small celebratory particle burst on a correct answer. */
+.correct-burst {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.burst-particle {
+  position: absolute;
+  left: 0;
+  top: 0;
+  font-size: 1.4rem;
+  opacity: 0;
+  animation: burst-fly 0.9s ease-out forwards;
+}
+@keyframes burst-fly {
+  0% { opacity: 1; transform: translate(-50%, 0) scale(0.6); }
+  30% { opacity: 1; transform: translate(calc(-50% + var(--dx)), -30px) scale(1.1); }
+  100% { opacity: 0; transform: translate(calc(-50% + var(--dx)), -70px) scale(1); }
 }
 
 /* Summary screen */
@@ -521,6 +551,22 @@ button {
   grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
   gap: 10px;
 }
+.badge-card-reveal {
+  position: relative;
+  overflow: visible;
+  animation: badge-pop 0.5s ease-out backwards;
+}
+.badge-sparkle {
+  position: absolute;
+  top: -8px;
+  right: -4px;
+  font-size: 1.1rem;
+  animation: sparkle-twinkle 1.4s ease-in-out infinite;
+}
+@keyframes sparkle-twinkle {
+  0%, 100% { opacity: 0.3; transform: scale(0.8) rotate(0deg); }
+  50% { opacity: 1; transform: scale(1.15) rotate(15deg); }
+}
 
 .session-history { display: flex; flex-direction: column; gap: 8px; }
 .session-history-row {
@@ -599,6 +645,30 @@ button {
   margin: 6px 0 0;
   line-height: 1.4;
 }
+
+/* ---------- Settings: danger zone ---------- */
+.danger-heading { color: var(--bad); }
+.danger-hint {
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+  margin: 0 0 10px;
+  line-height: 1.4;
+}
+.danger-btn {
+  display: block;
+  width: fit-content;
+  min-width: 200px;
+  margin: 0 auto;
+  min-height: 52px;
+  background: var(--bad-bg);
+  color: var(--bad);
+  border: 2px solid var(--bad);
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 700;
+  padding: 10px 20px;
+}
+.danger-btn:active { background: var(--bad); color: #fff; }
 
 /* ---------- Joke of the day ---------- */
 .joke-of-day {
@@ -741,6 +811,13 @@ button {
   font-size: 0.6em;
   line-height: 1;
 }
+.avatar-mood {
+  position: absolute;
+  bottom: -6px;
+  left: -6px;
+  font-size: 0.6em;
+  line-height: 1;
+}
 
 .summary-avatar {
   position: relative;
@@ -750,38 +827,35 @@ button {
   margin-bottom: 4px;
 }
 .summary-avatar .avatar-accessory { font-size: 0.5em; top: 0; right: 30%; }
+.summary-avatar .avatar-mood { font-size: 0.5em; bottom: 0; left: 30%; }
 
-/* ---------- Heatmap ---------- */
-.heatmap-hint {
-  font-size: 0.8rem;
-  color: var(--ink-soft);
-  margin: 0 0 8px;
+/* ---------- Strength overview (simple strong/weak list) ---------- */
+.strength-overview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
-.heatmap-wrap { overflow-x: auto; }
-.heatmap-table {
-  width: 100%;
-  min-width: 420px;
-  border-collapse: collapse;
-  font-size: 0.8rem;
-}
-.heatmap-table th,
-.heatmap-table td {
-  padding: 8px 6px;
-  text-align: center;
+.strength-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  border-radius: 10px;
   border: 1px solid var(--border);
 }
-.heatmap-table thead th {
-  color: var(--ink-soft);
-  font-weight: 600;
-  background: var(--surface);
+.strength-topic { font-weight: 600; font-size: 0.92rem; }
+.strength-tag {
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
 }
-.heatmap-table tbody th {
-  text-align: left;
-  font-weight: 600;
-  background: var(--surface);
-  white-space: nowrap;
-}
-.heat-empty { color: var(--border); background: var(--bg); }
+.strength-strong { background: var(--good-bg); }
+.strength-strong .strength-tag { background: var(--good); color: #fff; }
+.strength-medium { background: var(--chip-bg); }
+.strength-medium .strength-tag { background: var(--primary); color: #fff; }
+.strength-weak { background: var(--bad-bg); }
+.strength-weak .strength-tag { background: var(--bad); color: #fff; }
 
 /* ---------- Custom questions ---------- */
 .custom-questions-panel { display: flex; flex-direction: column; }

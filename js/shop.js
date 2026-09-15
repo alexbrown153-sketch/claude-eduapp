@@ -15,7 +15,9 @@ export const SHOP_ITEMS = [
   { id: 'font-rounded', category: 'font', label: 'Bubbly', cost: 100 },
   { id: 'font-mono', category: 'font', label: 'Robot Mode', cost: 100 },
 
-  // Avatars — shown in the header and on the summary screen.
+  // Avatars — shown in the header and on the summary screen. A mix of
+  // animals and more "character" (humanoid/fantasy) options, per SPEC's
+  // character-based avatar upgrade.
   { id: 'avatar-default', category: 'avatar', label: 'Smile', cost: 0, emoji: '🙂' },
   { id: 'avatar-cat', category: 'avatar', label: 'Cat', cost: 60, emoji: '🐱' },
   { id: 'avatar-dog', category: 'avatar', label: 'Dog', cost: 60, emoji: '🐶' },
@@ -25,10 +27,28 @@ export const SHOP_ITEMS = [
   { id: 'avatar-star', category: 'avatar', label: 'Star', cost: 80, emoji: '🌟' },
   { id: 'avatar-octopus', category: 'avatar', label: 'Octopus', cost: 90, emoji: '🐙' },
   { id: 'avatar-lion', category: 'avatar', label: 'Lion', cost: 100, emoji: '🦁' },
+  { id: 'avatar-ninja', category: 'avatar', label: 'Ninja', cost: 150, emoji: '🥷' },
+  { id: 'avatar-superhero', category: 'avatar', label: 'Superhero', cost: 150, emoji: '🦸' },
+  { id: 'avatar-wizard', category: 'avatar', label: 'Wizard', cost: 150, emoji: '🧙' },
   { id: 'avatar-robot', category: 'avatar', label: 'Robot', cost: 120, emoji: '🤖' },
   { id: 'avatar-rocket', category: 'avatar', label: 'Rocket', cost: 120, emoji: '🚀' },
+  { id: 'avatar-astronaut', category: 'avatar', label: 'Astronaut', cost: 180, emoji: '🧑‍🚀' },
+  { id: 'avatar-mermaid', category: 'avatar', label: 'Mermaid', cost: 180, emoji: '🧜' },
+  { id: 'avatar-vampire', category: 'avatar', label: 'Vampire', cost: 200, emoji: '🧛' },
+  { id: 'avatar-fairy', category: 'avatar', label: 'Fairy', cost: 200, emoji: '🧚' },
+  { id: 'avatar-genie', category: 'avatar', label: 'Genie', cost: 220, emoji: '🧞' },
   { id: 'avatar-unicorn', category: 'avatar', label: 'Unicorn', cost: 150, emoji: '🦄' },
+  { id: 'avatar-alien', category: 'avatar', label: 'Alien', cost: 300, emoji: '👽' },
   { id: 'avatar-dragon', category: 'avatar', label: 'Dragon', cost: 1500, emoji: '🐉' },
+
+  // Moods — a second, independent small emoji badge (opposite corner from
+  // accessories), so the character can be customised two ways at once.
+  { id: 'mood-none', category: 'mood', label: 'No mood', cost: 0 },
+  { id: 'mood-sparkles', category: 'mood', label: 'Sparkles', cost: 150, emoji: '✨' },
+  { id: 'mood-fire', category: 'mood', label: 'On fire', cost: 150, emoji: '🔥' },
+  { id: 'mood-heart', category: 'mood', label: 'Loving it', cost: 150, emoji: '💖' },
+  { id: 'mood-sleepy', category: 'mood', label: 'Sleepy', cost: 120, emoji: '💤' },
+  { id: 'mood-strong', category: 'mood', label: 'Strong', cost: 150, emoji: '💪' },
 
   // Frames — a ring drawn around the avatar via CSS.
   { id: 'frame-none', category: 'frame', label: 'No frame', cost: 0 },
@@ -55,9 +75,10 @@ export const SHOP_ITEMS = [
 export const SHOP_CATEGORIES = [
   { key: 'theme', label: 'Colour theme' },
   { key: 'font', label: 'Font' },
-  { key: 'avatar', label: 'Avatar' },
+  { key: 'avatar', label: 'Character' },
   { key: 'avatarColor', label: 'Avatar colour' },
   { key: 'accessory', label: 'Avatar accessory' },
+  { key: 'mood', label: 'Avatar mood' },
   { key: 'frame', label: 'Avatar frame' },
 ];
 

@@ -86,12 +86,15 @@ function renderAvatar(target, shopState) {
   const avatarItem = getItem(shopState.equipped.avatar) || getItem('avatar-default');
   const frameId = shopState.equipped.frame || 'frame-none';
   const accessoryItem = getItem(shopState.equipped.accessory);
+  const moodItem = getItem(shopState.equipped.mood);
   const colorItem = getItem(shopState.equipped.avatarColor);
   target.dataset.frame = frameId;
   target.style.backgroundColor = colorItem && colorItem.swatch ? colorItem.swatch : '';
   const accessoryHtml = accessoryItem && accessoryItem.emoji
     ? `<span class="avatar-accessory">${accessoryItem.emoji}</span>` : '';
-  target.innerHTML = `<span class="avatar-emoji">${avatarItem.emoji}</span>${accessoryHtml}`;
+  const moodHtml = moodItem && moodItem.emoji
+    ? `<span class="avatar-mood">${moodItem.emoji}</span>` : '';
+  target.innerHTML = `<span class="avatar-emoji">${avatarItem.emoji}</span>${accessoryHtml}${moodHtml}`;
 }
 
 // ---------- Start screen ----------
@@ -225,7 +228,7 @@ export function renderSettings(meta) {
   el('weather-city-input').value = meta.weatherCity || '';
 }
 
-export function bindSettingsHandlers({ onNameChange, onCityChange, onBack }) {
+export function bindSettingsHandlers({ onNameChange, onCityChange, onBack, onClearProgress }) {
   el('child-name-input').addEventListener('change', () => {
     onNameChange(el('child-name-input').value.trim().slice(0, 20));
   });
@@ -233,6 +236,7 @@ export function bindSettingsHandlers({ onNameChange, onCityChange, onBack }) {
     onCityChange(el('weather-city-input').value.trim().slice(0, 40));
   });
   el('settings-back-btn').addEventListener('click', onBack);
+  el('clear-progress-btn').addEventListener('click', onClearProgress);
 }
 
 // state: 'no-city' | 'loading' | { error } | { placeName, tempC, icon, label }
@@ -277,9 +281,10 @@ export function updateTimer(remainingMs) {
 }
 
 export function renderQuestion(question) {
-  el('feedback-panel').hidden = true;
+  el('feedback-inline').hidden = true;
   el('check-btn').hidden = false;
   el('check-btn').disabled = false;
+  el('next-btn').hidden = true;
 
   el('question-prompt').textContent = question.prompt;
 
@@ -320,7 +325,7 @@ export function getCurrentAnswer(answerType) {
   return el('text-input').value;
 }
 
-export function bindQuestionHandlers({ onCheck, onNext }) {
+export function bindQuestionHandlers({ onCheck, onNext, onExit }) {
   document.querySelectorAll('.key').forEach((key) => {
     key.addEventListener('click', () => {
       const k = key.dataset.key;
@@ -336,16 +341,39 @@ export function bindQuestionHandlers({ onCheck, onNext }) {
   });
   el('check-btn').addEventListener('click', onCheck);
   el('next-btn').addEventListener('click', onNext);
+  el('hud-exit-btn').addEventListener('click', onExit);
 }
 
+// Check-answer and Next-question occupy the exact same slot (one hidden,
+// one shown at a time) so a second tap lands in the same place with no
+// cursor/finger travel between answering and advancing.
 export function renderFeedback(correct, explanation, correctAnswer) {
   el('check-btn').hidden = true;
-  const panel = el('feedback-panel');
+  el('next-btn').hidden = false;
+  const panel = el('feedback-inline');
   panel.hidden = false;
   panel.classList.toggle('correct', correct);
   panel.classList.toggle('incorrect', !correct);
   el('feedback-result').textContent = correct ? 'Correct! 🎉' : `Not quite — the answer was ${correctAnswer}`;
   el('feedback-explanation').textContent = explanation;
+
+  if (correct) triggerCorrectBurst();
+}
+
+// A small celebratory particle burst on a correct answer — purely CSS
+// keyframes (see .correct-burst / .burst-particle), no animation library.
+function triggerCorrectBurst() {
+  const card = document.querySelector('.question-card');
+  const old = card.querySelector('.correct-burst');
+  if (old) old.remove();
+  const burst = document.createElement('div');
+  burst.className = 'correct-burst';
+  const particles = ['⭐', '✨', '🎉', '✨', '⭐'];
+  burst.innerHTML = particles
+    .map((p, i) => `<span class="burst-particle" style="--dx:${(i - 2) * 26}px; animation-delay:${i * 40}ms">${p}</span>`)
+    .join('');
+  card.appendChild(burst);
+  setTimeout(() => burst.remove(), 1200);
 }
 
 // ---------- Summary screen ----------
@@ -376,8 +404,9 @@ export function renderSummary(entry, newlyEarnedBadges = [], meta = {}, shopStat
     badgeEl.innerHTML = `
       <p class="new-badges-title">New badge${newlyEarnedBadges.length > 1 ? 's' : ''} unlocked!</p>
       <div class="new-badges-row">
-        ${newlyEarnedBadges.map((b) => `
-          <div class="badge-card earned">
+        ${newlyEarnedBadges.map((b, i) => `
+          <div class="badge-card earned badge-card-reveal" style="animation-delay:${i * 150}ms">
+            <span class="badge-sparkle">✨</span>
             <div class="badge-icon">${b.icon}</div>
             <div class="badge-label">${b.label}</div>
           </div>
@@ -410,38 +439,23 @@ function renderSparkline(history) {
   return `<svg class="sparkline" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}"><polyline points="${coords}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>`;
 }
 
-// Accuracy by topic x difficulty tier, aggregated across all logged
-// sessions — a finer-grained "strengths & weaknesses" view than the
-// per-topic mastery bars alone (SPEC.md §7).
-function renderHeatmap(sessions, topics) {
-  const grid = {};
-  topics.forEach((t) => {
-    grid[t] = { 1: { c: 0, n: 0 }, 2: { c: 0, n: 0 }, 3: { c: 0, n: 0 }, 4: { c: 0, n: 0 }, 5: { c: 0, n: 0 } };
-  });
-  sessions.forEach((s) => s.questions.forEach((q) => {
-    const cell = grid[q.topic] && grid[q.topic][q.difficulty];
-    if (!cell) return;
-    cell.n += 1;
-    if (q.correct) cell.c += 1;
-  }));
-
-  let html = '<table class="heatmap-table"><thead><tr><th>Topic</th><th>T1</th><th>T2</th><th>T3</th><th>T4</th><th>T5</th></tr></thead><tbody>';
-  topics.forEach((t) => {
-    html += `<tr><th>${TOPIC_LABELS[t] || t}</th>`;
-    for (let tier = 1; tier <= 5; tier += 1) {
-      const cell = grid[t][tier];
-      if (cell.n === 0) {
-        html += '<td class="heat-empty">–</td>';
-      } else {
-        const acc = cell.c / cell.n;
-        const hue = Math.round(acc * 120);
-        html += `<td style="background:hsl(${hue},70%,88%)" title="${cell.c}/${cell.n} correct">${Math.round(acc * 100)}%</td>`;
-      }
-    }
-    html += '</tr>';
-  });
-  html += '</tbody></table>';
-  el('heatmap-wrap').innerHTML = html;
+// A simple strong/weak-at-a-glance list, sorted best to worst — replaces an
+// earlier, more detailed topic x tier heatmap that was more than needed here
+// (the per-topic mastery bars above already give the detailed view).
+function renderStrengthOverview(mastery, topics) {
+  const sorted = [...topics].sort((a, b) => mastery[b].masteryScore - mastery[a].masteryScore);
+  const rows = sorted.map((t) => {
+    const pct = Math.round(mastery[t].masteryScore * 100);
+    const level = pct >= 70 ? 'strong' : pct >= 40 ? 'medium' : 'weak';
+    const label = pct >= 70 ? 'Strong' : pct >= 40 ? 'Developing' : 'Needs work';
+    return `
+      <div class="strength-row strength-${level}">
+        <span class="strength-topic">${TOPIC_LABELS[t] || t}</span>
+        <span class="strength-tag">${label}</span>
+      </div>
+    `;
+  }).join('');
+  el('strength-overview').innerHTML = rows;
 }
 
 export function renderProgress(mastery, meta, sessions, badgeDefinitions = [], earnedBadgeIds = []) {
@@ -449,7 +463,7 @@ export function renderProgress(mastery, meta, sessions, badgeDefinitions = [], e
     ? `🔥 ${meta.currentStreakDays} day streak — total ⭐ ${meta.totalPoints || 0} points`
     : `Total ⭐ ${meta.totalPoints || 0} points — start today's streak!`;
 
-  renderHeatmap(sessions, Object.keys(mastery));
+  renderStrengthOverview(mastery, Object.keys(mastery));
 
   const barsEl = el('mastery-bars');
   barsEl.innerHTML = '';
@@ -546,7 +560,7 @@ export function renderShop(shopState, meta) {
       let preview = '';
       if (item.category === 'theme' || item.category === 'avatarColor') preview = `<div class="shop-item-swatch" style="background:${item.swatch}"></div>`;
       else if (item.category === 'avatar') preview = `<div class="shop-item-emoji">${item.emoji}</div>`;
-      else if (item.category === 'accessory') preview = `<div class="shop-item-emoji">${item.emoji || '—'}</div>`;
+      else if (item.category === 'accessory' || item.category === 'mood') preview = `<div class="shop-item-emoji">${item.emoji || '—'}</div>`;
       else if (item.category === 'font') preview = `<div class="shop-item-font-sample" style="font-family:${item.id === 'font-rounded' ? '\'Comic Sans MS\', cursive' : item.id === 'font-mono' ? 'monospace' : 'inherit'}">Aa</div>`;
       else if (item.category === 'frame') preview = `<div class="shop-item-frame-sample frame-${item.id}"></div>`;
 
