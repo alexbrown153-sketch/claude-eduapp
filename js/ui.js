@@ -3,7 +3,7 @@
 
 import { PHASE_LABELS } from './pacing.js';
 
-const TOPIC_LABELS = {
+export const TOPIC_LABELS = {
   arithmetic: 'Arithmetic',
   fdp: 'Fractions / %',
   geometry: 'Geometry',
@@ -186,7 +186,7 @@ export function renderFeedback(correct, explanation, correctAnswer) {
 
 // ---------- Summary screen ----------
 
-export function renderSummary(entry) {
+export function renderSummary(entry, newlyEarnedBadges = []) {
   const { summary } = entry;
   const accuracyPct = Math.round(summary.accuracy * 100);
   const avgSec = Math.round(summary.avgTimeMs / 1000);
@@ -200,6 +200,24 @@ export function renderSummary(entry) {
     <div class="summary-row"><span class="label">Points earned</span><span class="value">⭐ ${summary.pointsEarned}</span></div>
     <div class="summary-row"><span class="label">Best streak</span><span class="value">🔥 ${summary.bestStreak}</span></div>
   `;
+
+  const badgeEl = el('new-badges');
+  if (newlyEarnedBadges.length === 0) {
+    badgeEl.hidden = true;
+  } else {
+    badgeEl.hidden = false;
+    badgeEl.innerHTML = `
+      <p class="new-badges-title">New badge${newlyEarnedBadges.length > 1 ? 's' : ''} unlocked!</p>
+      <div class="new-badges-row">
+        ${newlyEarnedBadges.map((b) => `
+          <div class="badge-card earned">
+            <div class="badge-icon">${b.icon}</div>
+            <div class="badge-label">${b.label}</div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
 }
 
 export function bindSummaryHandlers({ onRestart, onGotoProgress }) {
@@ -209,7 +227,24 @@ export function bindSummaryHandlers({ onRestart, onGotoProgress }) {
 
 // ---------- Progress screen ----------
 
-export function renderProgress(mastery, meta, sessions) {
+// A trend sparkline of recent mastery-score history — hand-rolled inline SVG,
+// no charting library needed at this scale (SPEC.md §7).
+function renderSparkline(history) {
+  if (!history || history.length < 2) return '';
+  const points = history.slice(-20);
+  const w = 72;
+  const h = 24;
+  const pad = 2;
+  const xStep = (w - pad * 2) / (points.length - 1);
+  const coords = points.map((p, i) => {
+    const x = pad + i * xStep;
+    const y = pad + (1 - p.masteryScore) * (h - pad * 2);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  return `<svg class="sparkline" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}"><polyline points="${coords}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>`;
+}
+
+export function renderProgress(mastery, meta, sessions, badgeDefinitions = [], earnedBadgeIds = []) {
   el('streak-banner').textContent = meta.currentStreakDays > 0
     ? `🔥 ${meta.currentStreakDays} day streak — total ⭐ ${meta.totalPoints || 0} points`
     : `Total ⭐ ${meta.totalPoints || 0} points — start today's streak!`;
@@ -223,9 +258,26 @@ export function renderProgress(mastery, meta, sessions) {
     row.className = 'mastery-row';
     row.innerHTML = `
       <div class="mastery-label"><span>${TOPIC_LABELS[topic] || topic}</span><span>${pct}%</span></div>
-      <div class="mastery-track"><div class="mastery-fill" style="width:${pct}%"></div></div>
+      <div class="mastery-row-bottom">
+        <div class="mastery-track"><div class="mastery-fill" style="width:${pct}%"></div></div>
+        ${renderSparkline(rec.history)}
+      </div>
     `;
     barsEl.appendChild(row);
+  });
+
+  const badgesEl = el('badges-grid');
+  badgesEl.innerHTML = '';
+  badgeDefinitions.forEach((b) => {
+    const earned = earnedBadgeIds.includes(b.id);
+    const card = document.createElement('div');
+    card.className = `badge-card ${earned ? 'earned' : 'locked'}`;
+    card.innerHTML = `
+      <div class="badge-icon">${earned ? b.icon : '🔒'}</div>
+      <div class="badge-label">${b.label}</div>
+      <div class="badge-desc">${b.description}</div>
+    `;
+    badgesEl.appendChild(card);
   });
 
   const historyEl = el('session-history');

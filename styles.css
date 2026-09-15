@@ -307,7 +307,13 @@ button {
   font-weight: 600;
   margin-bottom: 4px;
 }
+.mastery-row-bottom {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 .mastery-track {
+  flex: 1;
   height: 14px;
   background: var(--chip-bg);
   border-radius: 999px;
@@ -317,6 +323,45 @@ button {
   height: 100%;
   background: var(--primary);
   border-radius: 999px;
+}
+.sparkline {
+  flex-shrink: 0;
+  color: var(--primary);
+}
+
+.badges-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+.badge-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  text-align: center;
+}
+.badge-card.locked { opacity: 0.5; }
+.badge-icon { font-size: 1.8rem; }
+.badge-label { font-weight: 700; font-size: 0.88rem; margin-top: 4px; }
+.badge-desc { font-size: 0.78rem; color: var(--ink-soft); margin-top: 2px; }
+
+.new-badges {
+  margin-top: 16px;
+  background: var(--chip-bg);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+.new-badges-title {
+  font-weight: 700;
+  color: var(--primary-dark);
+  margin: 0 0 10px;
+  text-align: center;
+}
+.new-badges-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 10px;
 }
 
 .session-history { display: flex; flex-direction: column; gap: 8px; }

@@ -5,7 +5,10 @@
 import { Storage, TOPICS } from './storage.js';
 import { computeTodaysPlan } from './pacing.js';
 import { startSession, pickNextQuestion, recordAnswer, isSessionComplete, finishSession } from './session.js';
+import { getBadgeDefinitions, evaluateBadges } from './badges.js';
 import * as ui from './ui.js';
+
+const BADGE_DEFINITIONS = getBadgeDefinitions(TOPICS, ui.TOPIC_LABELS);
 
 const state = {
   meta: null,
@@ -34,7 +37,7 @@ function goToStart() {
 function goToProgress() {
   const mastery = Storage.getMastery();
   const meta = Storage.getMeta();
-  ui.renderProgress(mastery, meta, Storage.getSessions());
+  ui.renderProgress(mastery, meta, Storage.getSessions(), BADGE_DEFINITIONS, Storage.getBadges());
   ui.showScreen('progress');
 }
 
@@ -96,8 +99,14 @@ function onNext() {
     stopTimer();
     const { entry, meta } = finishSession(state.session, state.meta);
     state.meta = meta;
+
+    const badgeCtx = { meta: state.meta, mastery: state.mastery, sessionCount: Storage.getSessions().length };
+    const { earnedIds, newlyEarnedIds } = evaluateBadges(BADGE_DEFINITIONS, badgeCtx, Storage.getBadges());
+    Storage.setBadges(earnedIds);
+    const newlyEarnedBadges = BADGE_DEFINITIONS.filter((b) => newlyEarnedIds.includes(b.id));
+
     ui.updateHeader(state.plan, state.meta);
-    ui.renderSummary(entry);
+    ui.renderSummary(entry, newlyEarnedBadges);
     ui.showScreen('summary');
   } else {
     nextQuestion();

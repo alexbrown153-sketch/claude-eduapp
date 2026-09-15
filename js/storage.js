@@ -81,6 +81,13 @@ export const Storage = {
     writeJSON(`${NS}:sessions`, sessions);
   },
 
+  getBadges() {
+    return readJSON(`${NS}:badges`, []);
+  },
+  setBadges(ids) {
+    writeJSON(`${NS}:badges`, ids);
+  },
+
   getInProgress() {
     return readJSON(`${NS}:inprogress`, null);
   },
