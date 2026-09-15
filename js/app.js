@@ -6,14 +6,22 @@ import { Storage, TOPICS } from './storage.js';
 import { computeTodaysPlan } from './pacing.js';
 import { startSession, pickNextQuestion, recordAnswer, isSessionComplete, finishSession } from './session.js';
 import { getBadgeDefinitions, evaluateBadges } from './badges.js';
+import { parseAndValidate } from './customQuestions.js';
+import { parsePdfQuestions } from './pdfQuestions.js';
+import { getItem, isOwned, availableBalance } from './shop.js';
 import * as ui from './ui.js';
 
 const BADGE_DEFINITIONS = getBadgeDefinitions(TOPICS, ui.TOPIC_LABELS);
+
+if (window.pdfjsLib) {
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
 
 const state = {
   meta: null,
   mastery: null,
   plan: null,
+  shopState: null,
   session: null,
   currentQuestion: null,
   questionStartTime: null,
@@ -24,13 +32,29 @@ function loadState() {
   state.meta = Storage.getMeta();
   state.mastery = Storage.getMastery();
   state.plan = computeTodaysPlan(new Date(), state.meta, state.mastery, TOPICS);
+  state.shopState = Storage.getShopState();
+}
+
+// Earned badges, hardest-first, for the always-visible header strip.
+function getEarnedBadgesSorted() {
+  const earnedIds = Storage.getBadges();
+  return BADGE_DEFINITIONS
+    .filter((b) => earnedIds.includes(b.id))
+    .sort((a, b) => b.difficulty - a.difficulty);
+}
+
+// Cosmetic shop purchases (theme colours, font) apply globally via data
+// attributes on <body> — see the [data-theme]/[data-font] rules in styles.css.
+function applyCosmetics(shopState) {
+  document.body.dataset.theme = shopState.equipped.theme;
+  document.body.dataset.font = shopState.equipped.font;
 }
 
 function goToStart() {
   stopTimer();
   loadState();
-  ui.updateHeader(state.plan, state.meta);
-  ui.renderStart(state.plan, !!Storage.getInProgress());
+  ui.updateHeader(state.plan, state.meta, state.shopState, getEarnedBadgesSorted());
+  ui.renderStart(state.plan, state.mastery, state.meta, !!Storage.getInProgress());
   ui.showScreen('start');
 }
 
@@ -38,7 +62,71 @@ function goToProgress() {
   const mastery = Storage.getMastery();
   const meta = Storage.getMeta();
   ui.renderProgress(mastery, meta, Storage.getSessions(), BADGE_DEFINITIONS, Storage.getBadges());
+  ui.renderCustomQuestionsPanel(Storage.getCustomQuestions().length);
+  ui.renderCustomQuestionsErrors([]);
   ui.showScreen('progress');
+}
+
+function goToShop() {
+  ui.renderShop(Storage.getShopState(), Storage.getMeta());
+  ui.showScreen('shop');
+}
+
+function onNameChange(name) {
+  state.meta = { ...state.meta, childName: name };
+  Storage.setMeta(state.meta);
+  ui.renderStart(state.plan, state.mastery, state.meta, !!Storage.getInProgress());
+}
+
+function handleCustomQuestionsFile(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    const { valid, errors } = parseAndValidate(reader.result, TOPICS);
+    if (valid.length > 0) Storage.addCustomQuestions(valid);
+    ui.renderCustomQuestionsErrors(errors);
+    ui.renderCustomQuestionsPanel(Storage.getCustomQuestions().length);
+  };
+  reader.onerror = () => ui.renderCustomQuestionsErrors(['Could not read that file.']);
+  reader.readAsText(file);
+}
+
+function handleCustomQuestionsPdfFile(file) {
+  const reader = new FileReader();
+  reader.onload = async () => {
+    const { valid, errors } = await parsePdfQuestions(reader.result, TOPICS);
+    if (valid.length > 0) Storage.addCustomQuestions(valid);
+    ui.renderCustomQuestionsErrors(errors);
+    ui.renderCustomQuestionsPanel(Storage.getCustomQuestions().length);
+  };
+  reader.onerror = () => ui.renderCustomQuestionsErrors(['Could not read that file.']);
+  reader.readAsArrayBuffer(file);
+}
+
+function handleClearCustomQuestions() {
+  Storage.setCustomQuestions([]);
+  ui.renderCustomQuestionsPanel(0);
+  ui.renderCustomQuestionsErrors([]);
+}
+
+function handlePurchaseOrEquip(itemId) {
+  const item = getItem(itemId);
+  const shopState = Storage.getShopState();
+  const meta = Storage.getMeta();
+
+  if (!isOwned(itemId, shopState.ownedItemIds)) {
+    if (availableBalance(meta) < item.cost) return;
+    meta.spentPoints = (meta.spentPoints || 0) + item.cost;
+    shopState.ownedItemIds = [...shopState.ownedItemIds, itemId];
+    Storage.setMeta(meta);
+  }
+  shopState.equipped[item.category] = itemId;
+  Storage.setShopState(shopState);
+
+  state.meta = meta;
+  state.shopState = shopState;
+  applyCosmetics(shopState);
+  ui.updateHeader(state.plan, state.meta, shopState, getEarnedBadgesSorted());
+  ui.renderShop(shopState, state.meta);
 }
 
 function beginSession({ lengthType, lengthValue, topicFocus }) {
@@ -82,7 +170,7 @@ function stopTimer() {
 function nextQuestion() {
   state.currentQuestion = pickNextQuestion(state.session, state.mastery);
   state.questionStartTime = Date.now();
-  ui.renderHud(state.session, state.plan);
+  ui.renderHud(state.session, state.plan, state.shopState);
   ui.renderQuestion(state.currentQuestion);
 }
 
@@ -90,7 +178,7 @@ function onCheck() {
   const answer = ui.getCurrentAnswer(state.currentQuestion.answerType);
   const timeMs = Date.now() - state.questionStartTime;
   const { correct } = recordAnswer(state.session, state.mastery, state.currentQuestion, answer, timeMs);
-  ui.renderHud(state.session, state.plan);
+  ui.renderHud(state.session, state.plan, state.shopState);
   ui.renderFeedback(correct, state.currentQuestion.explanation, state.currentQuestion.correctAnswer);
 }
 
@@ -105,8 +193,8 @@ function onNext() {
     Storage.setBadges(earnedIds);
     const newlyEarnedBadges = BADGE_DEFINITIONS.filter((b) => newlyEarnedIds.includes(b.id));
 
-    ui.updateHeader(state.plan, state.meta);
-    ui.renderSummary(entry, newlyEarnedBadges);
+    ui.updateHeader(state.plan, state.meta, state.shopState, getEarnedBadgesSorted());
+    ui.renderSummary(entry, newlyEarnedBadges, state.meta, state.shopState);
     ui.showScreen('summary');
   } else {
     nextQuestion();
@@ -120,18 +208,25 @@ ui.bindStartHandlers({
     beginSession({ lengthType: length.type, lengthValue: length.value, topicFocus });
   },
   onResume: resumeSession,
-  onGotoProgress: goToProgress,
+  onNameChange,
 });
 
 ui.bindQuestionHandlers({ onCheck, onNext });
 
-ui.bindSummaryHandlers({
-  onRestart: goToStart,
-  onGotoProgress: goToProgress,
-});
+ui.bindSummaryHandlers({ onRestart: goToStart });
 
 ui.bindProgressHandlers({ onBack: goToStart });
 
-ui.bindGlobalHandlers({ onHome: goToStart });
+ui.bindCustomQuestionsHandlers({
+  onFileSelected: handleCustomQuestionsFile,
+  onPdfFileSelected: handleCustomQuestionsPdfFile,
+  onClear: handleClearCustomQuestions,
+});
 
+ui.bindShopHandlers({ onPurchaseOrEquip: handlePurchaseOrEquip, onBack: goToStart });
+
+ui.bindGlobalHandlers({ onHome: goToStart, onGotoProgress: goToProgress, onGotoShop: goToShop });
+
+applyCosmetics(Storage.getShopState());
+ui.initScrollIndicators();
 goToStart();

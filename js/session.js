@@ -29,7 +29,8 @@ export function pickNextQuestion(session, mastery) {
   const topic = session.topicFocus || weightedRandomPick(session.topicWeighting);
   const record = mastery[topic];
   const tier = selectDifficultyTier(record);
-  const q = getQuestion(topic, tier, session.usedWordProblemIds);
+  const customQuestions = Storage.getCustomQuestions();
+  const q = getQuestion(topic, tier, session.usedWordProblemIds, customQuestions);
   if (q.source === 'authored' && q.id) session.usedWordProblemIds.add(q.id);
   return q;
 }

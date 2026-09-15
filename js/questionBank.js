@@ -686,7 +686,16 @@ const GENERATORS = {
   dataHandling: genDataHandling,
 };
 
-export function getQuestion(topic, tier, usedWordProblemIds) {
+// customQuestions: user-uploaded questions (see customQuestions.js) matching
+// this exact topic+tier are mixed in some of the time, alongside the
+// procedural/authored bank, rather than replacing it outright.
+const CUSTOM_QUESTION_CHANCE = 0.4;
+
+export function getQuestion(topic, tier, usedWordProblemIds, customQuestions = []) {
+  const matchingCustom = customQuestions.filter((q) => q.topic === topic && q.difficulty === tier);
+  if (matchingCustom.length > 0 && Math.random() < CUSTOM_QUESTION_CHANCE) {
+    return { ...pick(matchingCustom), source: 'custom' };
+  }
   if (topic === 'wordProblems') {
     return getWordProblem(tier, usedWordProblemIds);
   }

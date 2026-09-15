@@ -7,3 +7,18 @@ Future roadmap ideas
 6. Add a custom session length where the user specifies how many questions or length of time they wish to have
 7. Allow user to cancel out of a test back onto the home page.
 8. On the home page under "daily practice" - give the user an indication of what their strengths and weaknesses are
+9. Make the avatar bigger and more visible.
+10. Have the avatar visible during the actual test.
+11. Make the active badges visible on the top bar, ordered by most difficult to attain.
+12. Move the scroll bars to full window width and use visual up and down indicators to show that the window can be scrolled
+13. Allow user to upload PDF documents containing sample question sets.
+14. When a user wins a new badge make this visibily known to them.
+15. Make better use of the horizontal screen space in presenting the screens.
+16. Add some more expensive items (varying up to 1500 points) to the shop; examples: modifications to the avatars like hats, sunglasses, different coloured avatars, 
+17. On the shop screen there is no button to return to home page
+18. Add a joke of the day on to the home page.
+19. Move the badges alongside the avatar on the top bar to reduce the screen space used by the top bar.
+20. Move the navigation to the Shop and View Progress onto the top bar via icons or similar.
+
+21. The two buttons "" and "" have no space between them.
+22. 

@@ -30,6 +30,22 @@ function defaultMeta() {
     currentStreakDays: 0,
     lastPracticeDate: null,
     totalPoints: 0,
+    spentPoints: 0,
+    childName: '',
+  };
+}
+
+function defaultShopState() {
+  return {
+    ownedItemIds: [],
+    equipped: {
+      theme: 'theme-default',
+      font: 'font-default',
+      avatar: 'avatar-default',
+      frame: 'frame-none',
+      accessory: 'accessory-none',
+      avatarColor: 'avatarColor-default',
+    },
   };
 }
 
@@ -86,6 +102,30 @@ export const Storage = {
   },
   setBadges(ids) {
     writeJSON(`${NS}:badges`, ids);
+  },
+
+  getCustomQuestions() {
+    return readJSON(`${NS}:customQuestions`, []);
+  },
+  setCustomQuestions(list) {
+    writeJSON(`${NS}:customQuestions`, list);
+  },
+  addCustomQuestions(newItems) {
+    const existing = Storage.getCustomQuestions();
+    writeJSON(`${NS}:customQuestions`, [...existing, ...newItems]);
+  },
+
+  getShopState() {
+    const stored = readJSON(`${NS}:shop`, null);
+    const merged = defaultShopState();
+    if (stored) {
+      merged.ownedItemIds = stored.ownedItemIds || [];
+      merged.equipped = { ...merged.equipped, ...(stored.equipped || {}) };
+    }
+    return merged;
+  },
+  setShopState(shopState) {
+    writeJSON(`${NS}:shop`, shopState);
   },
 
   getInProgress() {

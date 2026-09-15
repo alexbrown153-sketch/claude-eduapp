@@ -2,6 +2,8 @@
 // app.js decides what happens; this module only reads/writes the DOM.
 
 import { PHASE_LABELS } from './pacing.js';
+import { SHOP_CATEGORIES, itemsByCategory, getItem, isOwned, availableBalance } from './shop.js';
+import { getJokeOfTheDay } from './jokes.js';
 
 export const TOPIC_LABELS = {
   arithmetic: 'Arithmetic',
@@ -23,6 +25,7 @@ const SCREEN_LABELS = {
   question: 'Practice',
   summary: 'Summary',
   progress: 'Progress',
+  shop: 'Shop',
 };
 
 // Screens with growing content (badges, mastery bars, session history) must
@@ -49,16 +52,61 @@ export function showScreen(name) {
   }
 }
 
-export function bindGlobalHandlers({ onHome }) {
+export function bindGlobalHandlers({ onHome, onGotoProgress, onGotoShop }) {
   el('home-btn').addEventListener('click', onHome);
   el('breadcrumb-home').addEventListener('click', onHome);
+  el('nav-progress-btn').addEventListener('click', onGotoProgress);
+  el('nav-shop-btn').addEventListener('click', onGotoShop);
 }
 
-export function updateHeader(plan, meta) {
+// Shows a fading chevron at the top/bottom edge of the content area whenever
+// there's more to scroll to in that direction — content height varies a lot
+// between screens (a tall Progress page vs. a short Question card), so this
+// re-checks on scroll, on window resize, and whenever the content's own
+// height changes (e.g. badges/heatmap re-rendering while staying on-screen).
+export function initScrollIndicators() {
+  const scrollEl = el('app-scroll');
+  const update = () => {
+    const canUp = scrollEl.scrollTop > 4;
+    const canDown = scrollEl.scrollTop + scrollEl.clientHeight < scrollEl.scrollHeight - 4;
+    el('scroll-indicator-top').hidden = !canUp;
+    el('scroll-indicator-bottom').hidden = !canDown;
+  };
+  scrollEl.addEventListener('scroll', update);
+  window.addEventListener('resize', update);
+  new ResizeObserver(update).observe(el('app-inner'));
+  update();
+}
+
+export function updateHeader(plan, meta, shopState, earnedBadges = []) {
   el('header-countdown').textContent = plan.daysRemaining >= 0
     ? `${plan.daysRemaining} day${plan.daysRemaining === 1 ? '' : 's'} to go`
     : 'Exam day!';
-  el('header-points').textContent = `⭐ ${meta.totalPoints || 0}`;
+  el('header-points').textContent = `⭐ ${availableBalance(meta)}`;
+  renderAvatar(el('header-avatar'), shopState);
+
+  const badgesEl = el('header-badges');
+  if (earnedBadges.length === 0) {
+    badgesEl.hidden = true;
+  } else {
+    badgesEl.hidden = false;
+    badgesEl.innerHTML = earnedBadges
+      .map((b) => `<span class="header-badge-icon" title="${b.label}">${b.icon}</span>`)
+      .join('');
+  }
+}
+
+function renderAvatar(target, shopState) {
+  if (!shopState) return;
+  const avatarItem = getItem(shopState.equipped.avatar) || getItem('avatar-default');
+  const frameId = shopState.equipped.frame || 'frame-none';
+  const accessoryItem = getItem(shopState.equipped.accessory);
+  const colorItem = getItem(shopState.equipped.avatarColor);
+  target.dataset.frame = frameId;
+  target.style.backgroundColor = colorItem && colorItem.swatch ? colorItem.swatch : '';
+  const accessoryHtml = accessoryItem && accessoryItem.emoji
+    ? `<span class="avatar-accessory">${accessoryItem.emoji}</span>` : '';
+  target.innerHTML = `<span class="avatar-emoji">${avatarItem.emoji}</span>${accessoryHtml}`;
 }
 
 // ---------- Start screen ----------
@@ -82,14 +130,58 @@ function selectClosestLengthButton(suggestion) {
   buttons.forEach((b) => b.classList.toggle('selected', b === best));
 }
 
-export function renderStart(plan, hasInProgress) {
+// Only shown once there's enough real practice data to be meaningful —
+// before that, every topic sits at the same default mastery score and
+// "strongest/weakest" would just be noise.
+function computeStrengthSummary(mastery) {
+  const entries = Object.entries(mastery).filter(([, rec]) => rec.questionsSeen > 0);
+  const totalSeen = entries.reduce((sum, [, rec]) => sum + rec.questionsSeen, 0);
+  if (totalSeen < 5) return null;
+  const sorted = [...entries].sort((a, b) => b[1].masteryScore - a[1].masteryScore);
+  const strongest = sorted[0];
+  const weakest = sorted[sorted.length - 1];
+  if (strongest[0] === weakest[0]) return null;
+  return { strongest, weakest };
+}
+
+function renderTopicWeightingPreview(plan) {
+  const rows = Object.entries(plan.topicWeighting)
+    .sort((a, b) => b[1] - a[1])
+    .map(([topic, w]) => `<div class="weighting-row"><span>${TOPIC_LABELS[topic] || topic}</span><span>${Math.round(w * 100)}%</span></div>`)
+    .join('');
+  el('topic-weighting-preview').innerHTML = `<p class="weighting-title">Today's mix if you practice all topics:</p>${rows}`;
+}
+
+export function renderStart(plan, mastery, meta, hasInProgress) {
   el('focus-phase').textContent = PHASE_LABELS[plan.phase] || 'Practice';
-  el('focus-tone').textContent = plan.framingTone;
+  el('focus-tone').textContent = meta.childName
+    ? `Hi ${meta.childName}! ${plan.framingTone}`
+    : plan.framingTone;
+
+  el('child-name-input').value = meta.childName || '';
+
+  const summary = computeStrengthSummary(mastery);
+  const summaryEl = el('strength-summary');
+  if (!summary) {
+    summaryEl.hidden = true;
+  } else {
+    summaryEl.hidden = false;
+    const [strongTopic, strongRec] = summary.strongest;
+    const [weakTopic, weakRec] = summary.weakest;
+    summaryEl.innerHTML = `💪 Strongest: <strong>${TOPIC_LABELS[strongTopic] || strongTopic}</strong> (${Math.round(strongRec.masteryScore * 100)}%)`
+      + ` &nbsp;·&nbsp; 🎯 Focus area: <strong>${TOPIC_LABELS[weakTopic] || weakTopic}</strong> (${Math.round(weakRec.masteryScore * 100)}%)`;
+  }
+
+  el('joke-of-day').textContent = `😄 Joke of the day: ${getJokeOfTheDay()}`;
 
   selectClosestLengthButton(plan.sessionLengthSuggestion);
+  el('custom-length-panel').hidden = true;
+
   document.querySelectorAll('#topic-choices .choice-btn').forEach((btn, i) => {
     btn.classList.toggle('selected', i === 0);
   });
+  renderTopicWeightingPreview(plan);
+  el('topic-weighting-preview').hidden = false;
 
   el('resume-btn').hidden = !hasInProgress;
 }
@@ -104,27 +196,52 @@ export function getSelectedTopic() {
   return btn.dataset.topic || null;
 }
 
-export function bindStartHandlers({ onStart, onResume, onGotoProgress }) {
+function syncCustomLengthButton() {
+  const value = Math.min(100, Math.max(1, parseInt(el('custom-length-value').value, 10) || 15));
+  const unit = document.querySelector('#custom-length-unit .unit-btn.selected').dataset.unit;
+  const btn = el('length-custom-btn');
+  btn.dataset.lengthType = unit;
+  btn.dataset.lengthValue = String(value);
+}
+
+export function bindStartHandlers({ onStart, onResume, onNameChange }) {
   document.querySelectorAll('#length-choices .choice-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('#length-choices .choice-btn').forEach((b) => b.classList.remove('selected'));
       btn.classList.add('selected');
+      el('custom-length-panel').hidden = btn.id !== 'length-custom-btn';
+      if (btn.id === 'length-custom-btn') syncCustomLengthButton();
     });
   });
+
+  el('custom-length-value').addEventListener('input', syncCustomLengthButton);
+  document.querySelectorAll('#custom-length-unit .unit-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#custom-length-unit .unit-btn').forEach((b) => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      syncCustomLengthButton();
+    });
+  });
+
   document.querySelectorAll('#topic-choices .choice-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('#topic-choices .choice-btn').forEach((b) => b.classList.remove('selected'));
       btn.classList.add('selected');
+      el('topic-weighting-preview').hidden = btn.dataset.topic !== '';
     });
   });
+
+  el('child-name-input').addEventListener('change', () => {
+    onNameChange(el('child-name-input').value.trim().slice(0, 20));
+  });
+
   el('start-btn').addEventListener('click', onStart);
   el('resume-btn').addEventListener('click', onResume);
-  el('goto-progress-btn').addEventListener('click', onGotoProgress);
 }
 
 // ---------- Question screen ----------
 
-export function renderHud(session, plan) {
+export function renderHud(session, plan, shopState) {
   const count = session.lengthType === 'questions'
     ? `Q${session.questions.length + 1} / ${session.lengthValue}`
     : `Q${session.questions.length + 1}`;
@@ -132,6 +249,7 @@ export function renderHud(session, plan) {
   el('hud-score').textContent = `⭐ ${session.score}`;
   el('hud-streak').textContent = session.streak > 1 ? `🔥 ${session.streak}` : '';
   el('hud-timer').hidden = !plan.timerVisible || session.lengthType !== 'minutes';
+  renderAvatar(el('hud-avatar'), shopState);
 }
 
 export function updateTimer(remainingMs) {
@@ -217,11 +335,14 @@ export function renderFeedback(correct, explanation, correctAnswer) {
 
 // ---------- Summary screen ----------
 
-export function renderSummary(entry, newlyEarnedBadges = []) {
+export function renderSummary(entry, newlyEarnedBadges = [], meta = {}, shopState = null) {
   const { summary } = entry;
   const accuracyPct = Math.round(summary.accuracy * 100);
   const avgSec = Math.round(summary.avgTimeMs / 1000);
   const topics = [...new Set(entry.questions.map((q) => TOPIC_LABELS[q.topic] || q.topic))].join(', ');
+
+  el('summary-heading').textContent = meta.childName ? `Nice work, ${meta.childName}!` : 'Session complete!';
+  renderAvatar(el('summary-avatar'), shopState);
 
   el('summary-card').innerHTML = `
     <div class="summary-row"><span class="label">Score</span><span class="value">${summary.correctCount} / ${summary.totalQuestions}</span></div>
@@ -251,9 +372,8 @@ export function renderSummary(entry, newlyEarnedBadges = []) {
   }
 }
 
-export function bindSummaryHandlers({ onRestart, onGotoProgress }) {
+export function bindSummaryHandlers({ onRestart }) {
   el('summary-restart-btn').addEventListener('click', onRestart);
-  el('summary-progress-btn').addEventListener('click', onGotoProgress);
 }
 
 // ---------- Progress screen ----------
@@ -275,10 +395,46 @@ function renderSparkline(history) {
   return `<svg class="sparkline" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}"><polyline points="${coords}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>`;
 }
 
+// Accuracy by topic x difficulty tier, aggregated across all logged
+// sessions — a finer-grained "strengths & weaknesses" view than the
+// per-topic mastery bars alone (SPEC.md §7).
+function renderHeatmap(sessions, topics) {
+  const grid = {};
+  topics.forEach((t) => {
+    grid[t] = { 1: { c: 0, n: 0 }, 2: { c: 0, n: 0 }, 3: { c: 0, n: 0 }, 4: { c: 0, n: 0 }, 5: { c: 0, n: 0 } };
+  });
+  sessions.forEach((s) => s.questions.forEach((q) => {
+    const cell = grid[q.topic] && grid[q.topic][q.difficulty];
+    if (!cell) return;
+    cell.n += 1;
+    if (q.correct) cell.c += 1;
+  }));
+
+  let html = '<table class="heatmap-table"><thead><tr><th>Topic</th><th>T1</th><th>T2</th><th>T3</th><th>T4</th><th>T5</th></tr></thead><tbody>';
+  topics.forEach((t) => {
+    html += `<tr><th>${TOPIC_LABELS[t] || t}</th>`;
+    for (let tier = 1; tier <= 5; tier += 1) {
+      const cell = grid[t][tier];
+      if (cell.n === 0) {
+        html += '<td class="heat-empty">–</td>';
+      } else {
+        const acc = cell.c / cell.n;
+        const hue = Math.round(acc * 120);
+        html += `<td style="background:hsl(${hue},70%,88%)" title="${cell.c}/${cell.n} correct">${Math.round(acc * 100)}%</td>`;
+      }
+    }
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  el('heatmap-wrap').innerHTML = html;
+}
+
 export function renderProgress(mastery, meta, sessions, badgeDefinitions = [], earnedBadgeIds = []) {
   el('streak-banner').textContent = meta.currentStreakDays > 0
     ? `🔥 ${meta.currentStreakDays} day streak — total ⭐ ${meta.totalPoints || 0} points`
     : `Total ⭐ ${meta.totalPoints || 0} points — start today's streak!`;
+
+  renderHeatmap(sessions, Object.keys(mastery));
 
   const barsEl = el('mastery-bars');
   barsEl.innerHTML = '';
@@ -328,6 +484,89 @@ export function renderProgress(mastery, meta, sessions, badgeDefinitions = [], e
   }
 }
 
+export function renderCustomQuestionsPanel(count) {
+  el('custom-questions-count').textContent = count > 0
+    ? `${count} custom question${count === 1 ? '' : 's'} loaded — mixed into matching topics.`
+    : 'No custom questions loaded yet.';
+}
+
+export function renderCustomQuestionsErrors(errors) {
+  const errEl = el('custom-questions-errors');
+  if (!errors || errors.length === 0) {
+    errEl.hidden = true;
+    return;
+  }
+  errEl.hidden = false;
+  errEl.innerHTML = `<p>${errors.length} question(s) skipped:</p><ul>${errors.slice(0, 10).map((e) => `<li>${e}</li>`).join('')}</ul>`;
+}
+
+export function bindCustomQuestionsHandlers({ onFileSelected, onPdfFileSelected, onClear }) {
+  el('custom-questions-file').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) onFileSelected(file);
+    e.target.value = '';
+  });
+  el('custom-questions-pdf-file').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) onPdfFileSelected(file);
+    e.target.value = '';
+  });
+  el('custom-questions-clear-btn').addEventListener('click', onClear);
+}
+
 export function bindProgressHandlers({ onBack }) {
   el('progress-back-btn').addEventListener('click', onBack);
+}
+
+// ---------- Shop screen ----------
+
+export function renderShop(shopState, meta) {
+  el('shop-balance').textContent = `⭐ ${availableBalance(meta)} available to spend`;
+
+  const container = el('shop-categories');
+  container.innerHTML = SHOP_CATEGORIES.map(({ key, label }) => {
+    const items = itemsByCategory(key).map((item) => {
+      const owned = isOwned(item.id, shopState.ownedItemIds);
+      const equipped = shopState.equipped[key] === item.id;
+      let preview = '';
+      if (item.category === 'theme' || item.category === 'avatarColor') preview = `<div class="shop-item-swatch" style="background:${item.swatch}"></div>`;
+      else if (item.category === 'avatar') preview = `<div class="shop-item-emoji">${item.emoji}</div>`;
+      else if (item.category === 'accessory') preview = `<div class="shop-item-emoji">${item.emoji || '—'}</div>`;
+      else if (item.category === 'font') preview = `<div class="shop-item-font-sample" style="font-family:${item.id === 'font-rounded' ? '\'Comic Sans MS\', cursive' : item.id === 'font-mono' ? 'monospace' : 'inherit'}">Aa</div>`;
+      else if (item.category === 'frame') preview = `<div class="shop-item-frame-sample frame-${item.id}"></div>`;
+
+      let actionLabel;
+      let disabled = false;
+      if (equipped) actionLabel = 'Equipped';
+      else if (owned) actionLabel = 'Equip';
+      else {
+        actionLabel = `Buy ⭐${item.cost}`;
+        disabled = availableBalance(meta) < item.cost;
+      }
+
+      return `
+        <div class="shop-item ${equipped ? 'equipped' : ''}">
+          ${preview}
+          <div class="shop-item-label">${item.label}</div>
+          <button class="shop-item-action ${owned ? 'owned' : ''}" data-item-id="${item.id}" ${equipped || disabled ? 'disabled' : ''}>${actionLabel}</button>
+        </div>
+      `;
+    }).join('');
+
+    return `
+      <div class="shop-category">
+        <h3 class="shop-category-title">${label}</h3>
+        <div class="shop-grid">${items}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+export function bindShopHandlers({ onPurchaseOrEquip, onBack }) {
+  el('shop-categories').addEventListener('click', (e) => {
+    const btn = e.target.closest('.shop-item-action');
+    if (!btn || btn.disabled) return;
+    onPurchaseOrEquip(btn.dataset.itemId);
+  });
+  el('shop-back-btn').addEventListener('click', onBack);
 }
