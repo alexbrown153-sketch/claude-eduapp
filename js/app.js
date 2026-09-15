@@ -8,6 +8,7 @@ import { startSession, pickNextQuestion, recordAnswer, isSessionComplete, finish
 import { getBadgeDefinitions, evaluateBadges } from './badges.js';
 import { parseAndValidate } from './customQuestions.js';
 import { parsePdfQuestions } from './pdfQuestions.js';
+import { fetchWeatherForCity } from './weather.js';
 import { getItem, isOwned, availableBalance } from './shop.js';
 import * as ui from './ui.js';
 
@@ -50,12 +51,41 @@ function applyCosmetics(shopState) {
   document.body.dataset.font = shopState.equipped.font;
 }
 
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+// Fetches today's weather for the child's chosen city (see weather.js),
+// cached per city per day so revisiting Home repeatedly doesn't re-fetch.
+// Runs in the background — the Start screen renders immediately either way.
+async function refreshWeather() {
+  const city = state.meta.weatherCity;
+  if (!city) {
+    ui.renderWeather('no-city');
+    return;
+  }
+  const cache = Storage.getWeatherCache();
+  if (cache && cache.city === city && cache.date === todayStr()) {
+    ui.renderWeather(cache.data);
+    return;
+  }
+  ui.renderWeather('loading');
+  try {
+    const data = await fetchWeatherForCity(city);
+    Storage.setWeatherCache({ city, date: todayStr(), data });
+    ui.renderWeather(data);
+  } catch (e) {
+    ui.renderWeather({ error: e.message });
+  }
+}
+
 function goToStart() {
   stopTimer();
   loadState();
   ui.updateHeader(state.plan, state.meta, state.shopState, getEarnedBadgesSorted());
   ui.renderStart(state.plan, state.mastery, state.meta, !!Storage.getInProgress());
   ui.showScreen('start');
+  refreshWeather();
 }
 
 function goToProgress() {
@@ -72,10 +102,22 @@ function goToShop() {
   ui.showScreen('shop');
 }
 
+function goToSettings() {
+  ui.renderSettings(Storage.getMeta());
+  ui.showScreen('settings');
+}
+
 function onNameChange(name) {
   state.meta = { ...state.meta, childName: name };
   Storage.setMeta(state.meta);
-  ui.renderStart(state.plan, state.mastery, state.meta, !!Storage.getInProgress());
+  ui.renderSettings(state.meta);
+}
+
+function onCityChange(city) {
+  state.meta = { ...state.meta, weatherCity: city };
+  Storage.setMeta(state.meta);
+  ui.renderSettings(state.meta);
+  refreshWeather();
 }
 
 function handleCustomQuestionsFile(file) {
@@ -208,8 +250,9 @@ ui.bindStartHandlers({
     beginSession({ lengthType: length.type, lengthValue: length.value, topicFocus });
   },
   onResume: resumeSession,
-  onNameChange,
 });
+
+ui.bindSettingsHandlers({ onNameChange, onCityChange, onBack: goToStart });
 
 ui.bindQuestionHandlers({ onCheck, onNext });
 
@@ -225,7 +268,12 @@ ui.bindCustomQuestionsHandlers({
 
 ui.bindShopHandlers({ onPurchaseOrEquip: handlePurchaseOrEquip, onBack: goToStart });
 
-ui.bindGlobalHandlers({ onHome: goToStart, onGotoProgress: goToProgress, onGotoShop: goToShop });
+ui.bindGlobalHandlers({
+  onHome: goToStart,
+  onGotoProgress: goToProgress,
+  onGotoShop: goToShop,
+  onGotoSettings: goToSettings,
+});
 
 applyCosmetics(Storage.getShopState());
 ui.initScrollIndicators();

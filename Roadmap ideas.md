@@ -20,5 +20,19 @@ Future roadmap ideas
 19. Move the badges alongside the avatar on the top bar to reduce the screen space used by the top bar.
 20. Move the navigation to the Shop and View Progress onto the top bar via icons or similar.
 
-21. The two buttons "" and "" have no space between them.
-22. 
+21. Reduce width of the navigation buttons throughout. They are too wide.
+22. Reduce width of the json and pdf buttons in the view progress screen. Have them alongside each other.
+23. Remove the breadcrumb. Instead use an icon + word(s) navigation system for "Home", "View Progress", "Shop". Locate this on the top bar left justified.
+24. Make the scroll indicators much bigger and left or right justified rather than central.
+25. Move the name input to a new settings screen and remove that config from the home page.
+26. Move the joke of the day to new section on the left of the home screen occupying the whitespace to the left of the main section. It should contain joke of the day and also todays weather using icons to show weather forecast.
+27. Remove 10 min sprint option
+
+28. Add an animation reward for a correct answer.
+29. Add an animation reward for earning a new badge at the end of a session.
+30. Remove the "Resume unfinished session" button and replace with hyperlinked wording instead.
+31. Change heatmap on the view progress screen to instead show a more simple view of which topics are stronger and which are weaker.
+32. In settings add an option to clear progress which resets the app.
+33. When answering a question the "Check Answer" button should be in exactly the same place as the "Next question" button to avoid having to move the cursor.
+34. Introduce a more visible exit point from the question session which returns to the home page.
+35. Let's upgrade the avatar to be more character based. Also give more options over customising this character in the shop.

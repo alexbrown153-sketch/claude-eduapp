@@ -15,15 +15,12 @@
     <span id="header-avatar" class="header-avatar"></span>
     <div id="header-badges" class="header-badges" hidden></div>
     <span id="header-points" class="header-points"></span>
+    <button id="nav-settings-btn" class="settings-btn" aria-label="Settings" title="Settings">&#9881;&#65039;</button>
   </div>
-  <nav class="breadcrumb-bar" aria-label="Breadcrumb">
-    <button id="home-btn" class="home-btn" aria-label="Home" title="Home">&#127968;</button>
-    <button id="breadcrumb-home" class="breadcrumb-link">Home</button>
-    <span id="breadcrumb-current" class="breadcrumb-current"></span>
-    <div class="nav-icons">
-      <button id="nav-progress-btn" class="nav-icon-btn" aria-label="Progress" title="Progress">&#128202;</button>
-      <button id="nav-shop-btn" class="nav-icon-btn" aria-label="Shop" title="Shop">&#128717;&#65039;</button>
-    </div>
+  <nav class="main-nav" aria-label="Navigation">
+    <button id="nav-home-btn" class="nav-btn" data-nav="start">&#127968; Home</button>
+    <button id="nav-progress-btn" class="nav-btn" data-nav="progress">&#128202; Progress</button>
+    <button id="nav-shop-btn" class="nav-btn" data-nav="shop">&#128717;&#65039; Shop</button>
   </nav>
 </header>
 
@@ -34,48 +31,49 @@
 
   <!-- START SCREEN -->
   <section id="screen-start" class="screen">
-    <div class="name-row">
-      <label for="child-name-input" class="name-label">Your name</label>
-      <input id="child-name-input" class="name-input" type="text" placeholder="Type your name" maxlength="20" autocomplete="off" />
-    </div>
+    <div class="start-layout">
+      <aside class="start-sidebar">
+        <div id="weather-widget" class="weather-widget"></div>
+        <div id="joke-of-day" class="joke-of-day"></div>
+      </aside>
 
-    <div class="focus-card" id="focus-card">
-      <p class="focus-phase" id="focus-phase"></p>
-      <p class="focus-tone" id="focus-tone"></p>
-    </div>
+      <div class="start-main">
+        <div class="focus-card" id="focus-card">
+          <p class="focus-phase" id="focus-phase"></p>
+          <p class="focus-tone" id="focus-tone"></p>
+        </div>
 
-    <div id="strength-summary" class="strength-summary" hidden></div>
+        <div id="strength-summary" class="strength-summary" hidden></div>
 
-    <div id="joke-of-day" class="joke-of-day"></div>
+        <h2 class="section-heading">Session length</h2>
+        <div class="choice-grid" id="length-choices">
+          <button class="choice-btn" data-length-type="questions" data-length-value="10">10 questions</button>
+          <button class="choice-btn" data-length-type="questions" data-length-value="20">20 questions</button>
+          <button class="choice-btn" data-length-type="minutes" data-length-value="5">5 min sprint</button>
+          <button class="choice-btn" id="length-custom-btn" data-length-type="custom" data-length-value="15">Custom&hellip;</button>
+        </div>
+        <div id="custom-length-panel" class="custom-length-panel" hidden>
+          <input type="number" id="custom-length-value" class="custom-length-value" min="1" max="100" value="15" />
+          <div class="custom-length-unit" id="custom-length-unit">
+            <button class="unit-btn selected" data-unit="questions">Questions</button>
+            <button class="unit-btn" data-unit="minutes">Minutes</button>
+          </div>
+        </div>
 
-    <h2 class="section-heading">Session length</h2>
-    <div class="choice-grid" id="length-choices">
-      <button class="choice-btn" data-length-type="questions" data-length-value="10">10 questions</button>
-      <button class="choice-btn" data-length-type="questions" data-length-value="20">20 questions</button>
-      <button class="choice-btn" data-length-type="minutes" data-length-value="5">5 min sprint</button>
-      <button class="choice-btn" data-length-type="minutes" data-length-value="10">10 min sprint</button>
-      <button class="choice-btn" id="length-custom-btn" data-length-type="custom" data-length-value="15">Custom&hellip;</button>
-    </div>
-    <div id="custom-length-panel" class="custom-length-panel" hidden>
-      <input type="number" id="custom-length-value" class="custom-length-value" min="1" max="100" value="15" />
-      <div class="custom-length-unit" id="custom-length-unit">
-        <button class="unit-btn selected" data-unit="questions">Questions</button>
-        <button class="unit-btn" data-unit="minutes">Minutes</button>
+        <h2 class="section-heading">Topic focus (optional)</h2>
+        <div class="choice-grid" id="topic-choices">
+          <button class="choice-btn chip" data-topic="">All topics</button>
+          <button class="choice-btn chip" data-topic="arithmetic">Arithmetic</button>
+          <button class="choice-btn chip" data-topic="fdp">Fractions / %</button>
+          <button class="choice-btn chip" data-topic="geometry">Geometry</button>
+          <button class="choice-btn chip" data-topic="wordProblems">Word problems</button>
+          <button class="choice-btn chip" data-topic="ratio">Ratio &amp; proportion</button>
+          <button class="choice-btn chip" data-topic="algebra">Algebra</button>
+          <button class="choice-btn chip" data-topic="dataHandling">Data handling</button>
+        </div>
+        <div id="topic-weighting-preview" class="topic-weighting-preview" hidden></div>
       </div>
     </div>
-
-    <h2 class="section-heading">Topic focus (optional)</h2>
-    <div class="choice-grid" id="topic-choices">
-      <button class="choice-btn chip" data-topic="">All topics</button>
-      <button class="choice-btn chip" data-topic="arithmetic">Arithmetic</button>
-      <button class="choice-btn chip" data-topic="fdp">Fractions / %</button>
-      <button class="choice-btn chip" data-topic="geometry">Geometry</button>
-      <button class="choice-btn chip" data-topic="wordProblems">Word problems</button>
-      <button class="choice-btn chip" data-topic="ratio">Ratio &amp; proportion</button>
-      <button class="choice-btn chip" data-topic="algebra">Algebra</button>
-      <button class="choice-btn chip" data-topic="dataHandling">Data handling</button>
-    </div>
-    <div id="topic-weighting-preview" class="topic-weighting-preview" hidden></div>
   </section>
 
   <!-- QUESTION SCREEN -->
@@ -154,10 +152,12 @@
     <h3 class="section-subheading">Custom questions</h3>
     <div class="custom-questions-panel">
       <p id="custom-questions-count" class="custom-questions-count"></p>
-      <label for="custom-questions-file" class="secondary-btn file-label">Upload question file (.json)</label>
-      <input type="file" id="custom-questions-file" accept=".json,application/json" hidden />
-      <label for="custom-questions-pdf-file" class="secondary-btn file-label">Upload question file (.pdf)</label>
-      <input type="file" id="custom-questions-pdf-file" accept=".pdf,application/pdf" hidden />
+      <div class="upload-buttons-row">
+        <label for="custom-questions-file" class="secondary-btn file-label">Upload .json</label>
+        <input type="file" id="custom-questions-file" accept=".json,application/json" hidden />
+        <label for="custom-questions-pdf-file" class="secondary-btn file-label">Upload .pdf</label>
+        <input type="file" id="custom-questions-pdf-file" accept=".pdf,application/pdf" hidden />
+      </div>
       <p class="pdf-hint">PDF questions should look like "Q: ... A: ..." (optionally with Explanation:/Topic:/Difficulty: lines) &mdash; works best for a consistently-formatted sheet, not scanned images.</p>
       <button id="custom-questions-clear-btn" class="link-btn">Clear custom questions</button>
       <div id="custom-questions-errors" class="custom-questions-errors" hidden></div>
@@ -173,6 +173,19 @@
     <div id="shop-categories"></div>
   </section>
 
+  <!-- SETTINGS SCREEN -->
+  <section id="screen-settings" class="screen">
+    <h2 class="section-heading">Settings</h2>
+    <div class="name-row">
+      <label for="child-name-input" class="name-label">Your name</label>
+      <input id="child-name-input" class="name-input" type="text" placeholder="Type your name" maxlength="20" autocomplete="off" />
+    </div>
+    <div class="name-row">
+      <label for="weather-city-input" class="name-label">City (for weather)</label>
+      <input id="weather-city-input" class="name-input" type="text" placeholder="e.g. London" maxlength="40" autocomplete="off" />
+    </div>
+    <p class="weather-hint">Looks up today's weather for this city using a free weather service &mdash; needs an internet connection.</p>
+  </section>
 
 </div>
 </div>
@@ -193,6 +206,9 @@
     </div>
     <div id="footer-shop" class="footer-group">
       <button id="shop-back-btn" class="secondary-btn">Back to start</button>
+    </div>
+    <div id="footer-settings" class="footer-group">
+      <button id="settings-back-btn" class="secondary-btn">Back to start</button>
     </div>
   </div>
 </footer>

@@ -32,6 +32,7 @@ function defaultMeta() {
     totalPoints: 0,
     spentPoints: 0,
     childName: '',
+    weatherCity: '',
   };
 }
 
@@ -126,6 +127,13 @@ export const Storage = {
   },
   setShopState(shopState) {
     writeJSON(`${NS}:shop`, shopState);
+  },
+
+  getWeatherCache() {
+    return readJSON(`${NS}:weatherCache`, null);
+  },
+  setWeatherCache(cache) {
+    writeJSON(`${NS}:weatherCache`, cache);
   },
 
   getInProgress() {

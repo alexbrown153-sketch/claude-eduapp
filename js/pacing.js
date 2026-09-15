@@ -78,7 +78,7 @@ export function computeTodaysPlan(today, meta, mastery, topics) {
     return {
       phase: 'late-stage',
       daysRemaining,
-      sessionLengthSuggestion: { type: 'minutes', value: 10 },
+      sessionLengthSuggestion: { type: 'minutes', value: 5 },
       topicWeighting: equalWeights(topics),
       timerVisible: true,
       framingTone: 'Nearly there — a longer, exam-style practice today.',

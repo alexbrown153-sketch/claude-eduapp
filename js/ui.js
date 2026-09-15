@@ -20,14 +20,6 @@ const el = (id) => document.getElementById(id);
 let numericBuffer = '';
 let mcqSelected = null;
 
-const SCREEN_LABELS = {
-  start: 'Home',
-  question: 'Practice',
-  summary: 'Summary',
-  progress: 'Progress',
-  shop: 'Shop',
-};
-
 // Screens with growing content (badges, mastery bars, session history) must
 // never bury their primary nav button below the fold — those buttons live in
 // the fixed footer instead of scrolling with the screen. The question screen
@@ -42,21 +34,14 @@ export function showScreen(name) {
   el('app-footer').hidden = !footerGroup;
   if (footerGroup) footerGroup.classList.add('active');
 
-  const currentEl = el('breadcrumb-current');
-  if (name === 'start') {
-    currentEl.hidden = true;
-    currentEl.textContent = '';
-  } else {
-    currentEl.hidden = false;
-    currentEl.textContent = ` / ${SCREEN_LABELS[name] || name}`;
-  }
+  document.querySelectorAll('.nav-btn').forEach((b) => b.classList.toggle('active', b.dataset.nav === name));
 }
 
-export function bindGlobalHandlers({ onHome, onGotoProgress, onGotoShop }) {
-  el('home-btn').addEventListener('click', onHome);
-  el('breadcrumb-home').addEventListener('click', onHome);
+export function bindGlobalHandlers({ onHome, onGotoProgress, onGotoShop, onGotoSettings }) {
+  el('nav-home-btn').addEventListener('click', onHome);
   el('nav-progress-btn').addEventListener('click', onGotoProgress);
   el('nav-shop-btn').addEventListener('click', onGotoShop);
+  el('nav-settings-btn').addEventListener('click', onGotoSettings);
 }
 
 // Shows a fading chevron at the top/bottom edge of the content area whenever
@@ -158,8 +143,6 @@ export function renderStart(plan, mastery, meta, hasInProgress) {
     ? `Hi ${meta.childName}! ${plan.framingTone}`
     : plan.framingTone;
 
-  el('child-name-input').value = meta.childName || '';
-
   const summary = computeStrengthSummary(mastery);
   const summaryEl = el('strength-summary');
   if (!summary) {
@@ -204,7 +187,7 @@ function syncCustomLengthButton() {
   btn.dataset.lengthValue = String(value);
 }
 
-export function bindStartHandlers({ onStart, onResume, onNameChange }) {
+export function bindStartHandlers({ onStart, onResume }) {
   document.querySelectorAll('#length-choices .choice-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('#length-choices .choice-btn').forEach((b) => b.classList.remove('selected'));
@@ -231,12 +214,44 @@ export function bindStartHandlers({ onStart, onResume, onNameChange }) {
     });
   });
 
+  el('start-btn').addEventListener('click', onStart);
+  el('resume-btn').addEventListener('click', onResume);
+}
+
+// ---------- Settings screen ----------
+
+export function renderSettings(meta) {
+  el('child-name-input').value = meta.childName || '';
+  el('weather-city-input').value = meta.weatherCity || '';
+}
+
+export function bindSettingsHandlers({ onNameChange, onCityChange, onBack }) {
   el('child-name-input').addEventListener('change', () => {
     onNameChange(el('child-name-input').value.trim().slice(0, 20));
   });
+  el('weather-city-input').addEventListener('change', () => {
+    onCityChange(el('weather-city-input').value.trim().slice(0, 40));
+  });
+  el('settings-back-btn').addEventListener('click', onBack);
+}
 
-  el('start-btn').addEventListener('click', onStart);
-  el('resume-btn').addEventListener('click', onResume);
+// state: 'no-city' | 'loading' | { error } | { placeName, tempC, icon, label }
+export function renderWeather(state) {
+  const target = el('weather-widget');
+  if (state === 'no-city') {
+    target.innerHTML = '<p class="weather-empty">Add your city in Settings to see today’s weather.</p>';
+  } else if (state === 'loading') {
+    target.innerHTML = '<p class="weather-empty">Loading weather…</p>';
+  } else if (state && state.error) {
+    target.innerHTML = `<p class="weather-empty">${state.error}</p>`;
+  } else if (state) {
+    target.innerHTML = `
+      <div class="weather-icon">${state.icon}</div>
+      <div class="weather-temp">${state.tempC}°C</div>
+      <div class="weather-label">${state.label}</div>
+      <div class="weather-place">${state.placeName}</div>
+    `;
+  }
 }
 
 // ---------- Question screen ----------
