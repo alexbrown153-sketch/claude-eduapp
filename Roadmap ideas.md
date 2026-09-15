@@ -48,4 +48,7 @@ done to here
 43. Delete the days to go indicator from the top bar.
 44. Add days to go into the "daily practice" section of the home page.
 45. On the home page, move the strongest and weakest areas into the "Daily practice" section
-46. 
+46. the correct answer animation isn't visible to the user
+47. Move the "exit" button to the right hand side of the question during a session
+48. Add the words "Tiffin 11+ Prep" to the center of the top bar
+49. 
