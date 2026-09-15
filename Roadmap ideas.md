@@ -55,3 +55,12 @@ Future roadmap ideas
 50. Move the upload of custom questions to the settings page
 51. Move the avatar to below the "Tiffin" text and make it 50% larger.
 52. Move the navigation buttons on the top bar to the top. 
+
+53. Remove all home buttons except the one on the top bar. They are not needed any more.
+54. Move the "Tiffin" text up to the top of the top bar.
+55. Move the badges, points and settings icons to the top of the top bar.
+
+56. Center the avatar and tiffin text on the top bar.
+57. On the home page, center the main section on the page.
+58. Center the avatar and tiffin text in the same way (center of the window on the top bar. 
+59. Move the navigation buttons (home, progress, shop) to the top of the top bar and alongide the tiffin text and avatar.
