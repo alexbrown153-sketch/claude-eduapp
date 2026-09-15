@@ -1,0 +1,415 @@
+// Procedural question generators for arithmetic, fractions/decimals/percentages,
+// and geometry, tiered 1-5 per SPEC.md §12. Word problems are hand-authored and
+// live in wordProblems.js; getQuestion() dispatches to whichever the topic needs.
+
+import { getWordProblem } from './wordProblems.js';
+
+function randInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+function pick(arr) {
+  return arr[randInt(0, arr.length - 1)];
+}
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i -= 1) {
+    const j = randInt(0, i);
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+function gcd(a, b) {
+  return b === 0 ? a : gcd(b, a % b);
+}
+function simplifyFrac(num, den) {
+  const g = gcd(Math.abs(num), Math.abs(den)) || 1;
+  return { num: num / g, den: den / g };
+}
+function round2(n) {
+  return Math.round(n * 100) / 100;
+}
+function formatFrac(num, den) {
+  return num === 0 ? '0' : `${num}/${den}`;
+}
+
+// ---------- Arithmetic ----------
+
+function makeArith(promptExpr, answer, tier, explanation, subtopic = 'mixed') {
+  return {
+    topic: 'arithmetic', subtopic, difficulty: tier, source: 'generated',
+    prompt: `${promptExpr} = ?`, answerType: 'numeric',
+    correctAnswer: String(answer), choices: null, explanation,
+  };
+}
+
+function arithT1() {
+  const op = pick(['+', '-']);
+  let a = randInt(1, 9);
+  let b = randInt(1, 9);
+  if (op === '-' && b > a) [a, b] = [b, a];
+  const answer = op === '+' ? a + b : a - b;
+  return makeArith(`${a} ${op} ${b}`, answer, 1, `${a} ${op} ${b} = ${answer}`);
+}
+
+function arithT2() {
+  const op = pick(['+', '-', '×']);
+  if (op === '×') {
+    const a = randInt(2, 12);
+    const b = randInt(2, 9);
+    return makeArith(`${a} × ${b}`, a * b, 2, `${a} × ${b} = ${a * b}`);
+  }
+  let a = randInt(10, 99);
+  let b = randInt(10, 99);
+  if (op === '-' && b > a) [a, b] = [b, a];
+  const answer = op === '+' ? a + b : a - b;
+  return makeArith(`${a} ${op} ${b}`, answer, 2, `${a} ${op} ${b} = ${answer}`);
+}
+
+function arithT3() {
+  const op = pick(['+', '-', '÷']);
+  if (op === '÷') {
+    const divisor = randInt(2, 12);
+    const quotient = randInt(2, 20);
+    const dividend = divisor * quotient;
+    return makeArith(`${dividend} ÷ ${divisor}`, quotient, 3,
+      `${dividend} ÷ ${divisor} = ${quotient} (${divisor} × ${quotient} = ${dividend})`, 'division');
+  }
+  let a = randInt(100, 999);
+  let b = randInt(100, 999);
+  if (op === '-' && b > a) [a, b] = [b, a];
+  const answer = op === '+' ? a + b : a - b;
+  return makeArith(`${a} ${op} ${b}`, answer, 3, `${a} ${op} ${b} = ${answer}`);
+}
+
+function arithT4() {
+  const a = randInt(2, 12);
+  const b = randInt(2, 12);
+  const c = randInt(2, 12);
+  const variant = pick(['mulAdd', 'addMul', 'bracket']);
+  let prompt;
+  let answer;
+  let explanation;
+  if (variant === 'mulAdd') {
+    answer = a * b + c;
+    prompt = `${a} × ${b} + ${c}`;
+    explanation = `Multiply first: ${a} × ${b} = ${a * b}, then add ${c} = ${answer}`;
+  } else if (variant === 'addMul') {
+    answer = a + b * c;
+    prompt = `${a} + ${b} × ${c}`;
+    explanation = `Multiply first: ${b} × ${c} = ${b * c}, then add ${a} = ${answer}`;
+  } else {
+    answer = (a + b) * c;
+    prompt = `(${a} + ${b}) × ${c}`;
+    explanation = `Brackets first: ${a} + ${b} = ${a + b}, then × ${c} = ${answer}`;
+  }
+  return makeArith(prompt, answer, 4, explanation, 'order-of-operations');
+}
+
+function arithT5() {
+  const divisor = randInt(3, 12);
+  const quotient = randInt(5, 20);
+  const remainder = randInt(1, divisor - 1);
+  const dividend = divisor * quotient + remainder;
+  return {
+    topic: 'arithmetic', subtopic: 'division', difficulty: 5, source: 'generated',
+    prompt: `${dividend} ÷ ${divisor} = ? (give as "quotient r remainder", e.g. "12 r 3")`,
+    answerType: 'text', correctAnswer: `${quotient} r ${remainder}`, choices: null,
+    explanation: `${divisor} × ${quotient} = ${dividend - remainder}. Remainder = ${dividend} - ${dividend - remainder} = ${remainder}. Answer: ${quotient} r ${remainder}`,
+  };
+}
+
+function genArithmetic(tier) {
+  return { 1: arithT1, 2: arithT2, 3: arithT3, 4: arithT4, 5: arithT5 }[tier]();
+}
+
+// ---------- Fractions / Decimals / Percentages ----------
+
+const COMMON_FRACTIONS = [
+  { num: 1, den: 2 }, { num: 1, den: 4 }, { num: 3, den: 4 }, { num: 1, den: 5 },
+  { num: 2, den: 5 }, { num: 3, den: 5 }, { num: 4, den: 5 }, { num: 1, den: 10 },
+  { num: 3, den: 10 }, { num: 7, den: 10 }, { num: 1, den: 20 }, { num: 1, den: 8 },
+  { num: 3, den: 8 },
+];
+
+function fdpT1() {
+  const f = pick(COMMON_FRACTIONS);
+  const percent = Math.round((f.num / f.den) * 100);
+  const decoys = new Set([percent]);
+  let attempts = 0;
+  while (decoys.size < 4 && attempts < 30) {
+    attempts += 1;
+    const delta = pick([-25, -20, -10, -5, 5, 10, 20, 25]);
+    const d = percent + delta;
+    if (d > 0 && d < 100) decoys.add(d);
+  }
+  const choices = shuffle([...decoys]).map(String);
+  return {
+    topic: 'fdp', subtopic: 'equivalence', difficulty: 1, source: 'generated',
+    prompt: `What is ${f.num}/${f.den} as a percentage?`,
+    answerType: 'mcq', correctAnswer: String(percent), choices,
+    explanation: `${f.num}/${f.den} = ${(f.num / f.den).toFixed(2)} = ${percent}%`,
+  };
+}
+
+function fdpT2() {
+  if (Math.random() < 0.5) {
+    const den = pick([4, 5, 6, 8, 10]);
+    let a = randInt(1, den - 1);
+    let b = randInt(1, den - 1);
+    const op = pick(['+', '-']);
+    if (op === '-' && b > a) [a, b] = [b, a];
+    const resultNum = op === '+' ? a + b : a - b;
+    const simplified = simplifyFrac(resultNum, den);
+    return {
+      topic: 'fdp', subtopic: 'fractions', difficulty: 2, source: 'generated',
+      prompt: `${a}/${den} ${op} ${b}/${den} = ? (simplest form)`,
+      answerType: 'text', correctAnswer: formatFrac(simplified.num, simplified.den), choices: null,
+      explanation: `${a}/${den} ${op} ${b}/${den} = ${resultNum}/${den} = ${formatFrac(simplified.num, simplified.den)}`,
+    };
+  }
+  const percent = pick([10, 20, 25, 50, 75]);
+  const base = pick([20, 40, 60, 80, 100, 200, 400]);
+  const answer = (percent / 100) * base;
+  return {
+    topic: 'fdp', subtopic: 'percentages', difficulty: 2, source: 'generated',
+    prompt: `What is ${percent}% of ${base}?`,
+    answerType: 'numeric', correctAnswer: String(answer), choices: null,
+    explanation: `${percent}% of ${base} = (${percent}/100) × ${base} = ${answer}`,
+  };
+}
+
+function fdpT3Frac() {
+  const denPairs = [[2, 3], [3, 4], [2, 5], [4, 5], [3, 5], [2, 7]];
+  let [d1, d2] = pick(denPairs);
+  let a = randInt(1, d1 - 1);
+  let b = randInt(1, d2 - 1);
+  const lcm = (d1 * d2) / gcd(d1, d2);
+  let an = a * (lcm / d1);
+  let bn = b * (lcm / d2);
+  const op = pick(['+', '-']);
+  if (op === '-' && bn > an) {
+    [a, d1, an, b, d2, bn] = [b, d2, bn, a, d1, an];
+  }
+  const resultNum = op === '+' ? an + bn : an - bn;
+  const simplified = simplifyFrac(resultNum, lcm);
+  return {
+    topic: 'fdp', subtopic: 'fractions', difficulty: 3, source: 'generated',
+    prompt: `${a}/${d1} ${op} ${b}/${d2} = ? (simplest form)`,
+    answerType: 'text', correctAnswer: formatFrac(simplified.num, simplified.den), choices: null,
+    explanation: `Common denominator ${lcm}: ${an}/${lcm} ${op} ${bn}/${lcm} = ${resultNum}/${lcm} = ${formatFrac(simplified.num, simplified.den)}`,
+  };
+}
+
+function fdpT3Percent() {
+  const percent = pick([15, 35, 45, 65, 85, 12, 18]);
+  const base = pick([40, 60, 80, 120, 150, 200]);
+  const answer = round2((percent / 100) * base);
+  return {
+    topic: 'fdp', subtopic: 'percentages', difficulty: 3, source: 'generated',
+    prompt: `What is ${percent}% of ${base}?`,
+    answerType: 'numeric', correctAnswer: String(answer), choices: null,
+    explanation: `${percent}% of ${base} = (${percent}/100) × ${base} = ${answer}`,
+  };
+}
+
+function fdpT3() {
+  return Math.random() < 0.5 ? fdpT3Frac() : fdpT3Percent();
+}
+
+function fdpT4() {
+  if (Math.random() < 0.5) {
+    const f1 = { num: randInt(1, 5), den: randInt(2, 8) };
+    const f2 = { num: randInt(1, 5), den: randInt(2, 8) };
+    const op = pick(['×', '÷']);
+    let resultNum;
+    let resultDen;
+    if (op === '×') {
+      resultNum = f1.num * f2.num;
+      resultDen = f1.den * f2.den;
+    } else {
+      resultNum = f1.num * f2.den;
+      resultDen = f1.den * f2.num;
+    }
+    const simplified = simplifyFrac(resultNum, resultDen);
+    return {
+      topic: 'fdp', subtopic: 'fractions', difficulty: 4, source: 'generated',
+      prompt: `${f1.num}/${f1.den} ${op} ${f2.num}/${f2.den} = ? (simplest form)`,
+      answerType: 'text', correctAnswer: `${simplified.num}/${simplified.den}`, choices: null,
+      explanation: op === '×'
+        ? `Multiply numerators and denominators: (${f1.num}×${f2.num})/(${f1.den}×${f2.den}) = ${resultNum}/${resultDen} = ${simplified.num}/${simplified.den}`
+        : `Flip and multiply: ${f1.num}/${f1.den} × ${f2.den}/${f2.num} = ${resultNum}/${resultDen} = ${simplified.num}/${simplified.den}`,
+    };
+  }
+  const base = pick([40, 50, 60, 80, 120, 150, 200]);
+  const percent = pick([10, 15, 20, 25, 30]);
+  const isIncrease = Math.random() < 0.5;
+  const delta = (percent / 100) * base;
+  const answer = isIncrease ? base + delta : base - delta;
+  return {
+    topic: 'fdp', subtopic: 'percentages', difficulty: 4, source: 'generated',
+    prompt: `${base} is ${isIncrease ? 'increased' : 'decreased'} by ${percent}%. What is the new value?`,
+    answerType: 'numeric', correctAnswer: String(answer), choices: null,
+    explanation: `${percent}% of ${base} = ${delta}. ${base} ${isIncrease ? '+' : '-'} ${delta} = ${answer}`,
+  };
+}
+
+function fdpT5() {
+  const base = pick([80, 100, 120, 150, 200, 240]);
+  const p1 = pick([10, 20, 25]);
+  const p2 = pick([10, 15, 20]);
+  const afterFirst = base * (1 - p1 / 100);
+  const afterSecond = afterFirst * (1 - p2 / 100);
+  const answer = round2(afterSecond);
+  return {
+    topic: 'fdp', subtopic: 'percentages', difficulty: 5, source: 'generated',
+    prompt: `A £${base} item is reduced by ${p1}%, then by a further ${p2}%. What is the final price?`,
+    answerType: 'numeric', correctAnswer: String(answer), choices: null,
+    explanation: `After ${p1}% off: £${base} × ${1 - p1 / 100} = £${round2(afterFirst)}. After a further ${p2}% off: × ${1 - p2 / 100} = £${answer}`,
+  };
+}
+
+function genFdp(tier) {
+  return { 1: fdpT1, 2: fdpT2, 3: fdpT3, 4: fdpT4, 5: fdpT5 }[tier]();
+}
+
+// ---------- Geometry ----------
+
+function geoT1() {
+  const w = randInt(3, 20);
+  const h = randInt(3, 20);
+  const answer = 2 * (w + h);
+  return {
+    topic: 'geometry', subtopic: 'perimeter', difficulty: 1, source: 'generated',
+    prompt: `A rectangle is ${w}cm by ${h}cm. What is its perimeter (in cm)?`,
+    answerType: 'numeric', correctAnswer: String(answer), choices: null,
+    explanation: `Perimeter = 2 × (${w} + ${h}) = ${answer}cm`,
+  };
+}
+
+function geoT2() {
+  const w = randInt(3, 20);
+  const h = randInt(3, 20);
+  const answer = w * h;
+  return {
+    topic: 'geometry', subtopic: 'area', difficulty: 2, source: 'generated',
+    prompt: `A rectangle is ${w}cm by ${h}cm. What is its area (in cm²)?`,
+    answerType: 'numeric', correctAnswer: String(answer), choices: null,
+    explanation: `Area = ${w} × ${h} = ${answer}cm²`,
+  };
+}
+
+function geoT3() {
+  const variant = pick(['lshape', 'triangle', 'angles']);
+  if (variant === 'lshape') {
+    const w = randInt(6, 14);
+    const h = randInt(6, 14);
+    const cutW = randInt(2, w - 2);
+    const cutH = randInt(2, h - 2);
+    const area = w * h - cutW * cutH;
+    return {
+      topic: 'geometry', subtopic: 'composite-area', difficulty: 3, source: 'generated',
+      prompt: `An L-shape is a ${w}cm × ${h}cm rectangle with a ${cutW}cm × ${cutH}cm rectangle removed from one corner. What is the remaining area (in cm²)?`,
+      answerType: 'numeric', correctAnswer: String(area), choices: null,
+      explanation: `Full rectangle: ${w}×${h} = ${w * h}. Remove ${cutW}×${cutH} = ${cutW * cutH}. ${w * h} - ${cutW * cutH} = ${area}cm²`,
+    };
+  }
+  if (variant === 'triangle') {
+    const base = randInt(4, 20);
+    const height = randInt(4, 20);
+    const area = (base * height) / 2;
+    return {
+      topic: 'geometry', subtopic: 'triangle-area', difficulty: 3, source: 'generated',
+      prompt: `A triangle has a base of ${base}cm and a height of ${height}cm. What is its area (in cm²)?`,
+      answerType: 'numeric', correctAnswer: String(area), choices: null,
+      explanation: `Area = (base × height) ÷ 2 = (${base} × ${height}) ÷ 2 = ${area}cm²`,
+    };
+  }
+  const angA = randInt(20, 110);
+  const angB = randInt(20, Math.max(20, 160 - angA));
+  const angC = 180 - angA - angB;
+  return {
+    topic: 'geometry', subtopic: 'angles', difficulty: 3, source: 'generated',
+    prompt: `A triangle has angles of ${angA}° and ${angB}°. What is the third angle (in degrees)?`,
+    answerType: 'numeric', correctAnswer: String(angC), choices: null,
+    explanation: `Angles in a triangle sum to 180°. 180 - ${angA} - ${angB} = ${angC}°`,
+  };
+}
+
+function geoT4() {
+  if (Math.random() < 0.5) {
+    const lCm = pick([150, 200, 250, 320, 450]);
+    const wCm = pick([80, 100, 120, 150]);
+    const perimCm = 2 * (lCm + wCm);
+    const perimM = round2(perimCm / 100);
+    return {
+      topic: 'geometry', subtopic: 'unit-conversion', difficulty: 4, source: 'generated',
+      prompt: `A rectangular field is ${lCm}cm by ${wCm}cm on a scale drawing. What is its perimeter in metres?`,
+      answerType: 'numeric', correctAnswer: String(perimM), choices: null,
+      explanation: `Perimeter = 2 × (${lCm} + ${wCm}) = ${perimCm}cm. Convert to metres: ${perimCm} ÷ 100 = ${perimM}m`,
+    };
+  }
+  const r = randInt(2, 15);
+  if (Math.random() < 0.5) {
+    const area = round2(3.14 * r * r);
+    return {
+      topic: 'geometry', subtopic: 'circle-area', difficulty: 4, source: 'generated',
+      prompt: `A circle has a radius of ${r}cm. What is its area (in cm², using π ≈ 3.14)?`,
+      answerType: 'numeric', correctAnswer: String(area), choices: null,
+      explanation: `Area = π × r² = 3.14 × ${r * r} = ${area}cm²`,
+    };
+  }
+  const circumference = round2(3.14 * 2 * r);
+  return {
+    topic: 'geometry', subtopic: 'circle-circumference', difficulty: 4, source: 'generated',
+    prompt: `A circle has a radius of ${r}cm. What is its circumference (in cm, using π ≈ 3.14)?`,
+    answerType: 'numeric', correctAnswer: String(circumference), choices: null,
+    explanation: `Circumference = 2 × π × r = 2 × 3.14 × ${r} = ${circumference}cm`,
+  };
+}
+
+function geoT5() {
+  if (Math.random() < 0.5) {
+    const w = randInt(10, 25);
+    const h = randInt(10, 25);
+    const cutW = randInt(2, Math.floor(w / 2));
+    const cutH = randInt(2, Math.floor(h / 2));
+    const area = w * h - 2 * cutW * cutH;
+    return {
+      topic: 'geometry', subtopic: 'composite-area', difficulty: 5, source: 'generated',
+      prompt: `A ${w}cm × ${h}cm rectangle has two ${cutW}cm × ${cutH}cm square corners cut off. What is the remaining area (in cm²)?`,
+      answerType: 'numeric', correctAnswer: String(area), choices: null,
+      explanation: `Full rectangle: ${w}×${h} = ${w * h}. Two cut corners: 2 × (${cutW}×${cutH}) = ${2 * cutW * cutH}. ${w * h} - ${2 * cutW * cutH} = ${area}cm²`,
+    };
+  }
+  const l = randInt(3, 12);
+  const w = randInt(3, 12);
+  const h = randInt(3, 12);
+  const volume = l * w * h;
+  return {
+    topic: 'geometry', subtopic: 'volume', difficulty: 5, source: 'generated',
+    prompt: `A cuboid is ${l}cm × ${w}cm × ${h}cm. What is its volume (in cm³)?`,
+    answerType: 'numeric', correctAnswer: String(volume), choices: null,
+    explanation: `Volume = length × width × height = ${l} × ${w} × ${h} = ${volume}cm³`,
+  };
+}
+
+function genGeometry(tier) {
+  return { 1: geoT1, 2: geoT2, 3: geoT3, 4: geoT4, 5: geoT5 }[tier]();
+}
+
+// ---------- Dispatch ----------
+
+const GENERATORS = {
+  arithmetic: genArithmetic,
+  fdp: genFdp,
+  geometry: genGeometry,
+};
+
+export function getQuestion(topic, tier, usedWordProblemIds) {
+  if (topic === 'wordProblems') {
+    return getWordProblem(tier, usedWordProblemIds);
+  }
+  const gen = GENERATORS[topic];
+  if (!gen) throw new Error(`Unknown topic: ${topic}`);
+  return gen(tier);
+}

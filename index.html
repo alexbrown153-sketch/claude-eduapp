@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Sprint — 11+ Maths Practice</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<header class="app-header">
+  <span class="app-title">Sprint</span>
+  <span id="header-countdown" class="header-countdown"></span>
+  <span id="header-points" class="header-points"></span>
+</header>
+
+<main id="app">
+
+  <!-- START SCREEN -->
+  <section id="screen-start" class="screen">
+    <div class="focus-card" id="focus-card">
+      <p class="focus-phase" id="focus-phase"></p>
+      <p class="focus-tone" id="focus-tone"></p>
+    </div>
+
+    <h2 class="section-heading">Session length</h2>
+    <div class="choice-grid" id="length-choices">
+      <button class="choice-btn" data-length-type="questions" data-length-value="10">10 questions</button>
+      <button class="choice-btn" data-length-type="questions" data-length-value="20">20 questions</button>
+      <button class="choice-btn" data-length-type="minutes" data-length-value="5">5 min sprint</button>
+      <button class="choice-btn" data-length-type="minutes" data-length-value="10">10 min sprint</button>
+    </div>
+
+    <h2 class="section-heading">Topic focus (optional)</h2>
+    <div class="choice-grid" id="topic-choices">
+      <button class="choice-btn chip" data-topic="">All topics</button>
+      <button class="choice-btn chip" data-topic="arithmetic">Arithmetic</button>
+      <button class="choice-btn chip" data-topic="fdp">Fractions / %</button>
+      <button class="choice-btn chip" data-topic="geometry">Geometry</button>
+      <button class="choice-btn chip" data-topic="wordProblems">Word problems</button>
+    </div>
+
+    <button id="start-btn" class="primary-btn">Start session</button>
+    <button id="resume-btn" class="secondary-btn" hidden>Resume unfinished session</button>
+    <button id="goto-progress-btn" class="link-btn">View progress</button>
+  </section>
+
+  <!-- QUESTION SCREEN -->
+  <section id="screen-question" class="screen">
+    <div class="session-hud">
+      <span id="hud-progress"></span>
+      <span id="hud-score"></span>
+      <span id="hud-streak"></span>
+      <span id="hud-timer" hidden></span>
+    </div>
+
+    <div class="question-card">
+      <p id="question-prompt" class="question-prompt"></p>
+
+      <div id="answer-numeric" class="answer-area" hidden>
+        <div class="numeric-display" id="numeric-display">&nbsp;</div>
+        <div class="keypad">
+          <button class="key" data-key="1">1</button>
+          <button class="key" data-key="2">2</button>
+          <button class="key" data-key="3">3</button>
+          <button class="key" data-key="4">4</button>
+          <button class="key" data-key="5">5</button>
+          <button class="key" data-key="6">6</button>
+          <button class="key" data-key="7">7</button>
+          <button class="key" data-key="8">8</button>
+          <button class="key" data-key="9">9</button>
+          <button class="key" data-key=".">.</button>
+          <button class="key" data-key="0">0</button>
+          <button class="key key-back" data-key="back">&#9003;</button>
+        </div>
+      </div>
+
+      <div id="answer-text" class="answer-area" hidden>
+        <input id="text-input" class="text-input" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
+      </div>
+
+      <div id="answer-mcq" class="answer-area mcq-grid" hidden></div>
+
+      <button id="check-btn" class="primary-btn">Check answer</button>
+    </div>
+
+    <div id="feedback-panel" class="feedback-panel" hidden>
+      <p id="feedback-result" class="feedback-result"></p>
+      <p id="feedback-explanation" class="feedback-explanation"></p>
+      <button id="next-btn" class="primary-btn">Next question</button>
+    </div>
+  </section>
+
+  <!-- SUMMARY SCREEN -->
+  <section id="screen-summary" class="screen">
+    <h2 class="section-heading">Session complete!</h2>
+    <div class="summary-card" id="summary-card"></div>
+    <button id="summary-restart-btn" class="primary-btn">Practice again</button>
+    <button id="summary-progress-btn" class="secondary-btn">View progress</button>
+  </section>
+
+  <!-- PROGRESS SCREEN -->
+  <section id="screen-progress" class="screen">
+    <h2 class="section-heading">Progress</h2>
+    <div class="streak-banner" id="streak-banner"></div>
+
+    <h3 class="section-subheading">Mastery by topic</h3>
+    <div id="mastery-bars" class="mastery-bars"></div>
+
+    <h3 class="section-subheading">Recent sessions</h3>
+    <div id="session-history" class="session-history"></div>
+
+    <button id="progress-back-btn" class="secondary-btn">Back to start</button>
+  </section>
+
+</main>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
