@@ -39,7 +39,6 @@ Future roadmap ideas
 36. Remove the "Sprint" icon/wording from the top bar. Replace with the avatar
 37. All buttons than return the user to the home page should be called "Home"
 
-done to here
 38. Make the scroll indicator buttons active so that clicking on them actually scrolls the screen.
 39. Make the scroll indicator icon larger
 40. Put some space between the joke and weather section and the main section. Make the joke and weather section a little wider.
@@ -52,3 +51,7 @@ done to here
 47. Move the "exit" button to the right hand side of the question during a session
 48. Add the words "Tiffin 11+ Prep" to the center of the top bar
 49. Move the clear all progress button to appear underneath the explanetory text - left justified.
+
+50. Move the upload of custom questions to the settings page
+51. Move the avatar to below the "Tiffin" text and make it 50% larger.
+52. Move the navigation buttons on the top bar to the top. 

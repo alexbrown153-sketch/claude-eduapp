@@ -222,16 +222,17 @@ function stopTimer() {
 function nextQuestion() {
   state.currentQuestion = pickNextQuestion(state.session, state.mastery);
   state.questionStartTime = Date.now();
-  ui.renderHud(state.session, state.plan, state.shopState);
+  ui.renderHud(state.session, state.plan);
   ui.renderQuestion(state.currentQuestion);
 }
 
 function onCheck() {
   const answer = ui.getCurrentAnswer(state.currentQuestion.answerType);
   const timeMs = Date.now() - state.questionStartTime;
-  const { correct } = recordAnswer(state.session, state.mastery, state.currentQuestion, answer, timeMs);
-  ui.renderHud(state.session, state.plan, state.shopState);
+  const { correct, streak } = recordAnswer(state.session, state.mastery, state.currentQuestion, answer, timeMs);
+  ui.renderHud(state.session, state.plan);
   ui.renderFeedback(correct, state.currentQuestion.explanation, state.currentQuestion.correctAnswer);
+  if (streak === 2) ui.triggerStreakAnimation();
 }
 
 function onNext() {

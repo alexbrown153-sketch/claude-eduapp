@@ -61,12 +61,18 @@ export function initScrollIndicators() {
   window.addEventListener('resize', update);
   new ResizeObserver(update).observe(el('app-inner'));
   update();
+
+  // The chevrons double as scroll buttons — tap to page up/down by most of
+  // a screenful, rather than only signalling that more content exists.
+  el('scroll-indicator-top').addEventListener('click', () => {
+    scrollEl.scrollBy({ top: -scrollEl.clientHeight * 0.75, behavior: 'smooth' });
+  });
+  el('scroll-indicator-bottom').addEventListener('click', () => {
+    scrollEl.scrollBy({ top: scrollEl.clientHeight * 0.75, behavior: 'smooth' });
+  });
 }
 
 export function updateHeader(plan, meta, shopState, earnedBadges = []) {
-  el('header-countdown').textContent = plan.daysRemaining >= 0
-    ? `${plan.daysRemaining} day${plan.daysRemaining === 1 ? '' : 's'} to go`
-    : 'Exam day!';
   el('header-points').textContent = `⭐ ${availableBalance(meta)}`;
   renderAvatar(el('header-avatar'), shopState);
 
@@ -145,6 +151,9 @@ export function renderStart(plan, mastery, meta, hasInProgress) {
   el('focus-tone').textContent = meta.childName
     ? `Hi ${meta.childName}! ${plan.framingTone}`
     : plan.framingTone;
+  el('focus-countdown').textContent = plan.daysRemaining >= 0
+    ? `${plan.daysRemaining} day${plan.daysRemaining === 1 ? '' : 's'} to go`
+    : 'Exam day!';
 
   const summary = computeStrengthSummary(mastery);
   const summaryEl = el('strength-summary');
@@ -260,7 +269,7 @@ export function renderWeather(state) {
 
 // ---------- Question screen ----------
 
-export function renderHud(session, plan, shopState) {
+export function renderHud(session, plan) {
   const count = session.lengthType === 'questions'
     ? `Q${session.questions.length + 1} / ${session.lengthValue}`
     : `Q${session.questions.length + 1}`;
@@ -268,7 +277,25 @@ export function renderHud(session, plan, shopState) {
   el('hud-score').textContent = `⭐ ${session.score}`;
   el('hud-streak').textContent = session.streak > 1 ? `🔥 ${session.streak}` : '';
   el('hud-timer').hidden = !plan.timerVisible || session.lengthType !== 'minutes';
-  renderAvatar(el('hud-avatar'), shopState);
+}
+
+// Celebrates the moment a streak "starts" — i.e. exactly when the 🔥 badge
+// first appears (session.streak reaching 2) — with a floating toast and a
+// pulse on the streak badge itself, distinct from the per-answer burst.
+export function triggerStreakAnimation() {
+  const hud = document.querySelector('.session-hud');
+  const old = hud.querySelector('.streak-toast');
+  if (old) old.remove();
+  const toast = document.createElement('div');
+  toast.className = 'streak-toast';
+  toast.textContent = '🔥 Streak!';
+  hud.appendChild(toast);
+  setTimeout(() => toast.remove(), 1300);
+
+  const badge = el('hud-streak');
+  badge.classList.remove('streak-pulse');
+  void badge.offsetWidth;
+  badge.classList.add('streak-pulse');
 }
 
 export function updateTimer(remainingMs) {

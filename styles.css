@@ -64,12 +64,16 @@ button {
   padding: 14px 20px 8px;
 }
 
-.header-countdown {
-  font-size: 0.9rem;
-  color: var(--ink-soft);
-  background: var(--chip-bg);
-  padding: 4px 10px;
-  border-radius: 999px;
+.header-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: center;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--primary-dark);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .header-points {
@@ -167,19 +171,22 @@ button {
 .scroll-indicator {
   position: absolute;
   right: 14px;
-  width: 46px;
-  height: 46px;
+  width: 58px;
+  height: 58px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  pointer-events: none;
-  font-size: 1.4rem;
+  pointer-events: auto;
+  cursor: pointer;
+  font-size: 2rem;
   color: var(--primary);
   background: var(--surface);
+  border: none;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
   z-index: 5;
 }
+.scroll-indicator:active { background: var(--chip-bg); transform: scale(0.94); }
 .scroll-indicator-top { top: 10px; }
 .scroll-indicator-bottom { bottom: 10px; }
 
@@ -232,7 +239,7 @@ button {
   display: flex;
   flex-direction: column;
 }
-.start-sidebar { order: 2; margin-top: 20px; }
+.start-sidebar { order: 2; margin-top: 28px; }
 .start-main { order: 1; min-width: 0; }
 
 .focus-card {
@@ -243,6 +250,19 @@ button {
 }
 .focus-phase { font-size: 1.1rem; font-weight: 700; margin: 0 0 6px; }
 .focus-tone { margin: 0; opacity: 0.92; font-size: 0.95rem; }
+.focus-countdown {
+  display: inline-block;
+  margin: 10px 0 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.2);
+  padding: 4px 12px;
+  border-radius: 999px;
+}
+.focus-card .strength-summary {
+  color: rgba(255, 255, 255, 0.92);
+}
+.focus-card .strength-summary strong { color: #fff; }
 
 .choice-grid {
   display: grid;
@@ -313,6 +333,7 @@ button {
 
 /* Question screen */
 .session-hud {
+  position: relative;
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
@@ -321,6 +342,38 @@ button {
   color: var(--ink-soft);
   margin-bottom: 14px;
 }
+
+/* Streak-started celebration: a floating toast above the HUD plus a pulse
+   on the streak badge itself — separate from the per-answer correct burst. */
+.streak-toast {
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, #ff8a3d, #e8734a);
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.85rem;
+  padding: 6px 14px;
+  border-radius: 999px;
+  box-shadow: 0 4px 14px rgba(232, 115, 74, 0.4);
+  pointer-events: none;
+  white-space: nowrap;
+  animation: streak-toast-fly 1.2s ease-out forwards;
+  z-index: 6;
+}
+@keyframes streak-toast-fly {
+  0% { opacity: 0; transform: translate(-50%, 10px) scale(0.8); }
+  20% { opacity: 1; transform: translate(-50%, -10px) scale(1.05); }
+  80% { opacity: 1; transform: translate(-50%, -26px) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -40px) scale(0.95); }
+}
+.streak-pulse { animation: streak-badge-pulse 0.6s ease-out; }
+@keyframes streak-badge-pulse {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.35); box-shadow: 0 0 0 4px rgba(232, 115, 74, 0.35); }
+  100% { transform: scale(1); }
+}
 .session-hud span {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -328,6 +381,7 @@ button {
   padding: 4px 12px;
 }
 .hud-exit-btn {
+  margin-left: auto;
   background: var(--bad-bg);
   color: var(--bad);
   border: 1px solid var(--bad);
@@ -338,6 +392,7 @@ button {
 }
 
 .question-card {
+  position: relative;
   background: var(--surface);
   border-radius: var(--radius);
   padding: 22px;
@@ -658,7 +713,7 @@ button {
   display: block;
   width: fit-content;
   min-width: 200px;
-  margin: 0 auto;
+  margin: 0;
   min-height: 52px;
   background: var(--bad-bg);
   color: var(--bad);
@@ -763,38 +818,6 @@ button {
   padding: 3px;
 }
 .header-avatar[data-frame="frame-rainbow"] .avatar-emoji {
-  display: flex;
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  background: var(--surface);
-  align-items: center;
-  justify-content: center;
-}
-
-.hud-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.15rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  padding: 0 !important;
-  position: relative;
-}
-.hud-avatar[data-frame="frame-gold"] { box-shadow: 0 0 0 2px #d4a017; }
-.hud-avatar[data-frame="frame-fire"] { box-shadow: 0 0 0 2px #e8734a; }
-.hud-avatar[data-frame="frame-diamond"] { box-shadow: 0 0 0 2px #b9e0ff, 0 0 6px 1px #7fd0ff; }
-.hud-avatar[data-frame="frame-rainbow"] {
-  border: none;
-  background-image: conic-gradient(red, orange, yellow, green, blue, violet, red);
-  background-origin: border-box;
-  padding: 2px !important;
-}
-.hud-avatar[data-frame="frame-rainbow"] .avatar-emoji {
   display: flex;
   width: 100%;
   height: 100%;
@@ -1012,11 +1035,11 @@ body[data-font="font-mono"] {
   .start-layout {
     flex-direction: row;
     align-items: flex-start;
-    gap: 24px;
+    gap: 36px;
   }
   .start-sidebar {
     order: -1;
-    flex: 0 0 220px;
+    flex: 0 0 260px;
     margin-top: 0;
   }
   .start-main {
