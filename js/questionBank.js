@@ -686,7 +686,7 @@ const GENERATORS = {
   dataHandling: genDataHandling,
 };
 
-// customQuestions: user-uploaded questions (see customQuestions.js) matching
+// customQuestions: user-imported questions (see pdfQuestions.js) matching
 // this exact topic+tier are mixed in some of the time, alongside the
 // procedural/authored bank, rather than replacing it outright.
 const CUSTOM_QUESTION_CHANCE = 0.4;

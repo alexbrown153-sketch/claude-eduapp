@@ -18,7 +18,10 @@ function round2(n) {
 
 // A small recursive-descent parser for +, -, *, /, and parentheses — no
 // eval()/Function(), so there's no risk of running arbitrary uploaded text.
-function evaluateArithmetic(expr) {
+// Exported for reuse by examberryPdfParser.js, which needs the identical
+// safe-evaluation primitive to test candidate operators against a known
+// target value (see its header comment on operator recovery).
+export function evaluateArithmetic(expr) {
   let i = 0;
 
   function fail() { throw new Error('parse error'); }

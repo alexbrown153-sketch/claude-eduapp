@@ -6,7 +6,6 @@ import { Storage, TOPICS } from './storage.js';
 import { computeTodaysPlan } from './pacing.js';
 import { startSession, pickNextQuestion, recordAnswer, isSessionComplete, finishSession } from './session.js';
 import { getBadgeDefinitions, evaluateBadges } from './badges.js';
-import { parseAndValidate } from './customQuestions.js';
 import { parsePdfQuestions } from './pdfQuestions.js';
 import { fetchWeatherForCity } from './weather.js';
 import { getItem, isOwned, availableBalance } from './shop.js';
@@ -102,9 +101,14 @@ function goToShop() {
 
 function goToSettings() {
   ui.renderSettings(Storage.getMeta());
-  ui.renderCustomQuestionsPanel(Storage.getCustomQuestions());
-  ui.renderCustomQuestionsErrors([]);
   ui.showScreen('settings');
+}
+
+function goToImport() {
+  ui.renderImportSummary(Storage.getCustomQuestions());
+  ui.renderImportErrors([]);
+  ui.renderImportPreview([]);
+  ui.showScreen('import');
 }
 
 function onNameChange(name) {
@@ -130,34 +134,24 @@ function handleClearProgress() {
   goToStart();
 }
 
-function handleCustomQuestionsFile(file) {
-  const reader = new FileReader();
-  reader.onload = () => {
-    const { valid, errors } = parseAndValidate(reader.result, TOPICS);
-    if (valid.length > 0) Storage.addCustomQuestions(valid);
-    ui.renderCustomQuestionsErrors(errors);
-    ui.renderCustomQuestionsPanel(Storage.getCustomQuestions());
-  };
-  reader.onerror = () => ui.renderCustomQuestionsErrors(['Could not read that file.']);
-  reader.readAsText(file);
-}
-
-function handleCustomQuestionsPdfFile(file) {
+function handleImportPdfFile(file) {
   const reader = new FileReader();
   reader.onload = async () => {
     const { valid, errors } = await parsePdfQuestions(reader.result, TOPICS);
     if (valid.length > 0) Storage.addCustomQuestions(valid);
-    ui.renderCustomQuestionsErrors(errors);
-    ui.renderCustomQuestionsPanel(Storage.getCustomQuestions());
+    ui.renderImportErrors(errors);
+    ui.renderImportPreview(valid);
+    ui.renderImportSummary(Storage.getCustomQuestions());
   };
-  reader.onerror = () => ui.renderCustomQuestionsErrors(['Could not read that file.']);
+  reader.onerror = () => ui.renderImportErrors([{ message: 'Could not read that file.', hint: 'Make sure it\'s a valid PDF and try again.' }]);
   reader.readAsArrayBuffer(file);
 }
 
-function handleClearCustomQuestions() {
+function handleClearImportedQuestions() {
   Storage.setCustomQuestions([]);
-  ui.renderCustomQuestionsPanel([]);
-  ui.renderCustomQuestionsErrors([]);
+  ui.renderImportSummary([]);
+  ui.renderImportErrors([]);
+  ui.renderImportPreview([]);
 }
 
 function handlePurchaseOrEquip(itemId) {
@@ -273,10 +267,9 @@ ui.bindQuestionHandlers({ onCheck, onNext, onExit: goToStart });
 
 ui.bindSummaryHandlers({ onRestart: goToStart });
 
-ui.bindCustomQuestionsHandlers({
-  onFileSelected: handleCustomQuestionsFile,
-  onPdfFileSelected: handleCustomQuestionsPdfFile,
-  onClear: handleClearCustomQuestions,
+ui.bindImportHandlers({
+  onPdfFileSelected: handleImportPdfFile,
+  onClear: handleClearImportedQuestions,
 });
 
 ui.bindShopHandlers({ onPurchaseOrEquip: handlePurchaseOrEquip });
@@ -286,6 +279,7 @@ ui.bindGlobalHandlers({
   onGotoProgress: goToProgress,
   onGotoShop: goToShop,
   onGotoSettings: goToSettings,
+  onGotoImport: goToImport,
 });
 
 applyCosmetics(Storage.getShopState());

@@ -15,34 +15,102 @@ import { parseExamberryMaths } from './examberryPdfParser.js';
 
 const FALLBACK_TOPIC = 'wordProblems';
 
+// Every error/skip is a { message, hint } pair — see examberryPdfParser.js
+// for why these are kept together at the source rather than the message
+// text alone.
+function err(message, hint) {
+  return { message, hint };
+}
+
 // getTextContent() items carry position but no inherent line breaks — join
 // them into lines by watching the Y coordinate (item.transform[5]) instead
-// of just space-joining everything into one run-on string.
+// of just space-joining everything into one run-on string. Also records,
+// alongside the text, the Y each line started at (`lines`) — needed later
+// to find where a diagram sits on the page (see extractPdfDocument and
+// examberryPdfParser.js's diagram-capture code): a diagram takes up real
+// vertical space between two lines of text but produces no text of its own,
+// so the only way to find it is by the gap between two KNOWN Y positions.
 function itemsToText(items) {
   let text = '';
   let lastY = null;
+  const lines = [];
   items.forEach((item) => {
     const y = Array.isArray(item.transform) ? item.transform[5] : null;
     if (lastY !== null && y !== null && Math.abs(y - lastY) > 1) {
       text += '\n';
+      lines.push({ offset: text.length, y });
     } else if (text && !text.endsWith('\n')) {
       text += ' ';
+    } else if (text.length === 0 && y !== null) {
+      lines.push({ offset: 0, y });
     }
     text += item.str;
     if (y !== null) lastY = y;
   });
-  return text;
+  return { text, lines };
 }
 
-async function extractPdfText(arrayBuffer) {
+// Renders a horizontal band of one PDF page (in PDF point coordinates, Y
+// increasing upward — the same space item.transform[5] values live in) to a
+// cropped PNG data URL, for showing a diagram/chart/graph the question text
+// itself can't carry. `yTop`/`yBottom` are typically "end of the previous
+// question's text" and "start of the next question's marker", i.e. the
+// visual gap where the diagram sits. Returns null if the region is
+// degenerate (no real gap) rather than producing a blank/garbage image.
+async function renderPageRegion(pdf, pageNum, pageHeight, yTop, yBottom) {
+  const PADDING_PT = 8; // a little breathing room so axis labels aren't clipped
+  const SCALE = 2; // resolution multiplier — plenty for an on-screen diagram
+  const top = Math.min(pageHeight, yTop + PADDING_PT);
+  const bottom = Math.max(0, yBottom - PADDING_PT);
+  if (top - bottom < 20) return null; // too thin to be a real diagram
+
+  const page = await pdf.getPage(pageNum);
+  const viewport = page.getViewport({ scale: SCALE });
+  const fullCanvas = document.createElement('canvas');
+  fullCanvas.width = viewport.width;
+  fullCanvas.height = viewport.height;
+  await page.render({ canvasContext: fullCanvas.getContext('2d'), viewport }).promise;
+
+  // PDF space has Y=0 at the bottom; canvas pixel space has Y=0 at the top.
+  const cropTopPx = Math.max(0, (pageHeight - top) * SCALE);
+  const cropBottomPx = Math.min(fullCanvas.height, (pageHeight - bottom) * SCALE);
+  const cropHeightPx = Math.round(cropBottomPx - cropTopPx);
+  if (cropHeightPx < 10) return null;
+
+  const cropCanvas = document.createElement('canvas');
+  cropCanvas.width = fullCanvas.width;
+  cropCanvas.height = cropHeightPx;
+  cropCanvas.getContext('2d').drawImage(
+    fullCanvas, 0, cropTopPx, fullCanvas.width, cropHeightPx, 0, 0, fullCanvas.width, cropHeightPx,
+  );
+  return cropCanvas.toDataURL('image/png');
+}
+
+// Returns { fullText, pages, renderRegion } — pages carries enough of each
+// page's own text layout (line Y-positions, starting offset within
+// fullText) for examberryPdfParser.js to work out which page and which
+// vertical band on it correspond to a diagram it can't extract as text, and
+// renderRegion is how it actually gets rendered once located (see above).
+async function extractPdfDocument(arrayBuffer) {
   const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const pages = [];
   const pageTexts = [];
+  let cumulativeOffset = 0;
   for (let i = 1; i <= pdf.numPages; i += 1) {
     const page = await pdf.getPage(i);
     const content = await page.getTextContent();
-    pageTexts.push(itemsToText(content.items));
+    const { text, lines } = itemsToText(content.items);
+    const viewport = page.getViewport({ scale: 1 });
+    pages.push({ pageNum: i, startInFull: cumulativeOffset, lines, pageHeight: viewport.height });
+    pageTexts.push(text);
+    cumulativeOffset += text.length + 2; // +2 for the '\n\n' page separator joined in below
   }
-  return pageTexts.join('\n\n');
+  const fullText = pageTexts.join('\n\n');
+  const renderRegion = (pageNum, yTop, yBottom) => {
+    const page = pages.find((p) => p.pageNum === pageNum);
+    return page ? renderPageRegion(pdf, pageNum, page.pageHeight, yTop, yBottom) : Promise.resolve(null);
+  };
+  return { fullText, pages, renderRegion };
 }
 
 function parseQuestionBlocks(text, validTopics) {
@@ -65,7 +133,10 @@ function parseQuestionBlocks(text, validTopics) {
   const errors = [];
 
   if (blocks.length === 0) {
-    errors.push('No "Q: ... A: ..." style question blocks were found in this PDF’s text.');
+    errors.push(err(
+      'No "Q: ... A: ..." style question blocks were found in this PDF’s text.',
+      'This importer expects either an Examberry-style practice paper (with a "Mathematics" section and its own answer key), or a plain sheet with each question formatted like "Q: ... A: ...".',
+    ));
     return { valid, errors };
   }
 
@@ -81,7 +152,10 @@ function parseQuestionBlocks(text, validTopics) {
     let answerSource = answer ? 'given' : null;
 
     if (!prompt) {
-      errors.push(`Block ${i + 1}: couldn’t find a question — "${blockText.slice(0, 60)}${blockText.length > 60 ? '…' : ''}"`);
+      errors.push(err(
+        `Block ${i + 1}: couldn’t find a question — "${blockText.slice(0, 60)}${blockText.length > 60 ? '…' : ''}"`,
+        'Check this block starts with "Q:" (or a number like "1.") immediately followed by the question text.',
+      ));
       return;
     }
     if (!answer) {
@@ -92,7 +166,10 @@ function parseQuestionBlocks(text, validTopics) {
       }
     }
     if (!answer) {
-      errors.push(`Block ${i + 1}: no "Answer:" given and none could be automatically determined — "${blockText.slice(0, 60)}${blockText.length > 60 ? '…' : ''}"`);
+      errors.push(err(
+        `Block ${i + 1}: no "Answer:" given and none could be automatically determined — "${blockText.slice(0, 60)}${blockText.length > 60 ? '…' : ''}"`,
+        'Add an "A: ..." line with the answer, or rephrase the question as a plain calculation (e.g. "What is 12 × 4?") so it can be worked out automatically.',
+      ));
       return;
     }
 
@@ -117,24 +194,32 @@ function parseQuestionBlocks(text, validTopics) {
 
 export async function parsePdfQuestions(arrayBuffer, validTopics) {
   if (!window.pdfjsLib) {
-    return { valid: [], errors: ['PDF support didn’t load (needs an internet connection the first time). Try again when online, or use the JSON upload instead.'] };
+    return { valid: [], errors: [err(
+      'PDF support didn’t load.',
+      'This needs an internet connection the first time (the PDF reader loads from the web) — check your connection and try again.',
+    )] };
   }
-  let text;
+  let fullText;
+  let pages;
+  let renderRegion;
   try {
-    text = await extractPdfText(arrayBuffer);
+    ({ fullText, pages, renderRegion } = await extractPdfDocument(arrayBuffer));
   } catch (e) {
-    return { valid: [], errors: [`Could not read that PDF: ${e.message}`] };
+    return { valid: [], errors: [err(`Could not read that PDF: ${e.message}`, 'Make sure the file is a valid, non-corrupted PDF, then try again.')] };
   }
-  if (!text.trim()) {
-    return { valid: [], errors: ['No text could be extracted from that PDF — it may be a scanned image rather than real text.'] };
+  if (!fullText.trim()) {
+    return { valid: [], errors: [err(
+      'No text could be extracted from that PDF.',
+      'This usually means it’s a scanned image rather than real text — this importer needs a text-based PDF, not a photo or scan of a paper.',
+    )] };
   }
 
   // Structured exam papers (e.g. "Tiffin Test N: Mathematics") are handled
   // by a dedicated maths-only parser that cross-references the real answer
   // key — see examberryPdfParser.js. Only fall back to the generic "Q: ...
   // A: ..." block parser if this doesn't look like that format at all.
-  const structured = parseExamberryMaths(text);
+  const structured = await parseExamberryMaths(fullText, pages, renderRegion);
   if (structured) return structured;
 
-  return parseQuestionBlocks(text, validTopics);
+  return parseQuestionBlocks(fullText, validTopics);
 }

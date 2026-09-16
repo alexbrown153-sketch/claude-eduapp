@@ -38,11 +38,24 @@ export function showScreen(name) {
   document.querySelectorAll('.nav-btn').forEach((b) => b.classList.toggle('active', b.dataset.nav === name));
 }
 
-export function bindGlobalHandlers({ onHome, onGotoProgress, onGotoShop, onGotoSettings }) {
+export function bindGlobalHandlers({ onHome, onGotoProgress, onGotoShop, onGotoSettings, onGotoImport }) {
   el('nav-home-btn').addEventListener('click', onHome);
   el('nav-progress-btn').addEventListener('click', onGotoProgress);
   el('nav-shop-btn').addEventListener('click', onGotoShop);
+  el('nav-import-btn').addEventListener('click', onGotoImport);
   el('nav-settings-btn').addEventListener('click', onGotoSettings);
+}
+
+// PDF text (question prompts, explanations, error messages that quote a
+// snippet of the source PDF) is untrusted content injected via innerHTML —
+// escape it so a stray "<" or "&" in someone's exam paper can't be
+// interpreted as markup.
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 // Shows a fading chevron at the top/bottom edge of the content area whenever
@@ -254,44 +267,99 @@ export function bindSettingsHandlers({ onNameChange, onCityChange, onClearProgre
   el('clear-progress-btn').addEventListener('click', onClearProgress);
 }
 
-export function renderCustomQuestionsPanel(questions) {
+// ---------- Import screen ----------
+
+export function renderImportSummary(questions) {
   const count = questions.length;
   if (count === 0) {
-    el('custom-questions-count').textContent = 'No custom questions loaded yet.';
+    el('import-count').textContent = 'No questions imported yet.';
     return;
   }
   const computedCount = questions.filter((q) => q.answerSource === 'computed').length;
   const guessedCount = questions.filter((q) => q.answerSource === 'guessed').length;
-  let text = `${count} custom question${count === 1 ? '' : 's'} loaded — mixed into matching topics.`;
+  let text = `${count} imported question${count === 1 ? '' : 's'} in total — mixed into matching topics.`;
   const notes = [];
   if (computedCount > 0) notes.push(`${computedCount} answer${computedCount === 1 ? '' : 's'} worked out automatically`);
   if (guessedCount > 0) notes.push(`${guessedCount} answer${guessedCount === 1 ? '' : 's'} guessed from the wording — worth double-checking`);
   if (notes.length > 0) text += ` (${notes.join('; ')}.)`;
-  el('custom-questions-count').textContent = text;
+  el('import-count').textContent = text;
 }
 
-export function renderCustomQuestionsErrors(errors) {
-  const errEl = el('custom-questions-errors');
+// Errors are { message, hint } pairs — message says what happened (and,
+// for a skipped question, exactly which one), hint says what to do about
+// it, shown as a quieter second line so the list stays scannable.
+export function renderImportErrors(errors) {
+  const errEl = el('import-errors');
   if (!errors || errors.length === 0) {
     errEl.hidden = true;
+    errEl.innerHTML = '';
     return;
   }
   errEl.hidden = false;
-  errEl.innerHTML = `<p>${errors.length} question(s) skipped:</p><ul>${errors.slice(0, 10).map((e) => `<li>${e}</li>`).join('')}</ul>`;
+  const items = errors.map((e) => {
+    const message = typeof e === 'string' ? e : e.message;
+    const hint = typeof e === 'string' ? '' : e.hint;
+    return `<li>${escapeHtml(message)}${hint ? `<span class="import-error-hint">${escapeHtml(hint)}</span>` : ''}</li>`;
+  }).join('');
+  errEl.innerHTML = `<p>${errors.length} question${errors.length === 1 ? '' : 's'} skipped:</p><ul>${items}</ul>`;
 }
 
-export function bindCustomQuestionsHandlers({ onFileSelected, onPdfFileSelected, onClear }) {
-  el('custom-questions-file').addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file) onFileSelected(file);
-    e.target.value = '';
-  });
-  el('custom-questions-pdf-file').addEventListener('change', (e) => {
+// Shows the questions from the import that just ran (not the whole
+// accumulated history) so the quality of THIS upload can be inspected
+// directly, card by card, the way they'll actually appear in a session.
+export function renderImportPreview(questions) {
+  const target = el('import-preview');
+  if (!questions || questions.length === 0) {
+    target.hidden = true;
+    target.innerHTML = '';
+    return;
+  }
+  target.hidden = false;
+  const cards = questions.map((q, i) => {
+    const sourceTag = q.answerSource && q.answerSource !== 'given'
+      ? `<span class="import-tag import-tag-${q.answerSource}">${q.answerSource === 'computed' ? 'worked out' : 'guessed'}</span>`
+      : '';
+    // The question's own ×/÷/− symbol was reconstructed from the answer key
+    // rather than read from the PDF (see examberryPdfParser.js) — worth its
+    // own tag so this specific spot can be double-checked, distinct from
+    // the answer itself (always 'given'/real here, never guessed).
+    const recoveredTag = q.symbolsRecovered
+      ? '<span class="import-tag import-tag-recovered">symbol recovered</span>'
+      : '';
+    const choicesHtml = q.choices
+      ? `<div class="import-choices">${q.choices.map((c) => `<span class="import-choice${c === q.correctAnswer ? ' import-choice-correct' : ''}">${escapeHtml(c)}</span>`).join('')}</div>`
+      : `<p class="import-answer"><strong>Answer:</strong> ${escapeHtml(q.correctAnswer)}</p>`;
+    const diagramHtml = q.diagramImage
+      ? `<img class="import-diagram" src="${escapeHtml(q.diagramImage)}" alt="Diagram captured from the PDF for this question" />`
+      : '';
+    return `
+      <div class="import-card">
+        <div class="import-card-head">
+          <span class="import-tag">${escapeHtml(TOPIC_LABELS[q.topic] || q.topic)}</span>
+          <span class="import-tag">Tier ${q.difficulty}</span>
+          ${sourceTag}
+          ${recoveredTag}
+        </div>
+        <p class="import-prompt">${i + 1}. ${escapeHtml(q.prompt)}</p>
+        ${diagramHtml}
+        ${choicesHtml}
+        ${q.explanation ? `<p class="import-explanation">${escapeHtml(q.explanation)}</p>` : ''}
+      </div>
+    `;
+  }).join('');
+  target.innerHTML = `
+    <h3 class="section-subheading">This import (${questions.length} question${questions.length === 1 ? '' : 's'})</h3>
+    <div class="import-preview-list">${cards}</div>
+  `;
+}
+
+export function bindImportHandlers({ onPdfFileSelected, onClear }) {
+  el('import-pdf-file').addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (file) onPdfFileSelected(file);
     e.target.value = '';
   });
-  el('custom-questions-clear-btn').addEventListener('click', onClear);
+  el('import-clear-btn').addEventListener('click', onClear);
 }
 
 // Live clock + today's date shown above the weather widget — re-called on
@@ -391,6 +459,16 @@ export function renderQuestion(question) {
   el('next-btn').hidden = true;
 
   el('question-prompt').textContent = question.prompt;
+
+  el('question-diagram').hidden = !question.diagramImage;
+  if (question.diagramImage) {
+    el('question-diagram-img').src = question.diagramImage;
+  } else {
+    // Setting src to '' resolves to the current page URL rather than
+    // clearing it, triggering a pointless request for it as an image on
+    // every non-diagram question — remove the attribute instead.
+    el('question-diagram-img').removeAttribute('src');
+  }
 
   numericBuffer = '';
   mcqSelected = null;

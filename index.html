@@ -15,6 +15,7 @@
       <button id="nav-home-btn" class="nav-btn" data-nav="start">&#127968; Home</button>
       <button id="nav-progress-btn" class="nav-btn" data-nav="progress">&#128202; Progress</button>
       <button id="nav-shop-btn" class="nav-btn" data-nav="shop">&#128717;&#65039; Shop</button>
+      <button id="nav-import-btn" class="nav-btn" data-nav="import">&#128229; Import</button>
     </nav>
     <div class="header-brand">
       <span class="header-title">Tiffin 11+ Maths Prep</span>
@@ -102,6 +103,10 @@
     <div class="question-card">
       <p id="question-prompt" class="question-prompt"></p>
 
+      <div id="question-diagram" class="question-diagram" hidden>
+        <img id="question-diagram-img" alt="Diagram for this question" />
+      </div>
+
       <div id="answer-numeric" class="answer-area" hidden>
         <div class="numeric-display" id="numeric-display">&nbsp;</div>
         <div class="keypad">
@@ -184,23 +189,25 @@
     </div>
     <p class="weather-hint">Looks up today's weather for this city using a free weather service &mdash; needs an internet connection.</p>
 
-    <h3 class="section-subheading">Custom questions</h3>
-    <div class="custom-questions-panel">
-      <p id="custom-questions-count" class="custom-questions-count"></p>
-      <div class="upload-buttons-row">
-        <label for="custom-questions-file" class="secondary-btn file-label">Upload .json</label>
-        <input type="file" id="custom-questions-file" accept=".json,application/json" hidden />
-        <label for="custom-questions-pdf-file" class="secondary-btn file-label">Upload .pdf</label>
-        <input type="file" id="custom-questions-pdf-file" accept=".pdf,application/pdf" hidden />
-      </div>
-      <p class="pdf-hint">Structured exam papers (e.g. "Tiffin Test N: Mathematics") are recognised automatically &mdash; only the maths section is imported, using the paper's own answer key and worked explanations. Questions involving a fraction or a chart/graph/diagram are skipped (reported below) since they can't be extracted or shown reliably as text. Otherwise, PDF questions should look like "Q: ..." (optionally with Explanation:/Topic:/Difficulty: lines) &mdash; works best for a consistently-formatted sheet, not scanned images. An "A: ..." answer is optional: if left out, the app will try to work it out from the question itself, but that's a best-effort guess for word problems and worth double-checking.</p>
-      <button id="custom-questions-clear-btn" class="link-btn">Clear custom questions</button>
-      <div id="custom-questions-errors" class="custom-questions-errors" hidden></div>
-    </div>
-
     <h3 class="section-subheading danger-heading">Danger zone</h3>
     <p class="danger-hint">Permanently erases all progress, points, badges, purchases and settings, and starts fresh.</p>
     <button id="clear-progress-btn" class="danger-btn">Clear all progress</button>
+  </section>
+
+  <!-- IMPORT SCREEN -->
+  <section id="screen-import" class="screen">
+    <h2 class="section-heading">Import questions</h2>
+    <div class="import-panel">
+      <p id="import-count" class="import-count"></p>
+      <div class="upload-buttons-row">
+        <label for="import-pdf-file" class="secondary-btn file-label">Upload a PDF</label>
+        <input type="file" id="import-pdf-file" accept=".pdf,application/pdf" hidden />
+      </div>
+      <p class="pdf-hint">Structured exam papers (e.g. "Tiffin Test N: Mathematics") are recognised automatically &mdash; only the maths section is imported, using the paper's own answer key and worked explanations. Questions involving a fraction, symbol, or a chart/graph/diagram that can't be extracted or shown reliably as text are skipped, not guessed &mdash; see below for exactly which ones and why. Plainer PDFs also work, formatted like "Q: ..." per question (an "A: ..." answer is optional; left out, it's worked out from the question where possible, and flagged as a guess otherwise).</p>
+      <button id="import-clear-btn" class="link-btn">Clear all imported questions</button>
+      <div id="import-errors" class="import-errors" hidden></div>
+      <div id="import-preview" class="import-preview" hidden></div>
+    </div>
   </section>
 
 </div>

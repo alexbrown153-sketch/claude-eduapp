@@ -445,6 +445,18 @@ button {
   text-align: center;
 }
 
+.question-diagram {
+  text-align: center;
+  margin: 0 0 20px;
+}
+.question-diagram img {
+  max-width: 100%;
+  max-height: 40vh;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+}
+
 .answer-area { margin-bottom: 16px; }
 
 .numeric-display {
@@ -956,9 +968,9 @@ button {
 .strength-weak { background: var(--bad-bg); }
 .strength-weak .strength-tag { background: var(--bad); color: #fff; }
 
-/* ---------- Custom questions ---------- */
-.custom-questions-panel { display: flex; flex-direction: column; }
-.custom-questions-count {
+/* ---------- Import ---------- */
+.import-panel { display: flex; flex-direction: column; }
+.import-count {
   font-size: 0.88rem;
   color: var(--ink-soft);
   margin: 0 0 10px;
@@ -980,7 +992,7 @@ button {
   margin: 6px 0 0;
   line-height: 1.4;
 }
-.custom-questions-errors {
+.import-errors {
   margin-top: 10px;
   background: var(--bad-bg);
   border-radius: 10px;
@@ -988,7 +1000,92 @@ button {
   font-size: 0.8rem;
   color: var(--bad);
 }
-.custom-questions-errors ul { margin: 6px 0 0; padding-left: 18px; }
+.import-errors ul { margin: 6px 0 0; padding-left: 18px; }
+.import-errors li { margin-bottom: 8px; }
+.import-errors li:last-child { margin-bottom: 0; }
+.import-error-hint {
+  display: block;
+  color: var(--ink-soft);
+  font-size: 0.76rem;
+  margin-top: 2px;
+}
+
+/* Read-only preview of what an import actually produced, so the questions
+   can be visually spot-checked rather than trusted on a count alone. */
+.import-preview { margin-top: 18px; }
+.import-preview-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 10px;
+}
+.import-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.import-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.import-tag {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--chip-bg);
+  color: var(--ink-soft);
+}
+.import-tag-computed { background: var(--good-bg); color: var(--good); }
+.import-tag-guessed { background: var(--bad-bg); color: var(--bad); }
+.import-tag-recovered { background: var(--chip-active-bg); color: var(--chip-active-ink); }
+.import-prompt {
+  font-size: 0.92rem;
+  font-weight: 600;
+  margin: 0 0 8px;
+  line-height: 1.4;
+}
+.import-diagram {
+  display: block;
+  max-width: 100%;
+  max-height: 240px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  margin: 0 0 8px;
+}
+.import-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.import-choice {
+  font-size: 0.8rem;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: var(--chip-bg);
+  color: var(--ink-soft);
+}
+.import-choice-correct {
+  background: var(--good-bg);
+  color: var(--good);
+  font-weight: 700;
+}
+.import-answer {
+  font-size: 0.85rem;
+  margin: 0 0 8px;
+}
+.import-explanation {
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+  margin: 0;
+  line-height: 1.4;
+  white-space: pre-line;
+}
 
 /* ---------- Shop ---------- */
 .shop-balance {
