@@ -57,18 +57,41 @@ button {
   padding-top: env(safe-area-inset-top, 0px);
 }
 
+/* Three-column grid (not flex) so the center "brand" block stays truly
+   centered on the window, regardless of how wide the nav (left) or badges/
+   points/settings (right) groups are — two equal 1fr tracks balance the
+   auto-sized center column instead of it drifting off-center like it
+   would between two unequal flex siblings. */
 .header-top {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 12px;
-  padding: 14px 20px 8px;
+  padding: 12px 20px;
+}
+
+/* Icon+word nav (replaces the old breadcrumb) — a fixed, always-visible
+   way to reach Home/Progress/Shop from anywhere. Sits in the top bar
+   alongside the title/avatar. */
+.main-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-self: start;
+}
+
+/* Title + avatar stacked as one centered unit in the middle grid column. */
+.header-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  justify-self: center;
 }
 
 .header-title {
-  flex: 1 1 auto;
-  min-width: 0;
-  text-align: center;
-  font-size: 0.95rem;
+  max-width: 100%;
+  font-size: 1.19rem;
   font-weight: 800;
   color: var(--primary-dark);
   white-space: nowrap;
@@ -76,8 +99,14 @@ button {
   text-overflow: ellipsis;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-self: end;
+}
+
 .header-points {
-  margin-left: auto;
   font-size: 0.95rem;
   font-weight: 700;
   color: var(--primary-dark);
@@ -93,14 +122,6 @@ button {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-}
-
-/* Left-justified icon+word nav (replaces the old breadcrumb) — a fixed,
-   always-visible way to reach Home/Progress/Shop from anywhere. */
-.main-nav {
-  display: flex;
-  gap: 8px;
-  padding: 0 16px 10px;
 }
 .nav-btn {
   border: none;
@@ -120,7 +141,24 @@ button {
 
 /* Badges sit inline in the header-top row (next to the avatar) rather than
    their own row, to keep the header compact; the strip scrolls horizontally
-   if there are more badges than fit. */
+   if there are more badges than fit. The group carries its own trailing
+   margin so there's a clear gap before the points value, distinct from the
+   smaller gap the label sits at relative to the icons themselves. */
+.header-badges-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 12px;
+  min-width: 0;
+}
+.header-badges-label {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
 .header-badges {
   display: flex;
   gap: 6px;
@@ -204,8 +242,7 @@ button {
 
 .footer-group { display: none; text-align: center; }
 .footer-group.active { display: block; }
-.footer-group .primary-btn,
-.footer-group .secondary-btn {
+.footer-group .primary-btn {
   display: inline-block;
   width: fit-content;
   min-width: 220px;
@@ -232,15 +269,16 @@ button {
   color: var(--ink-soft);
 }
 
-/* Sidebar (joke of the day, etc.) stacks below the main content on
+/* Sidebar (joke of the day, etc.) stacks above the main content on
    narrow screens; on wide screens it becomes a real left column using
    the space that would otherwise sit empty beside a centered layout. */
 .start-layout {
   display: flex;
   flex-direction: column;
 }
-.start-sidebar { order: 2; margin-top: 28px; }
-.start-main { order: 1; min-width: 0; }
+.start-sidebar { order: 1; margin-top: 0; }
+.start-main { order: 2; min-width: 0; margin-top: 28px; }
+.start-side-right { order: 3; margin-top: 28px; }
 
 .focus-card {
   background: linear-gradient(135deg, var(--primary), var(--primary-dark));
@@ -482,6 +520,7 @@ button {
   line-height: 1.5;
   color: var(--ink);
   margin: 0;
+  white-space: pre-line;
 }
 
 /* A small celebratory particle burst on a correct answer. */
@@ -525,14 +564,17 @@ button {
 .summary-row .label { color: var(--ink-soft); }
 .summary-row .value { font-weight: 700; }
 
-/* Progress screen */
-.streak-banner {
-  background: var(--chip-bg);
+/* ---------- Home streak/points widget (right sidebar) ---------- */
+.home-streak-widget {
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 14px 18px;
-  font-weight: 700;
-  color: var(--primary-dark);
+  padding: 14px;
+  text-align: center;
 }
+.streak-widget-main { font-size: 1.5rem; font-weight: 800; color: var(--ink); }
+.streak-widget-label { font-size: 0.82rem; color: var(--ink-soft); margin-top: 2px; }
+.streak-widget-points { font-size: 0.82rem; color: var(--primary-dark); font-weight: 700; margin-top: 8px; }
 
 .mastery-bars { display: flex; flex-direction: column; gap: 12px; }
 .mastery-row .mastery-label {
@@ -681,6 +723,18 @@ button {
 }
 .strength-summary strong { color: var(--ink); }
 
+/* ---------- Date/time widget ---------- */
+.datetime-widget {
+  margin-bottom: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  text-align: center;
+}
+.datetime-time { font-size: 1.5rem; font-weight: 800; color: var(--ink); }
+.datetime-date { font-size: 0.82rem; color: var(--ink-soft); margin-top: 2px; }
+
 /* ---------- Weather widget ---------- */
 .weather-widget {
   background: var(--surface);
@@ -735,6 +789,18 @@ button {
   color: var(--ink);
   line-height: 1.5;
 }
+
+/* ---------- Word of the day ---------- */
+.word-of-day {
+  margin-top: 14px;
+  background: var(--chip-bg);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 0.88rem;
+  color: var(--ink);
+  line-height: 1.5;
+}
+.word-of-day strong { color: var(--primary-dark); }
 
 /* ---------- Custom session length ---------- */
 .custom-length-panel {
@@ -796,13 +862,13 @@ button {
 
 /* ---------- Header avatar ---------- */
 .header-avatar {
-  width: 48px;
-  height: 48px;
+  width: 72px;
+  height: 72px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.7rem;
+  font-size: 2.55rem;
   background: var(--chip-bg);
   box-shadow: 0 0 0 2px var(--border);
   flex-shrink: 0;
@@ -867,6 +933,16 @@ button {
   border: 1px solid var(--border);
 }
 .strength-topic { font-weight: 600; font-size: 0.92rem; }
+.strength-detail {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.strength-pct {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
 .strength-tag {
   font-size: 0.78rem;
   font-weight: 700;
@@ -1017,7 +1093,7 @@ body[data-font="font-mono"] {
 @media (min-width: 900px) {
   #app-inner,
   .footer-inner {
-    max-width: 960px;
+    max-width: 1324px;
   }
   #topic-choices { grid-template-columns: repeat(4, 1fr); }
   .badges-grid { grid-template-columns: repeat(4, 1fr); }
@@ -1032,17 +1108,32 @@ body[data-font="font-mono"] {
     grid-template-columns: repeat(2, 1fr);
     gap: 8px;
   }
+  /* Sidebar (fixed width, left) / main (centered) / streak+points widget
+     (fixed width, right) — the two equal-width side columns are what
+     actually center .start-main on the window: a plain two-column layout
+     can only center main in the space *left over* next to the sidebar,
+     which drifts off from true center. Mirroring the sidebar's width on
+     the other side (now with real content instead of an empty balance
+     column) keeps the two columns either side of main equal, so main
+     sits truly centered regardless of viewport width. */
   .start-layout {
-    flex-direction: row;
-    align-items: flex-start;
+    display: grid;
+    grid-template-columns: 260px 1fr 260px;
+    align-items: start;
     gap: 36px;
   }
   .start-sidebar {
-    order: -1;
-    flex: 0 0 260px;
+    grid-column: 1;
     margin-top: 0;
   }
   .start-main {
-    flex: 1 1 auto;
+    grid-column: 2;
+    max-width: 700px;
+    margin: 0 auto;
+    width: 100%;
+  }
+  .start-side-right {
+    grid-column: 3;
+    margin-top: 0;
   }
 }

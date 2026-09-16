@@ -2,8 +2,20 @@
 // (roadmap item: seed question generation from an uploaded sample set).
 // Valid rows are normalized to the same question shape questionBank.js
 // produces, so the rest of the app can't tell them apart from generated ones.
+//
+// correctAnswer is optional: if a row omits it, answerSolver.js tries to
+// determine it from the prompt (exact for a computable expression, a
+// best-effort keyword guess otherwise). Rows tagged answerSource other than
+// 'given' get surfaced as a count in the upload summary so they can be
+// spot-checked — see renderCustomQuestionsPanel in ui.js.
+
+import { determineAnswer } from './answerSolver.js';
 
 const VALID_ANSWER_TYPES = ['numeric', 'text', 'mcq'];
+
+function hasValue(v) {
+  return v !== undefined && v !== null && v !== '';
+}
 
 export function parseAndValidate(jsonText, validTopics) {
   let data;
@@ -38,13 +50,24 @@ export function parseAndValidate(jsonText, validTopics) {
     if (!VALID_ANSWER_TYPES.includes(item.answerType)) {
       problems.push('answerType must be numeric, text, or mcq');
     }
-    if (item.correctAnswer === undefined || item.correctAnswer === null || item.correctAnswer === '') {
-      problems.push('correctAnswer is required');
+
+    let correctAnswer = item.correctAnswer;
+    let answerSource = 'given';
+    if (!hasValue(correctAnswer) && item.prompt && typeof item.prompt === 'string') {
+      const determined = determineAnswer(item.prompt);
+      if (determined) {
+        correctAnswer = determined.answer;
+        answerSource = determined.confidence;
+      }
     }
+    if (!hasValue(correctAnswer)) {
+      problems.push('correctAnswer is required (could not be automatically determined from the prompt)');
+    }
+
     if (item.answerType === 'mcq') {
       if (!Array.isArray(item.choices) || item.choices.length < 2) {
         problems.push('mcq questions need a choices array with 2+ options');
-      } else if (!item.choices.map(String).includes(String(item.correctAnswer))) {
+      } else if (hasValue(correctAnswer) && !item.choices.map(String).includes(String(correctAnswer))) {
         problems.push('choices must include the correctAnswer');
       }
     }
@@ -58,9 +81,10 @@ export function parseAndValidate(jsonText, validTopics) {
         difficulty: tier,
         prompt: item.prompt,
         answerType: item.answerType,
-        correctAnswer: String(item.correctAnswer),
+        correctAnswer: String(correctAnswer),
         choices: item.answerType === 'mcq' ? item.choices.map(String) : null,
         explanation: item.explanation || '',
+        answerSource,
       });
     }
   });

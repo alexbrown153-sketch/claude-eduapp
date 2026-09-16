@@ -69,3 +69,21 @@ Future roadmap ideas
 61. Change the favicon used to something more suitable
 62. Change the browser tab description to "Tiffin Prep"
 63. On the home page center the main section (containing daily practice, session length etc) in the window. Move the joke and weather panel to the left to make room.
+
+64. Make the main central section on the home page 25% wider.
+65. Move the weather and joke section to the top
+
+66. Add time and date to the joke and weather section
+67. Add a word of the day to the joke and weather section which also briefly explains the meaning of the word.
+
+68. Adjust the custom upload section to not require the answers. Instead determine the answer to the question.
+
+69. When a question needs a numeric answer, allow the user to type the number in without clicking the cursor
+70. Create a gap between the badges and the points on the top bar. Signify that they are badges by using a "Badges" label.
+71. Move the top progress section on the progress page (streak and total) to the home page and position as a widget on the right hand side of the page in the opposite manner to the weather and time widgets.
+
+72. Let the user submit an answer by using the enter key
+73. Let the user check an answer and get to the next question by using the enter key
+
+74. Add a time to the recent session list
+75. In the strengths and weaknesses section of the progress page, give a little more fidelity with regards to where the user is currently at within each topic.

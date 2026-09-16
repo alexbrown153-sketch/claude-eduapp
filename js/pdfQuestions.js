@@ -5,6 +5,13 @@
 // layouts vary enormously, so this is a best-effort parser: it works well
 // for a consistently-formatted study sheet, poorly for scanned or free-form
 // documents — anything it can't confidently parse is reported, not guessed.
+//
+// The "A: ..." part is optional — if a block has no answer line,
+// answerSolver.js tries to determine one from the question text (see its
+// header comment for how confident that is).
+
+import { determineAnswer } from './answerSolver.js';
+import { parseExamberryMaths } from './examberryPdfParser.js';
 
 const FALLBACK_TOPIC = 'wordProblems';
 
@@ -70,10 +77,22 @@ function parseQuestionBlocks(text, validTopics) {
     const diffMatch = blockText.match(/Difficulty[:.)]\s*(\d)/i);
 
     const prompt = qMatch ? qMatch[1].trim() : '';
-    const answer = aMatch ? aMatch[1].trim() : '';
+    let answer = aMatch ? aMatch[1].trim() : '';
+    let answerSource = answer ? 'given' : null;
 
-    if (!prompt || !answer) {
-      errors.push(`Block ${i + 1}: couldn’t find both a question and an "Answer:" — "${blockText.slice(0, 60)}${blockText.length > 60 ? '…' : ''}"`);
+    if (!prompt) {
+      errors.push(`Block ${i + 1}: couldn’t find a question — "${blockText.slice(0, 60)}${blockText.length > 60 ? '…' : ''}"`);
+      return;
+    }
+    if (!answer) {
+      const determined = determineAnswer(prompt);
+      if (determined) {
+        answer = determined.answer;
+        answerSource = determined.confidence;
+      }
+    }
+    if (!answer) {
+      errors.push(`Block ${i + 1}: no "Answer:" given and none could be automatically determined — "${blockText.slice(0, 60)}${blockText.length > 60 ? '…' : ''}"`);
       return;
     }
 
@@ -89,6 +108,7 @@ function parseQuestionBlocks(text, validTopics) {
       correctAnswer: answer,
       choices: null,
       explanation: explMatch ? explMatch[1].trim() : '',
+      answerSource,
     });
   });
 
@@ -108,5 +128,13 @@ export async function parsePdfQuestions(arrayBuffer, validTopics) {
   if (!text.trim()) {
     return { valid: [], errors: ['No text could be extracted from that PDF — it may be a scanned image rather than real text.'] };
   }
+
+  // Structured exam papers (e.g. "Tiffin Test N: Mathematics") are handled
+  // by a dedicated maths-only parser that cross-references the real answer
+  // key — see examberryPdfParser.js. Only fall back to the generic "Q: ...
+  // A: ..." block parser if this doesn't look like that format at all.
+  const structured = parseExamberryMaths(text);
+  if (structured) return structured;
+
   return parseQuestionBlocks(text, validTopics);
 }

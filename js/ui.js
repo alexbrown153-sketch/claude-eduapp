@@ -4,6 +4,7 @@
 import { PHASE_LABELS } from './pacing.js';
 import { SHOP_CATEGORIES, itemsByCategory, getItem, isOwned, availableBalance } from './shop.js';
 import { getJokeOfTheDay } from './jokes.js';
+import { getWordOfTheDay } from './wordOfDay.js';
 
 export const TOPIC_LABELS = {
   arithmetic: 'Arithmetic',
@@ -76,12 +77,12 @@ export function updateHeader(plan, meta, shopState, earnedBadges = []) {
   el('header-points').textContent = `⭐ ${availableBalance(meta)}`;
   renderAvatar(el('header-avatar'), shopState);
 
-  const badgesEl = el('header-badges');
+  const badgesGroupEl = el('header-badges-group');
   if (earnedBadges.length === 0) {
-    badgesEl.hidden = true;
+    badgesGroupEl.hidden = true;
   } else {
-    badgesEl.hidden = false;
-    badgesEl.innerHTML = earnedBadges
+    badgesGroupEl.hidden = false;
+    el('header-badges').innerHTML = earnedBadges
       .map((b) => `<span class="header-badge-icon" title="${b.label}">${b.icon}</span>`)
       .join('');
   }
@@ -169,6 +170,12 @@ export function renderStart(plan, mastery, meta, hasInProgress) {
 
   el('joke-of-day').textContent = `😄 Joke of the day: ${getJokeOfTheDay()}`;
 
+  const word = getWordOfTheDay();
+  el('word-of-day').innerHTML = `📖 Word of the day: <strong>${word.word}</strong> — ${word.meaning}`;
+
+  renderDateTime(new Date());
+  renderHomeStreakWidget(meta);
+
   selectClosestLengthButton(plan.sessionLengthSuggestion);
   el('custom-length-panel').hidden = true;
 
@@ -237,15 +244,85 @@ export function renderSettings(meta) {
   el('weather-city-input').value = meta.weatherCity || '';
 }
 
-export function bindSettingsHandlers({ onNameChange, onCityChange, onBack, onClearProgress }) {
+export function bindSettingsHandlers({ onNameChange, onCityChange, onClearProgress }) {
   el('child-name-input').addEventListener('change', () => {
     onNameChange(el('child-name-input').value.trim().slice(0, 20));
   });
   el('weather-city-input').addEventListener('change', () => {
     onCityChange(el('weather-city-input').value.trim().slice(0, 40));
   });
-  el('settings-back-btn').addEventListener('click', onBack);
   el('clear-progress-btn').addEventListener('click', onClearProgress);
+}
+
+export function renderCustomQuestionsPanel(questions) {
+  const count = questions.length;
+  if (count === 0) {
+    el('custom-questions-count').textContent = 'No custom questions loaded yet.';
+    return;
+  }
+  const computedCount = questions.filter((q) => q.answerSource === 'computed').length;
+  const guessedCount = questions.filter((q) => q.answerSource === 'guessed').length;
+  let text = `${count} custom question${count === 1 ? '' : 's'} loaded — mixed into matching topics.`;
+  const notes = [];
+  if (computedCount > 0) notes.push(`${computedCount} answer${computedCount === 1 ? '' : 's'} worked out automatically`);
+  if (guessedCount > 0) notes.push(`${guessedCount} answer${guessedCount === 1 ? '' : 's'} guessed from the wording — worth double-checking`);
+  if (notes.length > 0) text += ` (${notes.join('; ')}.)`;
+  el('custom-questions-count').textContent = text;
+}
+
+export function renderCustomQuestionsErrors(errors) {
+  const errEl = el('custom-questions-errors');
+  if (!errors || errors.length === 0) {
+    errEl.hidden = true;
+    return;
+  }
+  errEl.hidden = false;
+  errEl.innerHTML = `<p>${errors.length} question(s) skipped:</p><ul>${errors.slice(0, 10).map((e) => `<li>${e}</li>`).join('')}</ul>`;
+}
+
+export function bindCustomQuestionsHandlers({ onFileSelected, onPdfFileSelected, onClear }) {
+  el('custom-questions-file').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) onFileSelected(file);
+    e.target.value = '';
+  });
+  el('custom-questions-pdf-file').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) onPdfFileSelected(file);
+    e.target.value = '';
+  });
+  el('custom-questions-clear-btn').addEventListener('click', onClear);
+}
+
+// Live clock + today's date shown above the weather widget — re-called on
+// an interval from app.js so it keeps ticking while the start screen is open.
+export function renderDateTime(date) {
+  const dateStr = date.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+  const timeStr = date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  el('datetime-widget').innerHTML = `
+    <div class="datetime-time">${timeStr}</div>
+    <div class="datetime-date">${dateStr}</div>
+  `;
+}
+
+// Streak/points widget — moved here from the Progress screen and mirrored
+// on the right of the home page, opposite the weather/time sidebar on the
+// left (see .start-side-right in styles.css).
+function renderHomeStreakWidget(meta) {
+  const target = el('home-streak-widget');
+  if (meta.currentStreakDays > 0) {
+    target.innerHTML = `
+      <div class="streak-widget-main">🔥 ${meta.currentStreakDays}</div>
+      <div class="streak-widget-label">day streak</div>
+      <div class="streak-widget-points">⭐ ${meta.totalPoints || 0} total points</div>
+    `;
+  } else {
+    target.innerHTML = `
+      <div class="streak-widget-main">⭐ ${meta.totalPoints || 0}</div>
+      <div class="streak-widget-label">total points</div>
+      <div class="streak-widget-points">Start today's streak!</div>
+    `;
+  }
 }
 
 // state: 'no-city' | 'loading' | { error } | { placeName, tempC, icon, label }
@@ -352,20 +429,52 @@ export function getCurrentAnswer(answerType) {
   return el('text-input').value;
 }
 
+function pressNumericKey(k) {
+  if (k === 'back') {
+    numericBuffer = numericBuffer.slice(0, -1);
+  } else if (k === '.' && numericBuffer.includes('.')) {
+    // ignore extra decimal point
+  } else {
+    numericBuffer += k;
+  }
+  el('numeric-display').textContent = numericBuffer || ' ';
+}
+
 export function bindQuestionHandlers({ onCheck, onNext, onExit }) {
   document.querySelectorAll('.key').forEach((key) => {
-    key.addEventListener('click', () => {
-      const k = key.dataset.key;
-      if (k === 'back') {
-        numericBuffer = numericBuffer.slice(0, -1);
-      } else if (k === '.' && numericBuffer.includes('.')) {
-        // ignore extra decimal point
-      } else {
-        numericBuffer += k;
-      }
-      el('numeric-display').textContent = numericBuffer || ' ';
-    });
+    key.addEventListener('click', () => pressNumericKey(key.dataset.key));
   });
+
+  // Lets a physical keyboard drive numeric entry directly, with no need to
+  // tap into the on-screen keypad first - it's a plain div, not a focusable
+  // input, so typing otherwise does nothing until it's tapped.
+  document.addEventListener('keydown', (e) => {
+    if (el('answer-numeric').hidden) return;
+    if (e.key >= '0' && e.key <= '9') pressNumericKey(e.key);
+    else if (e.key === '.') pressNumericKey('.');
+    else if (e.key === 'Backspace') pressNumericKey('back');
+    else return;
+    e.preventDefault();
+  });
+
+  // Enter drives whichever of Check/Next is currently showing — the two
+  // buttons already share one slot (see renderFeedback below), so this is
+  // the same "same action, no travel" idea extended to the keyboard: type
+  // an answer, hit Enter to check it, hit Enter again to move on.
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    if (!el('screen-question').classList.contains('active')) return;
+    // If Check/Next/Exit itself already has focus (e.g. after a desktop
+    // mouse click), the browser's own "Enter activates the focused button"
+    // behaviour already fires its click handler — dispatching onCheck/
+    // onNext here too would run it a second time (double-scoring, etc).
+    const active = document.activeElement;
+    if (active === el('check-btn') || active === el('next-btn') || active === el('hud-exit-btn')) return;
+    e.preventDefault();
+    if (!el('check-btn').hidden) onCheck();
+    else if (!el('next-btn').hidden) onNext();
+  });
+
   el('check-btn').addEventListener('click', onCheck);
   el('next-btn').addEventListener('click', onNext);
   el('hud-exit-btn').addEventListener('click', onExit);
@@ -478,7 +587,10 @@ function renderStrengthOverview(mastery, topics) {
     return `
       <div class="strength-row strength-${level}">
         <span class="strength-topic">${TOPIC_LABELS[t] || t}</span>
-        <span class="strength-tag">${label}</span>
+        <span class="strength-detail">
+          <span class="strength-pct">${pct}%</span>
+          <span class="strength-tag">${label}</span>
+        </span>
       </div>
     `;
   }).join('');
@@ -486,10 +598,6 @@ function renderStrengthOverview(mastery, topics) {
 }
 
 export function renderProgress(mastery, meta, sessions, badgeDefinitions = [], earnedBadgeIds = []) {
-  el('streak-banner').textContent = meta.currentStreakDays > 0
-    ? `🔥 ${meta.currentStreakDays} day streak — total ⭐ ${meta.totalPoints || 0} points`
-    : `Total ⭐ ${meta.totalPoints || 0} points — start today's streak!`;
-
   renderStrengthOverview(mastery, Object.keys(mastery));
 
   const barsEl = el('mastery-bars');
@@ -530,48 +638,16 @@ export function renderProgress(mastery, meta, sessions, badgeDefinitions = [], e
     historyEl.innerHTML = '<p class="empty-state">No sessions yet — get started above!</p>';
   } else {
     recent.forEach((s) => {
-      const dateStr = new Date(s.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      const sessionDate = new Date(s.date);
+      const dateStr = sessionDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      const timeStr = sessionDate.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
       const accuracyPct = Math.round(s.summary.accuracy * 100);
       const row = document.createElement('div');
       row.className = 'session-history-row';
-      row.innerHTML = `<span>${dateStr}</span><span class="value">${s.summary.correctCount}/${s.summary.totalQuestions} (${accuracyPct}%)</span>`;
+      row.innerHTML = `<span>${dateStr}, ${timeStr}</span><span class="value">${s.summary.correctCount}/${s.summary.totalQuestions} (${accuracyPct}%)</span>`;
       historyEl.appendChild(row);
     });
   }
-}
-
-export function renderCustomQuestionsPanel(count) {
-  el('custom-questions-count').textContent = count > 0
-    ? `${count} custom question${count === 1 ? '' : 's'} loaded — mixed into matching topics.`
-    : 'No custom questions loaded yet.';
-}
-
-export function renderCustomQuestionsErrors(errors) {
-  const errEl = el('custom-questions-errors');
-  if (!errors || errors.length === 0) {
-    errEl.hidden = true;
-    return;
-  }
-  errEl.hidden = false;
-  errEl.innerHTML = `<p>${errors.length} question(s) skipped:</p><ul>${errors.slice(0, 10).map((e) => `<li>${e}</li>`).join('')}</ul>`;
-}
-
-export function bindCustomQuestionsHandlers({ onFileSelected, onPdfFileSelected, onClear }) {
-  el('custom-questions-file').addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file) onFileSelected(file);
-    e.target.value = '';
-  });
-  el('custom-questions-pdf-file').addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file) onPdfFileSelected(file);
-    e.target.value = '';
-  });
-  el('custom-questions-clear-btn').addEventListener('click', onClear);
-}
-
-export function bindProgressHandlers({ onBack }) {
-  el('progress-back-btn').addEventListener('click', onBack);
 }
 
 // ---------- Shop screen ----------
@@ -618,11 +694,10 @@ export function renderShop(shopState, meta) {
   }).join('');
 }
 
-export function bindShopHandlers({ onPurchaseOrEquip, onBack }) {
+export function bindShopHandlers({ onPurchaseOrEquip }) {
   el('shop-categories').addEventListener('click', (e) => {
     const btn = e.target.closest('.shop-item-action');
     if (!btn || btn.disabled) return;
     onPurchaseOrEquip(btn.dataset.itemId);
   });
-  el('shop-back-btn').addEventListener('click', onBack);
 }

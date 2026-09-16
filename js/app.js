@@ -92,8 +92,6 @@ function goToProgress() {
   const mastery = Storage.getMastery();
   const meta = Storage.getMeta();
   ui.renderProgress(mastery, meta, Storage.getSessions(), BADGE_DEFINITIONS, Storage.getBadges());
-  ui.renderCustomQuestionsPanel(Storage.getCustomQuestions().length);
-  ui.renderCustomQuestionsErrors([]);
   ui.showScreen('progress');
 }
 
@@ -104,6 +102,8 @@ function goToShop() {
 
 function goToSettings() {
   ui.renderSettings(Storage.getMeta());
+  ui.renderCustomQuestionsPanel(Storage.getCustomQuestions());
+  ui.renderCustomQuestionsErrors([]);
   ui.showScreen('settings');
 }
 
@@ -136,7 +136,7 @@ function handleCustomQuestionsFile(file) {
     const { valid, errors } = parseAndValidate(reader.result, TOPICS);
     if (valid.length > 0) Storage.addCustomQuestions(valid);
     ui.renderCustomQuestionsErrors(errors);
-    ui.renderCustomQuestionsPanel(Storage.getCustomQuestions().length);
+    ui.renderCustomQuestionsPanel(Storage.getCustomQuestions());
   };
   reader.onerror = () => ui.renderCustomQuestionsErrors(['Could not read that file.']);
   reader.readAsText(file);
@@ -148,7 +148,7 @@ function handleCustomQuestionsPdfFile(file) {
     const { valid, errors } = await parsePdfQuestions(reader.result, TOPICS);
     if (valid.length > 0) Storage.addCustomQuestions(valid);
     ui.renderCustomQuestionsErrors(errors);
-    ui.renderCustomQuestionsPanel(Storage.getCustomQuestions().length);
+    ui.renderCustomQuestionsPanel(Storage.getCustomQuestions());
   };
   reader.onerror = () => ui.renderCustomQuestionsErrors(['Could not read that file.']);
   reader.readAsArrayBuffer(file);
@@ -156,7 +156,7 @@ function handleCustomQuestionsPdfFile(file) {
 
 function handleClearCustomQuestions() {
   Storage.setCustomQuestions([]);
-  ui.renderCustomQuestionsPanel(0);
+  ui.renderCustomQuestionsPanel([]);
   ui.renderCustomQuestionsErrors([]);
 }
 
@@ -266,7 +266,6 @@ ui.bindStartHandlers({
 ui.bindSettingsHandlers({
   onNameChange,
   onCityChange,
-  onBack: goToStart,
   onClearProgress: handleClearProgress,
 });
 
@@ -274,15 +273,13 @@ ui.bindQuestionHandlers({ onCheck, onNext, onExit: goToStart });
 
 ui.bindSummaryHandlers({ onRestart: goToStart });
 
-ui.bindProgressHandlers({ onBack: goToStart });
-
 ui.bindCustomQuestionsHandlers({
   onFileSelected: handleCustomQuestionsFile,
   onPdfFileSelected: handleCustomQuestionsPdfFile,
   onClear: handleClearCustomQuestions,
 });
 
-ui.bindShopHandlers({ onPurchaseOrEquip: handlePurchaseOrEquip, onBack: goToStart });
+ui.bindShopHandlers({ onPurchaseOrEquip: handlePurchaseOrEquip });
 
 ui.bindGlobalHandlers({
   onHome: goToStart,
@@ -294,3 +291,8 @@ ui.bindGlobalHandlers({
 applyCosmetics(Storage.getShopState());
 ui.initScrollIndicators();
 goToStart();
+
+// Keeps the home-screen clock ticking while the app is left open — updating
+// even while another screen is active is harmless (the element just sits
+// hidden), and saves having to start/stop the interval on navigation.
+setInterval(() => ui.renderDateTime(new Date()), 30000);

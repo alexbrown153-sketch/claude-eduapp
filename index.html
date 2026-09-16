@@ -3,24 +3,32 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Sprint — 11+ Maths Practice</title>
+<title>Tiffin Prep</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A7%AE%3C/text%3E%3C/svg%3E" />
 <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
 
 <header class="app-header">
   <div class="header-top">
-    <span id="header-avatar" class="header-avatar"></span>
-    <span class="header-title">Tiffin 11+ Prep</span>
-    <div id="header-badges" class="header-badges" hidden></div>
-    <span id="header-points" class="header-points"></span>
-    <button id="nav-settings-btn" class="settings-btn" aria-label="Settings" title="Settings">&#9881;&#65039;</button>
+    <nav class="main-nav" aria-label="Navigation">
+      <button id="nav-home-btn" class="nav-btn" data-nav="start">&#127968; Home</button>
+      <button id="nav-progress-btn" class="nav-btn" data-nav="progress">&#128202; Progress</button>
+      <button id="nav-shop-btn" class="nav-btn" data-nav="shop">&#128717;&#65039; Shop</button>
+    </nav>
+    <div class="header-brand">
+      <span class="header-title">Tiffin 11+ Maths Prep</span>
+      <span id="header-avatar" class="header-avatar"></span>
+    </div>
+    <div class="header-actions">
+      <div id="header-badges-group" class="header-badges-group" hidden>
+        <span class="header-badges-label">Badges</span>
+        <div id="header-badges" class="header-badges"></div>
+      </div>
+      <span id="header-points" class="header-points"></span>
+      <button id="nav-settings-btn" class="settings-btn" aria-label="Settings" title="Settings">&#9881;&#65039;</button>
+    </div>
   </div>
-  <nav class="main-nav" aria-label="Navigation">
-    <button id="nav-home-btn" class="nav-btn" data-nav="start">&#127968; Home</button>
-    <button id="nav-progress-btn" class="nav-btn" data-nav="progress">&#128202; Progress</button>
-    <button id="nav-shop-btn" class="nav-btn" data-nav="shop">&#128717;&#65039; Shop</button>
-  </nav>
 </header>
 
 <main id="app">
@@ -32,8 +40,10 @@
   <section id="screen-start" class="screen">
     <div class="start-layout">
       <aside class="start-sidebar">
+        <div id="datetime-widget" class="datetime-widget"></div>
         <div id="weather-widget" class="weather-widget"></div>
         <div id="joke-of-day" class="joke-of-day"></div>
+        <div id="word-of-day" class="word-of-day"></div>
       </aside>
 
       <div class="start-main">
@@ -72,6 +82,10 @@
         </div>
         <div id="topic-weighting-preview" class="topic-weighting-preview" hidden></div>
       </div>
+
+      <aside class="start-side-right">
+        <div id="home-streak-widget" class="home-streak-widget"></div>
+      </aside>
     </div>
   </section>
 
@@ -135,7 +149,6 @@
   <!-- PROGRESS SCREEN -->
   <section id="screen-progress" class="screen">
     <h2 class="section-heading">Progress</h2>
-    <div class="streak-banner" id="streak-banner"></div>
 
     <h3 class="section-subheading">Mastery by topic</h3>
     <div id="mastery-bars" class="mastery-bars"></div>
@@ -148,21 +161,6 @@
 
     <h3 class="section-subheading">Recent sessions</h3>
     <div id="session-history" class="session-history"></div>
-
-    <h3 class="section-subheading">Custom questions</h3>
-    <div class="custom-questions-panel">
-      <p id="custom-questions-count" class="custom-questions-count"></p>
-      <div class="upload-buttons-row">
-        <label for="custom-questions-file" class="secondary-btn file-label">Upload .json</label>
-        <input type="file" id="custom-questions-file" accept=".json,application/json" hidden />
-        <label for="custom-questions-pdf-file" class="secondary-btn file-label">Upload .pdf</label>
-        <input type="file" id="custom-questions-pdf-file" accept=".pdf,application/pdf" hidden />
-      </div>
-      <p class="pdf-hint">PDF questions should look like "Q: ... A: ..." (optionally with Explanation:/Topic:/Difficulty: lines) &mdash; works best for a consistently-formatted sheet, not scanned images.</p>
-      <button id="custom-questions-clear-btn" class="link-btn">Clear custom questions</button>
-      <div id="custom-questions-errors" class="custom-questions-errors" hidden></div>
-    </div>
-
   </section>
 
   <!-- SHOP SCREEN -->
@@ -186,6 +184,20 @@
     </div>
     <p class="weather-hint">Looks up today's weather for this city using a free weather service &mdash; needs an internet connection.</p>
 
+    <h3 class="section-subheading">Custom questions</h3>
+    <div class="custom-questions-panel">
+      <p id="custom-questions-count" class="custom-questions-count"></p>
+      <div class="upload-buttons-row">
+        <label for="custom-questions-file" class="secondary-btn file-label">Upload .json</label>
+        <input type="file" id="custom-questions-file" accept=".json,application/json" hidden />
+        <label for="custom-questions-pdf-file" class="secondary-btn file-label">Upload .pdf</label>
+        <input type="file" id="custom-questions-pdf-file" accept=".pdf,application/pdf" hidden />
+      </div>
+      <p class="pdf-hint">Structured exam papers (e.g. "Tiffin Test N: Mathematics") are recognised automatically &mdash; only the maths section is imported, using the paper's own answer key and worked explanations. Questions involving a fraction or a chart/graph/diagram are skipped (reported below) since they can't be extracted or shown reliably as text. Otherwise, PDF questions should look like "Q: ..." (optionally with Explanation:/Topic:/Difficulty: lines) &mdash; works best for a consistently-formatted sheet, not scanned images. An "A: ..." answer is optional: if left out, the app will try to work it out from the question itself, but that's a best-effort guess for word problems and worth double-checking.</p>
+      <button id="custom-questions-clear-btn" class="link-btn">Clear custom questions</button>
+      <div id="custom-questions-errors" class="custom-questions-errors" hidden></div>
+    </div>
+
     <h3 class="section-subheading danger-heading">Danger zone</h3>
     <p class="danger-hint">Permanently erases all progress, points, badges, purchases and settings, and starts fresh.</p>
     <button id="clear-progress-btn" class="danger-btn">Clear all progress</button>
@@ -204,15 +216,6 @@
     </div>
     <div id="footer-summary" class="footer-group">
       <button id="summary-restart-btn" class="primary-btn">Practice again</button>
-    </div>
-    <div id="footer-progress" class="footer-group">
-      <button id="progress-back-btn" class="secondary-btn">Home</button>
-    </div>
-    <div id="footer-shop" class="footer-group">
-      <button id="shop-back-btn" class="secondary-btn">Home</button>
-    </div>
-    <div id="footer-settings" class="footer-group">
-      <button id="settings-back-btn" class="secondary-btn">Home</button>
     </div>
   </div>
 </footer>
