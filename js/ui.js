@@ -518,11 +518,15 @@ export function renderQuestion(question) {
 }
 
 // Shown instead of a normal question when session.js's pickNextQuestion
-// can't find any imported question for the exact topic+tier it picked (see
-// Roadmap ideas.md #77 — imported-only, no silent fallback to a different
-// topic/tier). Hides everything a real question would show; the only way
-// forward is back to Home (either this panel's own button or the HUD's).
-export function renderBlockedQuestion(topic, tier) {
+// finds neither an imported question for the exact topic+tier it picked NOR
+// any basis to generate one — questionBank.js's getQuestion() only generates
+// a filler question for a topic that's had at least one import (any tier),
+// so this now only fires for a topic with zero imports anywhere (e.g.
+// wordProblems, which has no procedural generator at all — see
+// questionBank.js's header comment). Hides everything a real question would
+// show; the only way forward is back to Home (this panel's own button, or
+// the HUD's).
+export function renderBlockedQuestion(topic) {
   el('question-prompt').hidden = true;
   el('question-diagram').hidden = true;
   el('answer-numeric').hidden = true;
@@ -533,8 +537,8 @@ export function renderBlockedQuestion(topic, tier) {
 
   el('question-blocked').hidden = false;
   el('question-blocked-detail').textContent =
-    `There's no imported question for "${TOPIC_LABELS[topic] || topic}" at difficulty tier ${tier} yet. `
-    + 'Import more questions covering this topic and level on the Import page, or head back and try a different topic focus.';
+    `There's no imported question for "${TOPIC_LABELS[topic] || topic}" yet, and nothing to base a generated one on. `
+    + 'Import at least one question covering this topic on the Import page, or head back and try a different topic focus.';
 }
 
 export function getCurrentAnswer(answerType) {

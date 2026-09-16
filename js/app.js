@@ -217,7 +217,7 @@ function nextQuestion() {
   state.questionStartTime = Date.now();
   ui.renderHud(state.session, state.plan);
   if (state.currentQuestion.blocked) {
-    ui.renderBlockedQuestion(state.currentQuestion.topic, state.currentQuestion.tier);
+    ui.renderBlockedQuestion(state.currentQuestion.topic);
   } else {
     ui.renderQuestion(state.currentQuestion);
   }

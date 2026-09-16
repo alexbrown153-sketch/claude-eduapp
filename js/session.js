@@ -24,18 +24,17 @@ export function startSession({ topicWeighting, topicFocus, lengthType, lengthVal
   };
 }
 
-// Returns either a real question, or { blocked: true, topic, tier } when
-// there's no imported question for the exact topic+tier picked — per
-// Roadmap ideas.md #77, that's a hard stop, not a cue to quietly fall back
-// to a different topic or tier (see app.js's nextQuestion for how the UI
-// surfaces this).
+// Returns either a real (imported or generated) question, or
+// { blocked: true, topic } when questionBank.js's getQuestion() finds
+// neither an imported match nor any basis to generate one for this topic —
+// see its header comment for exactly when that happens.
 export function pickNextQuestion(session, mastery) {
   const topic = session.topicFocus || weightedRandomPick(session.topicWeighting);
   const record = mastery[topic];
   const tier = selectDifficultyTier(record);
   const customQuestions = Storage.getCustomQuestions();
   const q = getQuestion(topic, tier, customQuestions);
-  if (!q) return { blocked: true, topic, tier };
+  if (!q) return { blocked: true, topic };
   return q;
 }
 
