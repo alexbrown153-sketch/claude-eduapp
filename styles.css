@@ -37,7 +37,16 @@ html, body {
 body {
   display: flex;
   flex-direction: column;
+  /* 100vh on mobile Safari (notably iPad) is the layout viewport, which is
+     taller than what's actually visible whenever the browser's own address
+     bar/toolbar is showing — that gap pushed the fixed footer (and its
+     Start Session button) below the real screen with no way to scroll to
+     it, since #app-scroll (not body) owns all the scrolling here. 100dvh
+     tracks the actual visible viewport instead; 100vh stays first as a
+     fallback for browsers that don't understand dvh (an unsupported unit
+     makes the whole declaration invalid, so it's simply ignored). */
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
 }
 
