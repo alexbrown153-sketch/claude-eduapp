@@ -82,6 +82,7 @@
           <button class="choice-btn chip" data-topic="dataHandling">Data handling</button>
         </div>
         <div id="topic-weighting-preview" class="topic-weighting-preview" hidden></div>
+        <div id="start-warning" class="start-warning" hidden></div>
       </div>
 
       <aside class="start-side-right">
@@ -105,6 +106,12 @@
 
       <div id="question-diagram" class="question-diagram" hidden>
         <img id="question-diagram-img" alt="Diagram for this question" />
+      </div>
+
+      <div id="question-blocked" class="question-blocked" hidden>
+        <p class="question-blocked-title">No imported questions available yet</p>
+        <p id="question-blocked-detail" class="question-blocked-detail"></p>
+        <button id="question-blocked-home-btn" class="primary-btn">Back to Home</button>
       </div>
 
       <div id="answer-numeric" class="answer-area" hidden>

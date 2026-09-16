@@ -30,22 +30,65 @@ function err(message, hint) {
 // examberryPdfParser.js's diagram-capture code): a diagram takes up real
 // vertical space between two lines of text but produces no text of its own,
 // so the only way to find it is by the gap between two KNOWN Y positions.
+//
+// Some PDFs in this family (e.g. later Tiffin practice papers, not the
+// original two) fragment a single word or number into several text items at
+// ordinary kerning-pair boundaries, with essentially no horizontal gap
+// between them (observed: 0.00-0.08pt) — e.g. "How much" as two items "How
+// m" + "uch". A real space between words in these same PDFs always comes
+// through as its own explicit item (str: " ") with real width, never as a
+// bare gap with nothing there — so unlike the naive "always join same-line
+// items with a space" this used to do, a space is only synthesized when the
+// horizontal gap to the previous item exceeds a small kerning-level
+// threshold; below that, the two items are just two pieces of one word or
+// number and get joined directly ("How m" + "uch" -> "How much").
+//
+// The same PDFs also raise/lower the baseline for superscripts (an ordinal
+// suffix like the "st" in "1st", or an exponent like the "2" in "132m2") by
+// a few points without starting a real new line (observed: a consistent
+// ~4pt shift) — a genuine new line, by contrast, always resets the X
+// position back toward the page's left margin AND is a much bigger Y jump
+// (observed: never less than ~12pt in this document family, vs. real
+// multi-line paragraph gaps that are typically 15pt+). So a Y jump is only
+// treated as a superscript, not a new line, when BOTH signals agree: it's
+// small (within SUPERSCRIPT_MAX_Y_SHIFT_PT) AND the X position keeps moving
+// forward rather than resetting. Requiring both avoids misreading an
+// unrelated, much-lower fragment on the same page (e.g. a page-number
+// footer, which can be a huge Y jump but occasionally an X position that
+// happens to still be "forward") as a same-line continuation — X alone
+// isn't a safe enough signal by itself, only combined with a small Y jump.
+// A small Y jump that passes both checks joins the line normally (subject
+// to the same gap-based spacing rule above) rather than being force-split
+// onto its own line, which the later whitespace handling would otherwise
+// turn into a spurious space (e.g. "1st" -> "1 st").
+const SPURIOUS_GAP_THRESHOLD_PT = 1;
+const BACKWARD_X_TOLERANCE_PT = 2;
+const SUPERSCRIPT_MAX_Y_SHIFT_PT = 6;
+
 function itemsToText(items) {
   let text = '';
   let lastY = null;
+  let lastEndX = null;
   const lines = [];
   items.forEach((item) => {
     const y = Array.isArray(item.transform) ? item.transform[5] : null;
-    if (lastY !== null && y !== null && Math.abs(y - lastY) > 1) {
+    const x = Array.isArray(item.transform) ? item.transform[4] : null;
+    const yDelta = lastY !== null && y !== null ? Math.abs(y - lastY) : null;
+    const continuesForward = x !== null && lastEndX !== null && x >= lastEndX - BACKWARD_X_TOLERANCE_PT;
+    const looksLikeSuperscriptShift = yDelta !== null && yDelta <= SUPERSCRIPT_MAX_Y_SHIFT_PT && continuesForward;
+    if (yDelta !== null && yDelta > 1 && !looksLikeSuperscriptShift) {
       text += '\n';
       lines.push({ offset: text.length, y });
+      lastEndX = null;
     } else if (text && !text.endsWith('\n')) {
-      text += ' ';
+      const gap = lastEndX !== null && x !== null ? x - lastEndX : null;
+      if (gap === null || gap > SPURIOUS_GAP_THRESHOLD_PT) text += ' ';
     } else if (text.length === 0 && y !== null) {
       lines.push({ offset: 0, y });
     }
     text += item.str;
     if (y !== null) lastY = y;
+    lastEndX = x !== null ? x + (item.width || 0) : null;
   });
   return { text, lines };
 }

@@ -66,6 +66,12 @@ function writeJSON(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
+let questionIdCounter = 0;
+function nextQuestionId() {
+  questionIdCounter += 1;
+  return `q_${Date.now()}_${questionIdCounter}`;
+}
+
 export const Storage = {
   TOPICS,
 
@@ -112,9 +118,31 @@ export const Storage = {
   setCustomQuestions(list) {
     writeJSON(`${NS}:customQuestions`, list);
   },
+  // Every imported question needs a stable id so a wrong answer can be
+  // traced back to that exact question later (see markQuestionResult,
+  // Roadmap ideas.md #78) — assigned once, here, rather than by whichever
+  // parser produced the question, so every import path gets one for free.
   addCustomQuestions(newItems) {
     const existing = Storage.getCustomQuestions();
-    writeJSON(`${NS}:customQuestions`, [...existing, ...newItems]);
+    const withIds = newItems.map((q) => (q.id ? q : { ...q, id: nextQuestionId() }));
+    writeJSON(`${NS}:customQuestions`, [...existing, ...withIds]);
+  },
+  // Records whether the child got a specific imported question right or
+  // wrong, so questionBank.js can show wrong ones more often until they're
+  // answered correctly once (Roadmap ideas.md #78: "present those questions
+  // more frequently... when the correct answer is used then use them at a
+  // standard frequency"). A no-op if the id isn't found (e.g. the question
+  // was cleared/re-imported since) or the flag wouldn't actually change.
+  markQuestionResult(questionId, correct) {
+    if (!questionId) return;
+    const all = Storage.getCustomQuestions();
+    const idx = all.findIndex((q) => q.id === questionId);
+    if (idx === -1) return;
+    const shouldNeedRetry = !correct;
+    if (Boolean(all[idx].needsRetry) === shouldNeedRetry) return;
+    const updated = [...all];
+    updated[idx] = { ...updated[idx], needsRetry: shouldNeedRetry };
+    writeJSON(`${NS}:customQuestions`, updated);
   },
 
   getShopState() {

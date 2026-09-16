@@ -21,17 +21,21 @@ export function startSession({ topicWeighting, topicFocus, lengthType, lengthVal
     score: 0,
     streak: 0,
     bestStreak: 0,
-    usedWordProblemIds: new Set(),
   };
 }
 
+// Returns either a real question, or { blocked: true, topic, tier } when
+// there's no imported question for the exact topic+tier picked — per
+// Roadmap ideas.md #77, that's a hard stop, not a cue to quietly fall back
+// to a different topic or tier (see app.js's nextQuestion for how the UI
+// surfaces this).
 export function pickNextQuestion(session, mastery) {
   const topic = session.topicFocus || weightedRandomPick(session.topicWeighting);
   const record = mastery[topic];
   const tier = selectDifficultyTier(record);
   const customQuestions = Storage.getCustomQuestions();
-  const q = getQuestion(topic, tier, session.usedWordProblemIds, customQuestions);
-  if (q.source === 'authored' && q.id) session.usedWordProblemIds.add(q.id);
+  const q = getQuestion(topic, tier, customQuestions);
+  if (!q) return { blocked: true, topic, tier };
   return q;
 }
 
@@ -64,6 +68,7 @@ export function recordAnswer(session, mastery, question, userInput, timeMs) {
   const tier = question.difficulty;
 
   updateMastery(mastery[question.topic], correct, tier, timeMs, todayStr());
+  Storage.markQuestionResult(question.id, correct);
 
   const speedBonus = correct && timeMs < EXPECTED_TIME_MS[tier] ? 5 : 0;
   const streakBonus = correct ? Math.min(session.streak + 1, 5) : 0;
@@ -83,7 +88,7 @@ export function recordAnswer(session, mastery, question, userInput, timeMs) {
   });
 
   Storage.setMastery(mastery);
-  Storage.setInProgress({ ...session, usedWordProblemIds: [...session.usedWordProblemIds] });
+  Storage.setInProgress(session);
 
   return { correct, pointsEarned, streak: session.streak };
 }

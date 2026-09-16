@@ -189,8 +189,7 @@ function beginSession({ lengthType, lengthValue, topicFocus }) {
 }
 
 function resumeSession() {
-  const raw = Storage.getInProgress();
-  state.session = { ...raw, usedWordProblemIds: new Set(raw.usedWordProblemIds) };
+  state.session = Storage.getInProgress();
   ui.showScreen('question');
   startTimerIfNeeded();
   nextQuestion();
@@ -217,7 +216,11 @@ function nextQuestion() {
   state.currentQuestion = pickNextQuestion(state.session, state.mastery);
   state.questionStartTime = Date.now();
   ui.renderHud(state.session, state.plan);
-  ui.renderQuestion(state.currentQuestion);
+  if (state.currentQuestion.blocked) {
+    ui.renderBlockedQuestion(state.currentQuestion.topic, state.currentQuestion.tier);
+  } else {
+    ui.renderQuestion(state.currentQuestion);
+  }
 }
 
 function onCheck() {
@@ -252,6 +255,16 @@ ui.bindStartHandlers({
   onStart: () => {
     const length = ui.getSelectedLength();
     const topicFocus = ui.getSelectedTopic();
+    const customQuestions = Storage.getCustomQuestions();
+    if (customQuestions.length === 0) {
+      ui.showStartWarning('No questions imported yet — import a practice paper on the Import page before starting a session.');
+      return;
+    }
+    if (topicFocus && !customQuestions.some((q) => q.topic === topicFocus)) {
+      ui.showStartWarning(`No imported questions for "${ui.TOPIC_LABELS[topicFocus] || topicFocus}" yet — import more questions covering this topic, or choose "All topics" instead.`);
+      return;
+    }
+    ui.hideStartWarning();
     beginSession({ lengthType: length.type, lengthValue: length.value, topicFocus });
   },
   onResume: resumeSession,

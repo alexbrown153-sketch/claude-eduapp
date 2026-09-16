@@ -197,6 +197,7 @@ export function renderStart(plan, mastery, meta, hasInProgress) {
   });
   renderTopicWeightingPreview(plan);
   el('topic-weighting-preview').hidden = false;
+  hideStartWarning();
 
   el('resume-btn').hidden = !hasInProgress;
 }
@@ -209,6 +210,16 @@ export function getSelectedLength() {
 export function getSelectedTopic() {
   const btn = document.querySelector('#topic-choices .choice-btn.selected');
   return btn.dataset.topic || null;
+}
+
+export function showStartWarning(message) {
+  const target = el('start-warning');
+  target.textContent = message;
+  target.hidden = false;
+}
+
+export function hideStartWarning() {
+  el('start-warning').hidden = true;
 }
 
 function syncCustomLengthButton() {
@@ -243,6 +254,7 @@ export function bindStartHandlers({ onStart, onResume }) {
       document.querySelectorAll('#topic-choices .choice-btn').forEach((b) => b.classList.remove('selected'));
       btn.classList.add('selected');
       el('topic-weighting-preview').hidden = btn.dataset.topic !== '';
+      hideStartWarning();
     });
   });
 
@@ -453,6 +465,10 @@ export function updateTimer(remainingMs) {
 }
 
 export function renderQuestion(question) {
+  el('question-blocked').hidden = true;
+  el('question-prompt').hidden = false;
+  document.querySelector('.action-slot').hidden = false;
+
   el('feedback-inline').hidden = true;
   el('check-btn').hidden = false;
   el('check-btn').disabled = false;
@@ -499,6 +515,26 @@ export function renderQuestion(question) {
   if (question.answerType === 'text') {
     el('text-input').focus();
   }
+}
+
+// Shown instead of a normal question when session.js's pickNextQuestion
+// can't find any imported question for the exact topic+tier it picked (see
+// Roadmap ideas.md #77 — imported-only, no silent fallback to a different
+// topic/tier). Hides everything a real question would show; the only way
+// forward is back to Home (either this panel's own button or the HUD's).
+export function renderBlockedQuestion(topic, tier) {
+  el('question-prompt').hidden = true;
+  el('question-diagram').hidden = true;
+  el('answer-numeric').hidden = true;
+  el('answer-text').hidden = true;
+  el('answer-mcq').hidden = true;
+  el('feedback-inline').hidden = true;
+  document.querySelector('.action-slot').hidden = true;
+
+  el('question-blocked').hidden = false;
+  el('question-blocked-detail').textContent =
+    `There's no imported question for "${TOPIC_LABELS[topic] || topic}" at difficulty tier ${tier} yet. `
+    + 'Import more questions covering this topic and level on the Import page, or head back and try a different topic focus.';
 }
 
 export function getCurrentAnswer(answerType) {
@@ -556,6 +592,7 @@ export function bindQuestionHandlers({ onCheck, onNext, onExit }) {
   el('check-btn').addEventListener('click', onCheck);
   el('next-btn').addEventListener('click', onNext);
   el('hud-exit-btn').addEventListener('click', onExit);
+  el('question-blocked-home-btn').addEventListener('click', onExit);
 }
 
 // Check-answer and Next-question occupy the exact same slot (one hidden,

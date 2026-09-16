@@ -87,3 +87,9 @@ Future roadmap ideas
 
 74. Add a time to the recent session list
 75. In the strengths and weaknesses section of the progress page, give a little more fidelity with regards to where the user is currently at within each topic.
+
+76. During question import some words and numbers have extra and unecessary spaces inserted in the middle. Test for this and correct where found by removing the space(s).
+77. Change the question sets. I only want imported questions to be presented during the question session. No generated questions.
+78. Make a note of questions that the user gets wrong and then present those questions more frequently. When the correct answer is used then use them at a standard frequency based on progress.
+
+79. While testing the app on an ipad, the "Start Session" is not visible at all and there is no way to start a session.
