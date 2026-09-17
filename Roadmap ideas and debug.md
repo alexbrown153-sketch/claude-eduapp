@@ -95,3 +95,6 @@ Future roadmap ideas
 79. While testing the app on an ipad, the "Start Session" is not visible at all and there is no way to start a session.
 
 80. Reset the question generation. Disable the question upload capability. The default state of the app should to auto-generate a number of questions for each topic, questions should increase in difficulty the better a user gets at that specific topic. No question uploads are needed for the app to function correctly and completely.
+
+81. add a "changes" section to the settings page. everytime this roadmap file is processed for features or changes add a brief sunmary of the change to this list and date/time. list is always ammended and never truncated. 
+82. On the main screen, top bar, add a "Suggestions" option which allows the user to make a suggestion about how the app can be improved. the user can then submit the suggestion. the suggstion should be added to the end of this file as a new numbered item. the suggestion can be rewritten or rephrased if helpful for being processed as a roadmap item. 
