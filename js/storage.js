@@ -145,6 +145,21 @@ export const Storage = {
     writeJSON(`${NS}:customQuestions`, updated);
   },
 
+  // Suggestions the child has written on the Suggestions screen (Roadmap
+  // #82). Each is { number, text, submittedAt } — `number` is assigned once,
+  // at submit time, so it stays stable and matches the numbered line that
+  // gets pasted into the roadmap file.
+  getSuggestions() {
+    return readJSON(`${NS}:suggestions`, []);
+  },
+  addSuggestion(suggestion) {
+    const all = Storage.getSuggestions();
+    writeJSON(`${NS}:suggestions`, [...all, suggestion]);
+  },
+  setSuggestions(list) {
+    writeJSON(`${NS}:suggestions`, list);
+  },
+
   getShopState() {
     const stored = readJSON(`${NS}:shop`, null);
     const merged = defaultShopState();
@@ -178,9 +193,15 @@ export const Storage = {
   // Permanently erases every piece of this app's data (Settings > Clear all
   // progress) — mastery, sessions, badges, shop purchases, custom questions,
   // everything — so the app starts completely fresh.
+  //
+  // Submitted suggestions are the one exception: they're feedback waiting to
+  // be copied into the roadmap file, not progress, points, badges, purchases
+  // or settings (which is all the confirmation prompt warns about), and once
+  // wiped they can't be recovered. They're cleared from the Suggestions
+  // screen instead, where it's clear what's being thrown away.
   resetAll() {
     Object.keys(localStorage)
-      .filter((k) => k.startsWith(`${NS}:`))
+      .filter((k) => k.startsWith(`${NS}:`) && k !== `${NS}:suggestions`)
       .forEach((k) => localStorage.removeItem(k));
   },
 };

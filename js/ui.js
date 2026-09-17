@@ -5,6 +5,7 @@ import { PHASE_LABELS } from './pacing.js';
 import { SHOP_CATEGORIES, itemsByCategory, getItem, isOwned, availableBalance } from './shop.js';
 import { getJokeOfTheDay } from './jokes.js';
 import { getWordOfTheDay } from './wordOfDay.js';
+import { CHANGELOG } from './changelog.js';
 
 export const TOPIC_LABELS = {
   arithmetic: 'Arithmetic',
@@ -38,10 +39,11 @@ export function showScreen(name) {
   document.querySelectorAll('.nav-btn').forEach((b) => b.classList.toggle('active', b.dataset.nav === name));
 }
 
-export function bindGlobalHandlers({ onHome, onGotoProgress, onGotoShop, onGotoSettings, onGotoImport }) {
+export function bindGlobalHandlers({ onHome, onGotoProgress, onGotoShop, onGotoSettings, onGotoImport, onGotoSuggestions }) {
   el('nav-home-btn').addEventListener('click', onHome);
   el('nav-progress-btn').addEventListener('click', onGotoProgress);
   el('nav-shop-btn').addEventListener('click', onGotoShop);
+  el('nav-suggestions-btn').addEventListener('click', onGotoSuggestions);
   el('nav-import-btn').addEventListener('click', onGotoImport);
   el('nav-settings-btn').addEventListener('click', onGotoSettings);
 }
@@ -267,6 +269,29 @@ export function bindStartHandlers({ onStart, onResume }) {
 export function renderSettings(meta) {
   el('child-name-input').value = meta.childName || '';
   el('weather-city-input').value = meta.weatherCity || '';
+  renderChangelog();
+}
+
+// Settings > Changes (Roadmap #81). CHANGELOG is already newest-first and
+// append-only (see changelog.js), so this renders it verbatim — no slicing
+// or "show more", because the whole point is that nothing is ever dropped.
+function renderChangelog() {
+  el('changelog-list').innerHTML = CHANGELOG.map((entry) => {
+    const when = new Date(entry.at);
+    const stamp = Number.isNaN(when.getTime())
+      ? entry.at
+      : `${when.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}, ${when.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`;
+    const bullets = entry.changes.map((c) => `<li>${escapeHtml(c)}</li>`).join('');
+    return `
+      <div class="changelog-entry">
+        <div class="changelog-head">
+          <span class="changelog-when">${escapeHtml(stamp)}</span>
+          ${entry.items ? `<span class="changelog-items">Roadmap ${escapeHtml(entry.items)}</span>` : ''}
+        </div>
+        <ul class="changelog-changes">${bullets}</ul>
+      </div>
+    `;
+  }).join('');
 }
 
 export function bindSettingsHandlers({ onNameChange, onCityChange, onClearProgress }) {
@@ -277,6 +302,85 @@ export function bindSettingsHandlers({ onNameChange, onCityChange, onClearProgre
     onCityChange(el('weather-city-input').value.trim().slice(0, 40));
   });
   el('clear-progress-btn').addEventListener('click', onClearProgress);
+}
+
+// ---------- Suggestions screen (Roadmap #82) ----------
+
+// The app is offline and has no backend, so it can't append to the roadmap
+// file itself. Instead each suggestion is stored with the number it will
+// take in that file, and rendered here both as a readable list and as
+// ready-to-paste markdown lines.
+export function renderSuggestions(suggestions) {
+  const listEl = el('suggestion-list');
+  if (!suggestions || suggestions.length === 0) {
+    listEl.innerHTML = '<p class="empty-state">No suggestions yet — your first idea goes here.</p>';
+    el('suggestion-export').hidden = true;
+    el('suggestion-export-text').value = '';
+    return;
+  }
+
+  listEl.innerHTML = [...suggestions].reverse().map((sg) => {
+    const when = new Date(sg.submittedAt);
+    const stamp = Number.isNaN(when.getTime())
+      ? ''
+      : `${when.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}, ${when.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`;
+    return `
+      <div class="suggestion-row">
+        <span class="suggestion-number">${sg.number}</span>
+        <div class="suggestion-body">
+          <p class="suggestion-text">${escapeHtml(sg.text)}</p>
+          ${stamp ? `<p class="suggestion-when">${escapeHtml(stamp)}</p>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  el('suggestion-export').hidden = false;
+  el('suggestion-export-text').value = suggestions.map((sg) => `${sg.number}. ${sg.text}`).join('\n');
+}
+
+export function getSuggestionInput() {
+  return el('suggestion-input').value;
+}
+
+export function clearSuggestionInput() {
+  el('suggestion-input').value = '';
+}
+
+export function showSuggestionStatus(message, tone = 'ok') {
+  const statusEl = el('suggestion-status');
+  statusEl.textContent = message;
+  statusEl.className = `suggestion-status suggestion-status-${tone}`;
+}
+
+export function bindSuggestionsHandlers({ onSubmit, onClear }) {
+  el('suggestion-submit-btn').addEventListener('click', onSubmit);
+
+  // Enter submits, Shift+Enter makes a new line — matches the Enter-to-answer
+  // behaviour during a session (Roadmap #72/#73).
+  el('suggestion-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      onSubmit();
+    }
+  });
+
+  el('suggestion-clear-btn').addEventListener('click', onClear);
+
+  el('suggestion-copy-btn').addEventListener('click', async () => {
+    const textarea = el('suggestion-export-text');
+    // navigator.clipboard needs a secure context, which opening index.html
+    // straight off the disk (file://) isn't always — fall back to selecting
+    // the text so it can be copied by hand either way.
+    try {
+      await navigator.clipboard.writeText(textarea.value);
+      showSuggestionStatus('Copied — paste onto the end of the roadmap file.');
+    } catch (e) {
+      textarea.focus();
+      textarea.select();
+      showSuggestionStatus('Select-all done — press Ctrl/Cmd + C to copy.');
+    }
+  });
 }
 
 // ---------- Import screen ----------
