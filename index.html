@@ -15,6 +15,7 @@
       <button id="nav-home-btn" class="nav-btn" data-nav="start">&#127968; Home</button>
       <button id="nav-progress-btn" class="nav-btn" data-nav="progress">&#128202; Progress</button>
       <button id="nav-shop-btn" class="nav-btn" data-nav="shop">&#128717;&#65039; Shop</button>
+      <button id="nav-suggestions-btn" class="nav-btn" data-nav="suggestions">&#128161; Suggestions</button>
       <!-- Roadmap ideas.md #80: question upload disabled — the app now
            auto-generates every topic on its own, so this entry point is
            hidden rather than removed (the screen/parser code is untouched,
@@ -200,9 +201,41 @@
     </div>
     <p class="weather-hint">Looks up today's weather for this city using a free weather service &mdash; needs an internet connection.</p>
 
+    <h3 class="section-subheading">Changes</h3>
+    <p class="changelog-hint">Everything that has been added or changed in the app, newest first. Nothing is ever removed from this list.</p>
+    <div id="changelog-list" class="changelog-list"></div>
+
     <h3 class="section-subheading danger-heading">Danger zone</h3>
     <p class="danger-hint">Permanently erases all progress, points, badges, purchases and settings, and starts fresh.</p>
     <button id="clear-progress-btn" class="danger-btn">Clear all progress</button>
+  </section>
+
+  <!-- SUGGESTIONS SCREEN -->
+  <section id="screen-suggestions" class="screen">
+    <h2 class="section-heading">Suggestions</h2>
+    <p class="suggestions-hint">Got an idea for making this app better? Write it down here. Each suggestion is given the number it will have in the roadmap list, ready to be added to it.</p>
+
+    <div class="suggestion-form">
+      <label for="suggestion-input" class="name-label">Your suggestion</label>
+      <textarea id="suggestion-input" class="suggestion-input" rows="4" maxlength="500" placeholder="e.g. Add a sound effect when I get a question right"></textarea>
+      <div class="suggestion-form-row">
+        <span id="suggestion-status" class="suggestion-status"></span>
+        <button id="suggestion-submit-btn" class="primary-btn suggestion-submit-btn">Submit suggestion</button>
+      </div>
+    </div>
+
+    <h3 class="section-subheading">Your suggestions</h3>
+    <div id="suggestion-list" class="suggestion-list"></div>
+
+    <div id="suggestion-export" class="suggestion-export" hidden>
+      <h3 class="section-subheading">Ready for the roadmap file</h3>
+      <p class="suggestions-hint">The app can&rsquo;t write to the roadmap file itself, so copy these lines and paste them onto the end of &ldquo;Roadmap ideas and debug.md&rdquo;.</p>
+      <textarea id="suggestion-export-text" class="suggestion-export-text" rows="4" readonly></textarea>
+      <div class="suggestion-export-row">
+        <button id="suggestion-copy-btn" class="secondary-btn">Copy all</button>
+        <button id="suggestion-clear-btn" class="link-btn">Clear my suggestions</button>
+      </div>
+    </div>
   </section>
 
   <!-- IMPORT SCREEN -->

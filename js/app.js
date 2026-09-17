@@ -9,6 +9,7 @@ import { getBadgeDefinitions, evaluateBadges } from './badges.js';
 import { parsePdfQuestions } from './pdfQuestions.js';
 import { fetchWeatherForCity } from './weather.js';
 import { getItem, isOwned, availableBalance } from './shop.js';
+import { ROADMAP_LAST_ITEM_NUMBER } from './changelog.js';
 import * as ui from './ui.js';
 
 const BADGE_DEFINITIONS = getBadgeDefinitions(TOPICS, ui.TOPIC_LABELS);
@@ -104,6 +105,13 @@ function goToSettings() {
   ui.showScreen('settings');
 }
 
+function goToSuggestions() {
+  ui.renderSuggestions(Storage.getSuggestions());
+  ui.clearSuggestionInput();
+  ui.showSuggestionStatus('');
+  ui.showScreen('suggestions');
+}
+
 function goToImport() {
   ui.renderImportSummary(Storage.getCustomQuestions());
   ui.renderImportErrors([]);
@@ -122,6 +130,53 @@ function onCityChange(city) {
   Storage.setMeta(state.meta);
   ui.renderSettings(state.meta);
   refreshWeather();
+}
+
+// Roadmap #82: suggestions are destined to be pasted into the roadmap file as
+// numbered items, and the roadmap file explicitly allows rewording them so
+// they read as roadmap entries. Only safe, mechanical tidying happens here —
+// collapse the line breaks and double spaces a typed-in idea picks up, give
+// it a capital letter and a full stop. The wording itself is left alone;
+// changing what was actually meant isn't the app's call to make.
+function normaliseSuggestion(raw) {
+  const text = String(raw).replace(/\s+/g, ' ').trim();
+  if (!text) return '';
+  const capitalised = text.charAt(0).toUpperCase() + text.slice(1);
+  return /[.!?]$/.test(capitalised) ? capitalised : `${capitalised}.`;
+}
+
+// Suggestions continue the roadmap file's own numbering so a submitted idea
+// can be pasted straight onto the end of it. Numbering from the highest
+// number already handed out (not from the count of suggestions) keeps
+// existing numbers stable after some have been merged into the file and
+// cleared, and after ROADMAP_LAST_ITEM_NUMBER moves up to cover them.
+function nextSuggestionNumber(existing) {
+  const highestUsed = existing.reduce((max, sg) => Math.max(max, sg.number || 0), 0);
+  return Math.max(ROADMAP_LAST_ITEM_NUMBER, highestUsed) + 1;
+}
+
+function handleSubmitSuggestion() {
+  const text = normaliseSuggestion(ui.getSuggestionInput());
+  if (!text) {
+    ui.showSuggestionStatus('Write your idea first.', 'warn');
+    return;
+  }
+  const existing = Storage.getSuggestions();
+  const number = nextSuggestionNumber(existing);
+  Storage.addSuggestion({ number, text, submittedAt: new Date().toISOString() });
+  ui.clearSuggestionInput();
+  ui.renderSuggestions(Storage.getSuggestions());
+  ui.showSuggestionStatus(`Thanks! Saved as roadmap idea ${number}.`);
+}
+
+function handleClearSuggestions() {
+  const sure = window.confirm(
+    'This deletes the suggestions you\'ve written. Copy them into the roadmap file first if you haven\'t already. Delete them?',
+  );
+  if (!sure) return;
+  Storage.setSuggestions([]);
+  ui.renderSuggestions([]);
+  ui.showSuggestionStatus('Suggestions cleared.');
 }
 
 function handleClearProgress() {
@@ -281,12 +336,18 @@ ui.bindImportHandlers({
 
 ui.bindShopHandlers({ onPurchaseOrEquip: handlePurchaseOrEquip });
 
+ui.bindSuggestionsHandlers({
+  onSubmit: handleSubmitSuggestion,
+  onClear: handleClearSuggestions,
+});
+
 ui.bindGlobalHandlers({
   onHome: goToStart,
   onGotoProgress: goToProgress,
   onGotoShop: goToShop,
   onGotoSettings: goToSettings,
   onGotoImport: goToImport,
+  onGotoSuggestions: goToSuggestions,
 });
 
 applyCosmetics(Storage.getShopState());
