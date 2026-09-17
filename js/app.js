@@ -189,7 +189,8 @@ function beginSession({ lengthType, lengthValue, topicFocus }) {
 }
 
 function resumeSession() {
-  state.session = Storage.getInProgress();
+  const raw = Storage.getInProgress();
+  state.session = { ...raw, usedWordProblemIds: new Set(raw.usedWordProblemIds) };
   ui.showScreen('question');
   startTimerIfNeeded();
   nextQuestion();
@@ -251,20 +252,13 @@ function onNext() {
   }
 }
 
+// Roadmap ideas.md #80: question sourcing no longer depends on imports (see
+// questionBank.js), so Start no longer needs a pre-check for import
+// coverage before every session — it always has something to generate.
 ui.bindStartHandlers({
   onStart: () => {
     const length = ui.getSelectedLength();
     const topicFocus = ui.getSelectedTopic();
-    const customQuestions = Storage.getCustomQuestions();
-    if (customQuestions.length === 0) {
-      ui.showStartWarning('No questions imported yet — import a practice paper on the Import page before starting a session.');
-      return;
-    }
-    if (topicFocus && !customQuestions.some((q) => q.topic === topicFocus)) {
-      ui.showStartWarning(`No imported questions for "${ui.TOPIC_LABELS[topicFocus] || topicFocus}" yet — import more questions covering this topic, or choose "All topics" instead.`);
-      return;
-    }
-    ui.hideStartWarning();
     beginSession({ lengthType: length.type, lengthValue: length.value, topicFocus });
   },
   onResume: resumeSession,

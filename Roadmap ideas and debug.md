@@ -93,3 +93,5 @@ Future roadmap ideas
 78. Make a note of questions that the user gets wrong and then present those questions more frequently. When the correct answer is used then use them at a standard frequency based on progress.
 
 79. While testing the app on an ipad, the "Start Session" is not visible at all and there is no way to start a session.
+
+80. Reset the question generation. Disable the question upload capability. The default state of the app should to auto-generate a number of questions for each topic, questions should increase in difficulty the better a user gets at that specific topic. No question uploads are needed for the app to function correctly and completely.

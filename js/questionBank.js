@@ -1,22 +1,19 @@
-// Question sourcing for a session. Roadmap ideas.md #77 originally made this
-// imported-only; procedural generation was later restored as a filler, not
-// a replacement:
-//  1. A real imported question (see pdfQuestions.js/examberryPdfParser.js)
-//     for the exact topic+tier is always used when one exists, weighted
-//     toward ones the child got wrong last time (see RETRY_WEIGHT / #78).
-//  2. Otherwise, if that TOPIC has been imported at all (any tier), a
-//     procedural question is generated for it instead of blocking — "based
-//     on uploaded questions" here means gated by topic, and shaped to match
-//     that topic's imported answer style (MCQ vs typed) where the generated
-//     answer is a plain number simple enough to fabricate distractors for,
-//     not a rewrite of any specific imported question's own wording.
-//  3. A topic with zero imports anywhere still blocks (see
-//     ui.renderBlockedQuestion) — there's nothing to base a question on.
-// The hand-authored word-problems bank (wordProblems.js) stays retired per
-// #77's confirmed decision; "wordProblems" has no procedural generator here
-// (it never had one — word problems were always hand-authored, never
-// formulaic), so an uncovered wordProblems tier still blocks even once some
-// wordProblems questions have been imported.
+// Procedural question generators for arithmetic, fractions/decimals/percentages,
+// geometry, ratio, algebra, and data handling, tiered 1-5 per SPEC.md §12. Word
+// problems are hand-authored and live in wordProblems.js; getQuestion() dispatches
+// to whichever the topic needs.
+//
+// Roadmap ideas.md #80: this is the app's sole question source again — every
+// topic auto-populates on its own, with difficulty rising as the child's
+// mastery of that topic improves (selectDifficultyTier in mastery.js), and
+// nothing here depends on PDF import (see pdfQuestions.js/
+// examberryPdfParser.js, whose Import screen nav entry is now hidden rather
+// than deleted — see index.html's #nav-import-btn). This is a reversal of a
+// same-day PDF-import-only experiment (#77) and its later generation-as-
+// filler hybrid — see project_imported_only_questions in memory for the
+// full history if this area needs revisiting again.
+
+import { getWordProblem } from './wordProblems.js';
 
 function randInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -700,82 +697,11 @@ const GENERATORS = {
   dataHandling: genDataHandling,
 };
 
-// A question the child most recently got wrong (Storage.markQuestionResult,
-// Roadmap ideas.md #78) is this many times more likely to be picked than one
-// answered correctly (or never seen) — until it's answered correctly once,
-// at which point it drops straight back to standard frequency alongside
-// everything else, rather than tapering off gradually. Generated fallback
-// questions have no stable id (see below) so this never applies to them.
-const RETRY_WEIGHT = 4;
-
-// Whether a topic's imported questions are predominantly multiple-choice —
-// used to shape a *generated* filler question the same way, so it doesn't
-// stick out as a different format from the real imported ones alongside it.
-function topicAnswerStyle(topic, customQuestions) {
-  const forTopic = customQuestions.filter((q) => q.topic === topic);
-  if (forTopic.length === 0) return null;
-  const mcqCount = forTopic.filter((q) => q.answerType === 'mcq').length;
-  return mcqCount > forTopic.length / 2 ? 'mcq' : null;
-}
-
-// Fabricates 2-3 plausible-looking wrong numeric options around the correct
-// answer (same delta-based approach as fdpT1's percentage decoys above,
-// generalised to any magnitude) — only used when the correct answer is a
-// clean number; other answer shapes (e.g. "12 r 3", a ratio "3:4") are left
-// as their natural answerType rather than risking a nonsensical MCQ.
-function buildDistractors(correct) {
-  const decoys = new Set();
-  const magnitude = Math.max(1, Math.abs(correct));
-  let attempts = 0;
-  while (decoys.size < 3 && attempts < 40) {
-    attempts += 1;
-    const deltaPct = pick([-0.5, -0.3, -0.15, 0.15, 0.3, 0.5]);
-    const candidate = Number.isInteger(correct)
-      ? Math.round(correct + magnitude * deltaPct)
-      : round2(correct + magnitude * deltaPct);
-    if (candidate !== correct) decoys.add(candidate);
+export function getQuestion(topic, tier, usedWordProblemIds) {
+  if (topic === 'wordProblems') {
+    return getWordProblem(tier, usedWordProblemIds);
   }
-  return decoys;
-}
-
-function wrapAsMcq(question) {
-  const correctNum = Number(question.correctAnswer);
-  if (!Number.isFinite(correctNum)) return question;
-  const decoyStrings = [...buildDistractors(correctNum)].map(String);
-  if (decoyStrings.length < 2) return question;
-  return {
-    ...question,
-    answerType: 'mcq',
-    choices: shuffle([question.correctAnswer, ...decoyStrings.slice(0, 3)]),
-  };
-}
-
-// A real imported question for the exact topic+tier is always preferred
-// (weighted per RETRY_WEIGHT above); failing that, a procedural question is
-// generated for the topic instead of blocking, but only if the child has
-// imported at least one question for that topic (any tier) — see the file
-// header for why "based on uploaded questions" is a topic-level gate, not a
-// clone of any specific imported question's wording. Returns null when
-// there's truly nothing to show (no import match AND no import basis for
-// generation, or a topic — like wordProblems — with no generator at all),
-// which callers must treat as "blocked" (see session.js's pickNextQuestion).
-export function getQuestion(topic, tier, customQuestions = []) {
-  const matching = customQuestions.filter((q) => q.topic === topic && q.difficulty === tier);
-  if (matching.length > 0) {
-    const weighted = [];
-    matching.forEach((q) => {
-      const copies = q.needsRetry ? RETRY_WEIGHT : 1;
-      for (let i = 0; i < copies; i += 1) weighted.push(q);
-    });
-    return { ...pick(weighted), source: 'custom' };
-  }
-
-  const hasAnyImportForTopic = customQuestions.some((q) => q.topic === topic);
-  if (!hasAnyImportForTopic) return null;
-
   const gen = GENERATORS[topic];
-  if (!gen) return null;
-
-  const generated = gen(tier);
-  return topicAnswerStyle(topic, customQuestions) === 'mcq' ? wrapAsMcq(generated) : generated;
+  if (!gen) throw new Error(`Unknown topic: ${topic}`);
+  return gen(tier);
 }

@@ -21,20 +21,25 @@ export function startSession({ topicWeighting, topicFocus, lengthType, lengthVal
     score: 0,
     streak: 0,
     bestStreak: 0,
+    usedWordProblemIds: new Set(),
   };
 }
 
-// Returns either a real (imported or generated) question, or
-// { blocked: true, topic } when questionBank.js's getQuestion() finds
-// neither an imported match nor any basis to generate one for this topic —
-// see its header comment for exactly when that happens.
+// Roadmap ideas.md #80: question sourcing is back to pure auto-generation
+// (arithmetic/fdp/geometry/ratio/algebra/dataHandling procedurally, word
+// problems from the hand-authored bank) — no PDF import involved, so this
+// never returns null in practice. The { blocked, topic } shape is kept as a
+// defensive fallback rather than removed outright, since this exact
+// question-sourcing subsystem has changed direction more than once in one
+// day — cheap insurance against another reversal, not active behavior
+// right now.
 export function pickNextQuestion(session, mastery) {
   const topic = session.topicFocus || weightedRandomPick(session.topicWeighting);
   const record = mastery[topic];
   const tier = selectDifficultyTier(record);
-  const customQuestions = Storage.getCustomQuestions();
-  const q = getQuestion(topic, tier, customQuestions);
+  const q = getQuestion(topic, tier, session.usedWordProblemIds);
   if (!q) return { blocked: true, topic };
+  if (q.source === 'authored' && q.id) session.usedWordProblemIds.add(q.id);
   return q;
 }
 
@@ -87,7 +92,7 @@ export function recordAnswer(session, mastery, question, userInput, timeMs) {
   });
 
   Storage.setMastery(mastery);
-  Storage.setInProgress(session);
+  Storage.setInProgress({ ...session, usedWordProblemIds: [...session.usedWordProblemIds] });
 
   return { correct, pointsEarned, streak: session.streak };
 }
