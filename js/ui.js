@@ -286,7 +286,7 @@ function renderChangelog() {
       <div class="changelog-entry">
         <div class="changelog-head">
           <span class="changelog-when">${escapeHtml(stamp)}</span>
-          ${entry.items ? `<span class="changelog-items">Roadmap ${escapeHtml(entry.items)}</span>` : ''}
+          ${entry.label ? `<span class="changelog-items">${escapeHtml(entry.label)}</span>` : ''}
         </div>
         <ul class="changelog-changes">${bullets}</ul>
       </div>

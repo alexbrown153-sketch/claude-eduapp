@@ -73,7 +73,12 @@ button {
    would between two unequal flex siblings. */
 .header-top {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  /* minmax(0, ...) rather than a bare 1fr/auto: a grid track's automatic
+     minimum is its content's min-content width, which let the nav and brand
+     force the whole page wider than a phone's screen (see the phone rules at
+     the end of this file). Flooring the tracks at 0 lets them shrink and the
+     title ellipsis actually do its job. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, auto) minmax(0, 1fr);
   align-items: center;
   gap: 12px;
   padding: 12px 20px;
@@ -96,10 +101,12 @@ button {
   align-items: center;
   gap: 6px;
   justify-self: center;
+  min-width: 0;
 }
 
 .header-title {
   max-width: 100%;
+  min-width: 0;
   font-size: 1.19rem;
   font-weight: 800;
   color: var(--primary-dark);
@@ -142,6 +149,13 @@ button {
   padding: 10px 12px;
   min-height: 40px;
   white-space: nowrap;
+  /* Icon and label are separate spans so phones can stack them (see the
+     phone rules at the end of this file); side by side, this is the same
+     "icon + word" button it has always been. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 .nav-btn.active {
   background: var(--chip-active-bg);
@@ -1402,3 +1416,70 @@ body[data-font="font-mono"] {
 }
 .suggestion-export-row .secondary-btn { width: auto; min-width: 160px; margin: 0; }
 .suggestion-export-row .link-btn { width: auto; margin: 0; }
+
+/* ---------- Phones: make the whole top bar fit the screen ----------
+
+   The three-across desktop top bar (nav | brand | points+settings) needs
+   roughly 420px of width before anything can shrink. On a phone that's wider
+   than the screen itself, so the page was laid out wider than the viewport:
+   the nav stacked one button per row (four rows, a 209px-tall header before
+   the notch inset on top of that) and the right-hand group — the points and
+   the settings gear — was pushed off the right edge entirely.
+
+   Below 700px the bar becomes two rows instead: brand and points/settings
+   share the top row, and the nav sits underneath as one row of equal-width
+   buttons that always spans exactly the screen width. */
+@media (max-width: 699px) {
+  .header-top {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "brand actions"
+      "nav   nav";
+    gap: 8px 10px;
+    padding: 8px 12px;
+  }
+
+  .header-brand {
+    grid-area: brand;
+    flex-direction: row;
+    align-items: center;
+    justify-self: start;
+    gap: 10px;
+  }
+  .header-title { font-size: 1rem; }
+  .header-avatar {
+    width: 40px;
+    height: 40px;
+    font-size: 1.4rem;
+  }
+
+  .header-actions { grid-area: actions; }
+  .header-badges { max-width: 22vw; }
+
+  /* One row, four equal buttons, no wrapping — each button is whatever a
+     quarter of the screen is, so adding a fifth later re-divides the row
+     rather than growing the header. min-width:0 is what lets them shrink
+     below their label width; the label then wraps inside the button. */
+  .main-nav {
+    grid-area: nav;
+    flex-wrap: nowrap;
+    justify-self: stretch;
+    gap: 6px;
+  }
+  /* A quarter of a phone screen isn't wide enough for icon and word side by
+     side once the word is as long as "Suggestions", so stack them into a
+     tab-bar button instead — uniformly, rather than letting whichever label
+     happens to be longest wrap on its own and look like a mistake. */
+  .main-nav .nav-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    flex-direction: column;
+    gap: 1px;
+    padding: 6px 2px;
+    font-size: 0.68rem;
+    line-height: 1.25;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .main-nav .nav-icon { font-size: 1.05rem; line-height: 1.1; }
+}
