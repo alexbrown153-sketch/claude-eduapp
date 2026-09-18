@@ -99,3 +99,4 @@ Future roadmap ideas
 81. add a "changes" section to the settings page. everytime this roadmap file is processed for features or changes add a brief sunmary of the change to this list and date/time. list is always ammended and never truncated. 
 82. On the main screen, top bar, add a "Suggestions" option which allows the user to make a suggestion about how the app can be improved. the user can then submit the suggestion. the suggstion should be added to the end of this file as a new numbered item. the suggestion can be rewritten or rephrased if helpful for being processed as a roadmap item. 
 83. Improve the styling of the word and joke of the day side panels.
+84. Restyle the clock widget to look more like an iphone style.
