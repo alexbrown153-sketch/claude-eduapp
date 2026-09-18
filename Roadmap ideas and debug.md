@@ -101,3 +101,4 @@ Future roadmap ideas
 83. Improve the styling of the word and joke of the day side panels.
 84. Restyle the clock widget to look more like an iphone style.
 85. Add a new widget on the right hand side under the streak widget. It should display a recommendation for the users next session based on their strengths and weaknesses.
+86. Add a refresh icon to both the joke and word of the day widgets which allows the user to request a new joke or word.
