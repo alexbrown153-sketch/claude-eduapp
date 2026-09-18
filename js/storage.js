@@ -66,14 +66,18 @@ function writeJSON(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
-let questionIdCounter = 0;
-function nextQuestionId() {
-  questionIdCounter += 1;
-  return `q_${Date.now()}_${questionIdCounter}`;
+let localIdCounter = 0;
+// Stable local id for records that need to be found again later (imported
+// questions, suggestions awaiting sync). Not a GUID — it only has to be
+// unique within one browser's stored data.
+function nextLocalId(prefix) {
+  localIdCounter += 1;
+  return `${prefix}_${Date.now()}_${localIdCounter}`;
 }
 
 export const Storage = {
   TOPICS,
+  newId: nextLocalId,
 
   getMeta() {
     return { ...defaultMeta(), ...readJSON(`${NS}:meta`, {}) };
@@ -124,7 +128,7 @@ export const Storage = {
   // parser produced the question, so every import path gets one for free.
   addCustomQuestions(newItems) {
     const existing = Storage.getCustomQuestions();
-    const withIds = newItems.map((q) => (q.id ? q : { ...q, id: nextQuestionId() }));
+    const withIds = newItems.map((q) => (q.id ? q : { ...q, id: nextLocalId('q') }));
     writeJSON(`${NS}:customQuestions`, [...existing, ...withIds]);
   },
   // Records whether the child got a specific imported question right or
@@ -146,9 +150,10 @@ export const Storage = {
   },
 
   // Suggestions the child has written on the Suggestions screen (Roadmap
-  // #82). Each is { number, text, submittedAt } — `number` is assigned once,
-  // at submit time, so it stays stable and matches the numbered line that
-  // gets pasted into the roadmap file.
+  // #82). Each is { id, number, text, submittedAt, syncedAt }. `number` is
+  // provisional until the suggestion reaches GitHub — the relay numbers it
+  // from the roadmap file itself and that number replaces this one. An
+  // unsynced suggestion is one with no syncedAt.
   getSuggestions() {
     return readJSON(`${NS}:suggestions`, []);
   },
@@ -158,6 +163,26 @@ export const Storage = {
   },
   setSuggestions(list) {
     writeJSON(`${NS}:suggestions`, list);
+  },
+  // Replaces one suggestion in place, matched by id. Re-reads first so a
+  // sync that lands while another is in flight can't clobber it.
+  updateSuggestion(id, changes) {
+    const all = Storage.getSuggestions();
+    const idx = all.findIndex((sg) => sg.id === id);
+    if (idx === -1) return;
+    const updated = [...all];
+    updated[idx] = { ...updated[idx], ...changes };
+    writeJSON(`${NS}:suggestions`, updated);
+  },
+
+  // Address and app key for the suggestion relay (see worker/README.md).
+  // The key can only append a line to the roadmap file — it is not a GitHub
+  // credential, and the GitHub token itself never comes near the browser.
+  getSyncConfig() {
+    return { workerUrl: '', appKey: '', ...readJSON(`${NS}:sync`, {}) };
+  },
+  setSyncConfig(config) {
+    writeJSON(`${NS}:sync`, config);
   },
 
   getShopState() {
