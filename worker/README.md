@@ -64,14 +64,26 @@ code.
    openssl rand -base64 32
    ```
 
-3. **Configure and deploy:**
+3. **Claim a workers.dev subdomain** — once per Cloudflare account, before
+   the first deploy. Without it `wrangler deploy` stops with *"You need to
+   register a workers.dev subdomain before publishing to workers.dev"*.
+
+   It's a dashboard action; the old `wrangler subdomain` command was removed
+   in Wrangler v4. Go to <https://dash.cloudflare.com> → **Workers & Pages**.
+   Opening that page for the first time creates a subdomain automatically; if
+   it doesn't, use the **Change** link next to *Your subdomain* and pick one.
+
+   The Worker then deploys to
+   `sprint-suggestion-relay.<your-subdomain>.workers.dev`.
+
+4. **Configure and deploy:**
 
    ```sh
    cd worker
    npm install -g wrangler        # once
    wrangler login                 # once
 
-   # edit wrangler.toml: set ALLOWED_ORIGINS to wherever the app is served
+   # edit wrangler.toml first — see the note below
    wrangler secret put GITHUB_TOKEN   # paste the token from step 1
    wrangler secret put APP_KEY        # paste the key from step 2
    wrangler deploy
@@ -79,10 +91,33 @@ code.
 
    `wrangler deploy` prints the Worker URL.
 
-4. **Point the app at it:** in the app, Settings → *Send suggestions to
+   **`ALLOWED_ORIGINS` is where the *app* is served, not the Worker.** It's
+   the easiest thing to get wrong here, because both are URLs and only one of
+   them is the answer. If the app runs from `https://alex.github.io`, that
+   exact origin — scheme and host, no path, no trailing slash — is what goes
+   in. `ALLOWED_ORIGINS` lives in `wrangler.toml`, so it only takes effect on
+   the next `wrangler deploy`.
+
+5. **Point the app at it:** in the app, Settings → *Send suggestions to
    GitHub* → paste the Worker URL and the app key. Submit a suggestion; it
    should appear as a new numbered line in the roadmap file within a second or
    two, committed as "Roadmap: add suggestion N from the app".
+
+## If it doesn't work
+
+The app reports what the relay said, and each message points at one thing:
+
+| In the app | What it means | Fix |
+| --- | --- | --- |
+| *This app isn't on the relay's allowed list* | The app's origin isn't in `ALLOWED_ORIGINS` (a 403) | Add the exact origin to `wrangler.toml`, `wrangler deploy` again |
+| *The app key was rejected* | The key in Settings doesn't match the deployed secret (a 401) | Re-paste it, or set it again with `wrangler secret put APP_KEY` |
+| *The relay address must start with https://* | The app won't send the key over plain http to a non-local host | Use the `https://` Worker URL |
+| *Couldn't reach GitHub* | Offline, wrong Worker URL, or the relay is down | Check the URL; the suggestion is still saved on the device |
+| *GitHub couldn't be updated just now* | The relay reached GitHub and GitHub refused — usually an expired or wrongly scoped token | `wrangler tail` shows the real status; re-issue the token with Contents: Read and write |
+
+Nothing is lost while you sort this out: suggestions are saved on the device
+first, stay marked "Saved here", and the **Send to GitHub** button retries
+them once the relay works.
 
 ## If the app key leaks
 
