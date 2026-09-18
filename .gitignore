@@ -1,0 +1,15 @@
+# Credentials must never be committed. The relay's app key and GitHub token
+# belong in `wrangler secret put` and in the app's Settings screen — not in a
+# file in this repo, which is public.
+App_Key.txt
+*app*key*.txt
+*.key
+.env
+.env.*
+
+# Wrangler's local state. The cached account file carries the Cloudflare
+# account id and the account's email address.
+.wrangler/
+worker/.wrangler/
+
+node_modules/
