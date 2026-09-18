@@ -44,5 +44,5 @@ If a genuinely new ambiguity comes up during the build that isn't covered by SPE
 - Keep the codebase simple and readable — one person maintains this, not a team.
 - Prefer a small number of files over a sprawling structure unless the app's growth genuinely demands it.
 - Comment non-obvious logic, especially the adaptive difficulty algorithm.
-- No telemetry, analytics, or external network calls — the app should be fully offline-capable.
+- No telemetry, analytics, or external network calls — the app should be fully offline-capable. Two deliberate, documented exceptions: the pdf.js CDN script used by question import, and the optional suggestion relay in `worker/` (opt-in, off by default, and every feature still works with it switched off or unreachable).
 - When a spec decision is genuinely ambiguous, ask rather than guess — this is a learning tool for a real child preparing for a real exam, so correctness of maths content and explanations matters more than shipping speed.

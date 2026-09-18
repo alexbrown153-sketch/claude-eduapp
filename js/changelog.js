@@ -18,6 +18,14 @@ export const ROADMAP_LAST_ITEM_NUMBER = 82;
 
 export const CHANGELOG = [
   {
+    at: '2026-09-18T10:15+01:00',
+    label: 'Suggestions \u2192 GitHub',
+    changes: [
+      'Suggestions can now be added straight to the roadmap file on GitHub instead of being copied across by hand. Turn it on in Settings under "Send suggestions to GitHub".',
+      'Suggestions are still saved on this device first, so the screen works exactly as before when the connection is off or the iPad is offline \u2014 anything that didn\u2019t get through is marked "Saved here" and can be sent again.',
+    ],
+  },
+  {
     at: '2026-09-17T23:30+01:00',
     label: 'Fix',
     changes: [

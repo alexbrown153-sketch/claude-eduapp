@@ -1,0 +1,15 @@
+name = "sprint-suggestion-relay"
+main = "src/worker.js"
+compatibility_date = "2026-09-18"
+
+# Non-secret configuration. GITHUB_TOKEN and APP_KEY are deliberately absent:
+# they are secrets, set with `wrangler secret put` so they never live in the
+# repo. See README.md.
+[vars]
+GITHUB_REPO = "alexbrown153-sketch/claude-eduapp"
+GITHUB_BRANCH = "main"
+ROADMAP_PATH = "Roadmap ideas and debug.md"
+# Comma-separated list of the exact origins the app is served from. Requests
+# from anywhere else are refused before the key is even checked. Add the
+# real origin here before deploying; localhost is only for trying it out.
+ALLOWED_ORIGINS = "http://localhost:8777"

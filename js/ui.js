@@ -266,10 +266,23 @@ export function bindStartHandlers({ onStart, onResume }) {
 
 // ---------- Settings screen ----------
 
-export function renderSettings(meta) {
+export function renderSettings(meta, syncConfig) {
   el('child-name-input').value = meta.childName || '';
   el('weather-city-input').value = meta.weatherCity || '';
+  renderSyncSettings(syncConfig);
   renderChangelog();
+}
+
+// The app key is write-only in the UI: it round-trips so it can be edited,
+// but it's a password field so it isn't left legible on a shared iPad.
+function renderSyncSettings(syncConfig = {}) {
+  el('sync-url-input').value = syncConfig.workerUrl || '';
+  el('sync-key-input').value = syncConfig.appKey || '';
+  const ready = Boolean(syncConfig.workerUrl && syncConfig.appKey);
+  el('sync-state').textContent = ready
+    ? 'Connected — new suggestions go straight to the roadmap file.'
+    : 'Not set up — suggestions are saved here and copied across by hand.';
+  el('sync-state').className = `sync-state ${ready ? 'sync-state-on' : ''}`;
 }
 
 // Settings > Changes (Roadmap #81). CHANGELOG is already newest-first and
@@ -294,7 +307,14 @@ function renderChangelog() {
   }).join('');
 }
 
-export function bindSettingsHandlers({ onNameChange, onCityChange, onClearProgress }) {
+export function bindSettingsHandlers({ onNameChange, onCityChange, onClearProgress, onSyncConfigChange }) {
+  const pushSyncConfig = () => onSyncConfigChange({
+    workerUrl: el('sync-url-input').value.trim(),
+    appKey: el('sync-key-input').value.trim(),
+  });
+  el('sync-url-input').addEventListener('change', pushSyncConfig);
+  el('sync-key-input').addEventListener('change', pushSyncConfig);
+
   el('child-name-input').addEventListener('change', () => {
     onNameChange(el('child-name-input').value.trim().slice(0, 20));
   });
@@ -306,11 +326,16 @@ export function bindSettingsHandlers({ onNameChange, onCityChange, onClearProgre
 
 // ---------- Suggestions screen (Roadmap #82) ----------
 
-// The app is offline and has no backend, so it can't append to the roadmap
-// file itself. Instead each suggestion is stored with the number it will
-// take in that file, and rendered here both as a readable list and as
-// ready-to-paste markdown lines.
-export function renderSuggestions(suggestions) {
+// A suggestion is saved locally first and pushed to GitHub second (see
+// roadmapSync.js), so this screen has to show both states honestly: which
+// ideas are already numbered lines in the roadmap file, and which are still
+// only on this device. The ones still here are the ones that can be copied
+// across by hand, so the export box lists exactly those.
+export function renderSuggestions(suggestions, syncReady = false) {
+  el('suggestions-intro').textContent = syncReady
+    ? 'Got an idea for making this app better? Write it down here and it goes straight onto the roadmap list.'
+    : 'Got an idea for making this app better? Write it down here. Each suggestion is given the number it will have in the roadmap list, ready to be added to it.';
+
   const listEl = el('suggestion-list');
   if (!suggestions || suggestions.length === 0) {
     listEl.innerHTML = '<p class="empty-state">No suggestions yet — your first idea goes here.</p>';
@@ -324,19 +349,35 @@ export function renderSuggestions(suggestions) {
     const stamp = Number.isNaN(when.getTime())
       ? ''
       : `${when.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}, ${when.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`;
+    const sent = Boolean(sg.syncedAt);
+    const tag = sent
+      ? '<span class="suggestion-tag suggestion-tag-sent">On GitHub</span>'
+      : '<span class="suggestion-tag">Saved here</span>';
+    // An unsent suggestion's number is only a guess, and the relay will
+    // renumber it from the file. Show it while that guess is what gets
+    // pasted in by hand, but not next to real numbers once sending is on —
+    // two rows showing the same number is just confusing.
+    const label = sent || !syncReady ? sg.number : '&hellip;';
     return `
       <div class="suggestion-row">
-        <span class="suggestion-number">${sg.number}</span>
+        <span class="suggestion-number${sent ? ' suggestion-number-sent' : ''}">${label}</span>
         <div class="suggestion-body">
           <p class="suggestion-text">${escapeHtml(sg.text)}</p>
-          ${stamp ? `<p class="suggestion-when">${escapeHtml(stamp)}</p>` : ''}
+          <p class="suggestion-when">${tag}${stamp ? `<span>${escapeHtml(stamp)}</span>` : ''}</p>
         </div>
       </div>
     `;
   }).join('');
 
-  el('suggestion-export').hidden = false;
-  el('suggestion-export-text').value = suggestions.map((sg) => `${sg.number}. ${sg.text}`).join('\n');
+  // Only the unsent ones need a manual route out; anything already committed
+  // would be a duplicate if it were pasted in again.
+  const pending = suggestions.filter((sg) => !sg.syncedAt);
+  el('suggestion-export').hidden = pending.length === 0;
+  el('suggestion-export-text').value = pending.map((sg) => `${sg.number}. ${sg.text}`).join('\n');
+  el('suggestion-send-btn').hidden = !syncReady || pending.length === 0;
+  el('suggestion-export-hint').textContent = syncReady
+    ? 'These didn\u2019t reach GitHub — send them again, or copy them across by hand.'
+    : 'Copy these lines and paste them onto the end of \u201cRoadmap ideas and debug.md\u201d.';
 }
 
 export function getSuggestionInput() {
@@ -353,8 +394,9 @@ export function showSuggestionStatus(message, tone = 'ok') {
   statusEl.className = `suggestion-status suggestion-status-${tone}`;
 }
 
-export function bindSuggestionsHandlers({ onSubmit, onClear }) {
+export function bindSuggestionsHandlers({ onSubmit, onClear, onSendPending }) {
   el('suggestion-submit-btn').addEventListener('click', onSubmit);
+  el('suggestion-send-btn').addEventListener('click', onSendPending);
 
   // Enter submits, Shift+Enter makes a new line — matches the Enter-to-answer
   // behaviour during a session (Roadmap #72/#73).

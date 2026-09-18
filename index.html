@@ -201,6 +201,18 @@
     </div>
     <p class="weather-hint">Looks up today's weather for this city using a free weather service &mdash; needs an internet connection.</p>
 
+    <h3 class="section-subheading">Send suggestions to GitHub</h3>
+    <p class="weather-hint">Optional. With this filled in, a suggestion is added straight to the roadmap file on GitHub instead of waiting to be copied across. Set up the relay first &mdash; see <code>worker/README.md</code>. The app key here can only add a line to that one file; it is not a GitHub password and gives no other access.</p>
+    <div class="name-row">
+      <label for="sync-url-input" class="name-label">Relay address</label>
+      <input id="sync-url-input" class="name-input" type="url" inputmode="url" placeholder="https://&hellip;.workers.dev" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
+    </div>
+    <div class="name-row">
+      <label for="sync-key-input" class="name-label">App key</label>
+      <input id="sync-key-input" class="name-input" type="password" placeholder="Paste the app key" autocomplete="off" />
+    </div>
+    <p id="sync-state" class="sync-state"></p>
+
     <h3 class="section-subheading">Changes</h3>
     <p class="changelog-hint">Everything that has been added or changed in the app, newest first. Nothing is ever removed from this list.</p>
     <div id="changelog-list" class="changelog-list"></div>
@@ -213,7 +225,7 @@
   <!-- SUGGESTIONS SCREEN -->
   <section id="screen-suggestions" class="screen">
     <h2 class="section-heading">Suggestions</h2>
-    <p class="suggestions-hint">Got an idea for making this app better? Write it down here. Each suggestion is given the number it will have in the roadmap list, ready to be added to it.</p>
+    <p id="suggestions-intro" class="suggestions-hint"></p>
 
     <div class="suggestion-form">
       <label for="suggestion-input" class="name-label">Your suggestion</label>
@@ -228,10 +240,11 @@
     <div id="suggestion-list" class="suggestion-list"></div>
 
     <div id="suggestion-export" class="suggestion-export" hidden>
-      <h3 class="section-subheading">Ready for the roadmap file</h3>
-      <p class="suggestions-hint">The app can&rsquo;t write to the roadmap file itself, so copy these lines and paste them onto the end of &ldquo;Roadmap ideas and debug.md&rdquo;.</p>
+      <h3 class="section-subheading">Not on GitHub yet</h3>
+      <p id="suggestion-export-hint" class="suggestions-hint"></p>
       <textarea id="suggestion-export-text" class="suggestion-export-text" rows="4" readonly></textarea>
       <div class="suggestion-export-row">
+        <button id="suggestion-send-btn" class="secondary-btn" hidden>Send to GitHub</button>
         <button id="suggestion-copy-btn" class="secondary-btn">Copy all</button>
         <button id="suggestion-clear-btn" class="link-btn">Clear my suggestions</button>
       </div>

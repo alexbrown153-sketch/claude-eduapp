@@ -10,6 +10,7 @@ import { parsePdfQuestions } from './pdfQuestions.js';
 import { fetchWeatherForCity } from './weather.js';
 import { getItem, isOwned, availableBalance } from './shop.js';
 import { ROADMAP_LAST_ITEM_NUMBER } from './changelog.js';
+import { isSyncConfigured, pushSuggestion } from './roadmapSync.js';
 import * as ui from './ui.js';
 
 const BADGE_DEFINITIONS = getBadgeDefinitions(TOPICS, ui.TOPIC_LABELS);
@@ -101,15 +102,19 @@ function goToShop() {
 }
 
 function goToSettings() {
-  ui.renderSettings(Storage.getMeta());
+  ui.renderSettings(Storage.getMeta(), Storage.getSyncConfig());
   ui.showScreen('settings');
 }
 
 function goToSuggestions() {
-  ui.renderSuggestions(Storage.getSuggestions());
+  refreshSuggestions();
   ui.clearSuggestionInput();
   ui.showSuggestionStatus('');
   ui.showScreen('suggestions');
+}
+
+function refreshSuggestions() {
+  ui.renderSuggestions(Storage.getSuggestions(), isSyncConfigured(Storage.getSyncConfig()));
 }
 
 function goToImport() {
@@ -122,13 +127,13 @@ function goToImport() {
 function onNameChange(name) {
   state.meta = { ...state.meta, childName: name };
   Storage.setMeta(state.meta);
-  ui.renderSettings(state.meta);
+  ui.renderSettings(state.meta, Storage.getSyncConfig());
 }
 
 function onCityChange(city) {
   state.meta = { ...state.meta, weatherCity: city };
   Storage.setMeta(state.meta);
-  ui.renderSettings(state.meta);
+  ui.renderSettings(state.meta, Storage.getSyncConfig());
   refreshWeather();
 }
 
@@ -155,18 +160,78 @@ function nextSuggestionNumber(existing) {
   return Math.max(ROADMAP_LAST_ITEM_NUMBER, highestUsed) + 1;
 }
 
-function handleSubmitSuggestion() {
+function onSyncConfigChange(config) {
+  Storage.setSyncConfig(config);
+  ui.renderSettings(Storage.getMeta(), config);
+}
+
+// Save first, send second. The suggestion is never lost to a failed request,
+// and the screen behaves the same offline as it did before the relay existed.
+async function handleSubmitSuggestion() {
   const text = normaliseSuggestion(ui.getSuggestionInput());
   if (!text) {
     ui.showSuggestionStatus('Write your idea first.', 'warn');
     return;
   }
-  const existing = Storage.getSuggestions();
-  const number = nextSuggestionNumber(existing);
-  Storage.addSuggestion({ number, text, submittedAt: new Date().toISOString() });
+  const record = {
+    id: Storage.newId('sg'),
+    number: nextSuggestionNumber(Storage.getSuggestions()),
+    text,
+    submittedAt: new Date().toISOString(),
+    syncedAt: null,
+  };
+  Storage.addSuggestion(record);
   ui.clearSuggestionInput();
-  ui.renderSuggestions(Storage.getSuggestions());
-  ui.showSuggestionStatus(`Thanks! Saved as roadmap idea ${number}.`);
+  refreshSuggestions();
+
+  const config = Storage.getSyncConfig();
+  if (!isSyncConfigured(config)) {
+    ui.showSuggestionStatus(`Thanks! Saved as roadmap idea ${record.number}.`);
+    return;
+  }
+
+  ui.showSuggestionStatus('Thanks! Sending to GitHub…', 'busy');
+  const { sent, message } = await sendOne(config, record);
+  ui.showSuggestionStatus(message, sent ? 'ok' : 'warn');
+  refreshSuggestions();
+}
+
+// Pushes one stored suggestion and folds the result back into storage. The
+// relay numbers the item from the roadmap file itself, so its number replaces
+// the provisional one guessed here.
+async function sendOne(config, record) {
+  try {
+    const { number, text } = await pushSuggestion(config, record.text);
+    Storage.updateSuggestion(record.id, { number, text, syncedAt: new Date().toISOString() });
+    return { sent: true, message: `Added to the roadmap file as idea ${number}.` };
+  } catch (e) {
+    return { sent: false, message: e.message };
+  }
+}
+
+// Retry for everything still sitting on the device — one at a time, because
+// each write depends on the file state the one before it left behind.
+async function handleSendPendingSuggestions() {
+  const config = Storage.getSyncConfig();
+  if (!isSyncConfigured(config)) return;
+  const pending = Storage.getSuggestions().filter((sg) => !sg.syncedAt);
+  if (pending.length === 0) return;
+
+  ui.showSuggestionStatus(`Sending ${pending.length} to GitHub…`, 'busy');
+  let sentCount = 0;
+  let lastError = '';
+  for (const record of pending) {
+    const { sent, message } = await sendOne(config, record);
+    if (sent) sentCount += 1;
+    else { lastError = message; break; }
+    refreshSuggestions();
+  }
+  refreshSuggestions();
+  if (sentCount === pending.length) {
+    ui.showSuggestionStatus(`Sent ${sentCount} to the roadmap file.`);
+  } else {
+    ui.showSuggestionStatus(lastError, 'warn');
+  }
 }
 
 function handleClearSuggestions() {
@@ -175,13 +240,19 @@ function handleClearSuggestions() {
   );
   if (!sure) return;
   Storage.setSuggestions([]);
-  ui.renderSuggestions([]);
+  refreshSuggestions();
   ui.showSuggestionStatus('Suggestions cleared.');
 }
 
 function handleClearProgress() {
+  // The relay address and app key are settings, so a reset clears them too —
+  // say so, because the child can't restore the key and sync would otherwise
+  // just quietly stop working.
+  const connected = isSyncConfigured(Storage.getSyncConfig())
+    ? ' The GitHub connection will need setting up again.'
+    : '';
   const sure = window.confirm(
-    'This will permanently erase all progress, points, badges, purchases, and settings. This cannot be undone. Are you sure?',
+    `This will permanently erase all progress, points, badges, purchases, and settings.${connected} This cannot be undone. Are you sure?`,
   );
   if (!sure) return;
   Storage.resetAll();
@@ -323,6 +394,7 @@ ui.bindSettingsHandlers({
   onNameChange,
   onCityChange,
   onClearProgress: handleClearProgress,
+  onSyncConfigChange,
 });
 
 ui.bindQuestionHandlers({ onCheck, onNext, onExit: goToStart });
@@ -339,6 +411,7 @@ ui.bindShopHandlers({ onPurchaseOrEquip: handlePurchaseOrEquip });
 ui.bindSuggestionsHandlers({
   onSubmit: handleSubmitSuggestion,
   onClear: handleClearSuggestions,
+  onSendPending: handleSendPendingSuggestions,
 });
 
 ui.bindGlobalHandlers({
