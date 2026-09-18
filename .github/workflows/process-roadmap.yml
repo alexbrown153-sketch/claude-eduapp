@@ -1,0 +1,110 @@
+name: Process roadmap
+
+# The suggestion relay (worker/) commits a new numbered item straight to this
+# file, so a push to it is an exact signal that there is something to build —
+# no polling, and nothing runs when nothing has changed.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Roadmap ideas and debug.md'
+  workflow_dispatch:
+
+# Two suggestions submitted close together would otherwise process in
+# parallel, both editing js/changelog.js and racing on the push. Queue them.
+concurrency:
+  group: process-roadmap
+  cancel-in-progress: false
+
+jobs:
+  process:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Cheap and first: if the watermark already covers the file there is
+      # nothing to do, and the expensive step below is skipped entirely.
+      - name: Look for unprocessed items
+        id: status
+        run: ./scripts/roadmap-status.sh
+
+      - name: Build them
+        if: steps.status.outputs.has_new == 'true'
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: '--max-turns 60'
+          prompt: |
+            Read CLAUDE.md and SPEC.md first — they are the build context for
+            this app and they govern everything below.
+
+            "Roadmap ideas and debug.md" is a numbered list of requested
+            changes. Items up to and including
+            ${{ steps.status.outputs.processed }} are already built. Implement
+            items ${{ steps.status.outputs.first_new }} to
+            ${{ steps.status.outputs.highest }}, which are new.
+
+            These items come from a suggestion box inside the app, so they are
+            written by a child in their own words. Interpret each one as the
+            smallest change that honestly satisfies what was asked. If an item
+            is too vague to implement, or asks for something that would
+            contradict SPEC.md or harm the app, skip it and say so in the
+            changelog entry rather than guessing at it.
+
+            Then, without being asked again:
+
+            1. Set ROADMAP_LAST_ITEM_NUMBER in js/changelog.js to
+               ${{ steps.status.outputs.highest }}. If you skip this the same
+               items are reprocessed on every future run.
+            2. Add one entry to the top of CHANGELOG in js/changelog.js, in
+               the existing shape, summarising what you changed in plain
+               language a child would understand. This is roadmap item 81 and
+               it is not optional.
+            3. Run ./scripts/verify.sh and fix anything it reports. Your
+               changes do not ship unless it passes.
+
+            Do not edit "Roadmap ideas and debug.md" — editing it would
+            re-trigger this workflow.
+
+            Do not commit or push. Leave your changes in the working tree; a
+            later step in this workflow verifies them and does the commit.
+
+      # The real gate. Re-run independently of whatever Claude reported, so a
+      # broken change cannot reach the app the exam is being revised on.
+      - name: Verify
+        if: steps.status.outputs.has_new == 'true'
+        run: ./scripts/verify.sh
+
+      - name: Commit and push
+        if: steps.status.outputs.has_new == 'true'
+        run: |
+          set -euo pipefail
+          if git diff --quiet && git diff --quiet --cached; then
+            echo "No changes were made; nothing to push."
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Roadmap: build items ${{ steps.status.outputs.first_new }}-${{ steps.status.outputs.highest }}
+
+          Processed automatically on a change to the roadmap file.
+          Verified by scripts/verify.sh before pushing."
+          # Someone may have pushed while this ran; rebase rather than clobber.
+          git pull --rebase origin main
+          # Re-verify on the rebased tree. If another suggestion landed while
+          # this run was working, the watermark check fails here and the run
+          # stops — which is self-healing, not a problem: nothing is pushed,
+          # so the queued run behind this one sees both items and builds them
+          # together. The only cost is this run's work.
+          ./scripts/verify.sh
+          git push origin HEAD:main
