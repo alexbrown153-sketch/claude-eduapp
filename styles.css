@@ -628,6 +628,18 @@ button {
 .streak-widget-label { font-size: 0.82rem; color: var(--ink-soft); margin-top: 2px; }
 .streak-widget-points { font-size: 0.82rem; color: var(--primary-dark); font-weight: 700; margin-top: 8px; }
 
+/* ---------- Next session recommendation widget (Roadmap #85) ---------- */
+.next-session-widget {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  margin-top: 14px;
+}
+.next-session-title { font-size: 0.95rem; font-weight: 700; color: var(--ink); margin-bottom: 6px; }
+.next-session-body { font-size: 0.86rem; color: var(--ink-soft); line-height: 1.45; margin: 0; }
+.next-session-length { font-size: 0.8rem; color: var(--primary-dark); font-weight: 700; margin: 8px 0 0; }
+
 .mastery-bars { display: flex; flex-direction: column; gap: 12px; }
 .mastery-row .mastery-label {
   display: flex;

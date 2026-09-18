@@ -199,6 +199,7 @@ export function renderStart(plan, mastery, meta, hasInProgress) {
 
   renderDateTime(new Date());
   renderHomeStreakWidget(meta);
+  renderNextSessionWidget(mastery, plan);
 
   selectClosestLengthButton(plan.sessionLengthSuggestion);
   el('custom-length-panel').hidden = true;
@@ -560,6 +561,34 @@ function renderHomeStreakWidget(meta) {
       <div class="streak-widget-points">Start today's streak!</div>
     `;
   }
+}
+
+// Roadmap #85: a small "what to practice next" widget under the streak
+// widget, right sidebar. Reuses computeStrengthSummary's weakest topic once
+// there's enough data; before that (or during the diagnostic phase) falls
+// back to the pacing plan's own framing, since there's no real weak spot yet.
+function renderNextSessionWidget(mastery, plan) {
+  const target = el('next-session-widget');
+  const summary = computeStrengthSummary(mastery);
+  const lengthLabel = plan.sessionLengthSuggestion.type === 'minutes'
+    ? `${plan.sessionLengthSuggestion.value} min`
+    : `${plan.sessionLengthSuggestion.value} questions`;
+
+  if (!summary) {
+    target.innerHTML = `
+      <div class="next-session-title">🎯 Next session</div>
+      <p class="next-session-body">Keep practicing a mix of topics — once there's more data we'll point you at your weakest spot.</p>
+      <p class="next-session-length">Suggested: ${lengthLabel}</p>
+    `;
+    return;
+  }
+
+  const [weakTopic, weakRec] = summary.weakest;
+  target.innerHTML = `
+    <div class="next-session-title">🎯 Next session</div>
+    <p class="next-session-body">Focus on <strong>${TOPIC_LABELS[weakTopic] || weakTopic}</strong> — your weakest area right now at ${Math.round(weakRec.masteryScore * 100)}%.</p>
+    <p class="next-session-length">Suggested: ${lengthLabel}</p>
+  `;
 }
 
 // state: 'no-city' | 'loading' | { error } | { placeName, tempC, icon, label }

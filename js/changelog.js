@@ -14,9 +14,16 @@
 // roadmap file. The Suggestions screen numbers new suggestions from here, so
 // they slot straight onto the end of that file (see suggestions in ui.js).
 // Bump it whenever items are appended to the roadmap file.
-export const ROADMAP_LAST_ITEM_NUMBER = 84;
+export const ROADMAP_LAST_ITEM_NUMBER = 85;
 
 export const CHANGELOG = [
+  {
+    at: '2026-09-18T15:00+01:00',
+    label: 'Roadmap 85',
+    changes: [
+      'Added a new "Next session" box on the Home screen, under the streak widget, that recommends what to practice next based on your strengths and weaknesses — it points at your weakest topic and how many questions to aim for, or suggests a mixed session until there’s enough practice data to tell.',
+    ],
+  },
   {
     at: '2026-09-18T12:20+01:00',
     label: 'Roadmap 84',
