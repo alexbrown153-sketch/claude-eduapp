@@ -14,9 +14,16 @@
 // roadmap file. The Suggestions screen numbers new suggestions from here, so
 // they slot straight onto the end of that file (see suggestions in ui.js).
 // Bump it whenever items are appended to the roadmap file.
-export const ROADMAP_LAST_ITEM_NUMBER = 83;
+export const ROADMAP_LAST_ITEM_NUMBER = 84;
 
 export const CHANGELOG = [
+  {
+    at: '2026-09-18T12:20+01:00',
+    label: 'Roadmap 84',
+    changes: [
+      'Restyled the clock widget on the Home screen to look like an iPhone lock screen: a dark card with the date in small capitals above a big, thin-weight time, instead of the plain bold time it had before.',
+    ],
+  },
   {
     at: '2026-09-18T11:40+01:00',
     label: 'Roadmap 83',

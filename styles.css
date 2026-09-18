@@ -775,17 +775,33 @@ button {
 }
 .strength-summary strong { color: var(--ink); }
 
-/* ---------- Date/time widget ---------- */
+/* ---------- Date/time widget ----------
+   Styled after the iPhone lock screen clock: dark card, small caps date on
+   top, a big thin time underneath with tabular numerals so it doesn't jitter
+   as the digits tick over. */
 .datetime-widget {
   margin-bottom: 14px;
-  background: var(--surface);
+  background: linear-gradient(160deg, #2b2f42, #181a26);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 14px;
+  border-radius: 20px;
+  padding: 16px 14px 18px;
   text-align: center;
 }
-.datetime-time { font-size: 1.5rem; font-weight: 800; color: var(--ink); }
-.datetime-date { font-size: 0.82rem; color: var(--ink-soft); margin-top: 2px; }
+.datetime-date {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.7);
+}
+.datetime-time {
+  font-size: 2.6rem;
+  font-weight: 200;
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+  margin-top: 2px;
+}
 
 /* ---------- Weather widget ---------- */
 .weather-widget {

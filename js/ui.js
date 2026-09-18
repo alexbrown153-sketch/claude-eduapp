@@ -531,12 +531,14 @@ export function bindImportHandlers({ onPdfFileSelected, onClear }) {
 
 // Live clock + today's date shown above the weather widget — re-called on
 // an interval from app.js so it keeps ticking while the start screen is open.
+// Styled after the iPhone lock screen: small date above a large thin time
+// (see .datetime-widget in styles.css), so the date comes first in the markup.
 export function renderDateTime(date) {
   const dateStr = date.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
   const timeStr = date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
   el('datetime-widget').innerHTML = `
-    <div class="datetime-time">${timeStr}</div>
     <div class="datetime-date">${dateStr}</div>
+    <div class="datetime-time">${timeStr}</div>
   `;
 }
 
