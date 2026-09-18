@@ -6,9 +6,11 @@
 # roadmap file carries the highest item that exists. Anything above the
 # watermark is new work.
 #
-# Prints a human-readable summary. Under GitHub Actions it also writes
-# has_new / first_new / highest to $GITHUB_OUTPUT so a workflow can skip the
-# expensive step entirely when there is nothing to do.
+# Prints a human-readable summary and exits. The scheduled Routine that
+# processes the roadmap runs this first and stops when there is nothing new,
+# which is most days. It also writes has_new / first_new / highest to
+# $GITHUB_OUTPUT when that is set, so it drops straight into a GitHub Actions
+# step if this ever moves to CI.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."

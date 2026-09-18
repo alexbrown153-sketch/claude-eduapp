@@ -46,10 +46,11 @@ echo "5. A Changes entry was added"
 grep -q "CHANGELOG = \[" js/changelog.js || fail "CHANGELOG is missing from js/changelog.js"
 
 echo "6. The roadmap file itself is untouched"
-# The workflow triggers on changes to this file. A run that edits it would
-# trigger the next run, which would edit it again.
+# Only the relay Worker adds lines to this file, and it numbers them from the
+# file's own contents. A processing run that edited it too would put the two
+# out of step and could hand the same number to two different items.
 if ! git diff --quiet HEAD -- "Roadmap ideas and debug.md"; then
-  fail "the roadmap file was modified — that would re-trigger the workflow"
+  fail "the roadmap file was modified — only the relay Worker should write to it"
 fi
 
 echo "All checks passed."
