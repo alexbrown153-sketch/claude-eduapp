@@ -12,4 +12,4 @@ ROADMAP_PATH = "Roadmap ideas and debug.md"
 # Comma-separated list of the exact origins the app is served from. Requests
 # from anywhere else are refused before the key is even checked. Add the
 # real origin here before deploying; localhost is only for trying it out.
-ALLOWED_ORIGINS = "https://alexbrown153-sketch.github.io/claude-eduapp/"
+ALLOWED_ORIGINS = "https://alexbrown153-sketch.github.io"
