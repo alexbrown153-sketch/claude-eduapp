@@ -183,10 +183,19 @@ export function renderStart(plan, mastery, meta, hasInProgress) {
       + ` &nbsp;·&nbsp; 🎯 Focus area: <strong>${TOPIC_LABELS[weakTopic] || weakTopic}</strong> (${Math.round(weakRec.masteryScore * 100)}%)`;
   }
 
-  el('joke-of-day').textContent = `😄 Joke of the day: ${getJokeOfTheDay()}`;
+  // The joke/word panels share the sidebar's card shell (see styles.css): a
+  // small labelled heading row, then the content itself, rather than one
+  // run-on line with the label buried in it. Both strings come from our own
+  // fixed lists, so they need no escaping.
+  el('joke-of-day').innerHTML = `
+    <div class="panel-head"><span class="panel-icon">😄</span><span class="panel-title">Joke of the day</span></div>
+    <p class="joke-text">${getJokeOfTheDay()}</p>`;
 
   const word = getWordOfTheDay();
-  el('word-of-day').innerHTML = `📖 Word of the day: <strong>${word.word}</strong> — ${word.meaning}`;
+  el('word-of-day').innerHTML = `
+    <div class="panel-head"><span class="panel-icon">📖</span><span class="panel-title">Word of the day</span></div>
+    <p class="word-term">${word.word}</p>
+    <p class="word-meaning">${word.meaning}</p>`;
 
   renderDateTime(new Date());
   renderHomeStreakWidget(meta);

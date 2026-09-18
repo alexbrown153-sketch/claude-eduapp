@@ -14,9 +14,17 @@
 // roadmap file. The Suggestions screen numbers new suggestions from here, so
 // they slot straight onto the end of that file (see suggestions in ui.js).
 // Bump it whenever items are appended to the roadmap file.
-export const ROADMAP_LAST_ITEM_NUMBER = 82;
+export const ROADMAP_LAST_ITEM_NUMBER = 83;
 
 export const CHANGELOG = [
+  {
+    at: '2026-09-18T11:40+01:00',
+    label: 'Roadmap 83',
+    changes: [
+      'Smartened up the joke of the day and word of the day panels on the Home screen. They now look like proper cards, matching the clock and weather boxes above them, with a coloured stripe down the side and a little heading so you can tell at a glance which is which.',
+      'The word of the day now shows the word big on its own line with the meaning underneath, instead of everything running together in one sentence.',
+    ],
+  },
   {
     at: '2026-09-18T10:15+01:00',
     label: 'Suggestions \u2192 GitHub',

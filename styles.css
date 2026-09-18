@@ -831,28 +831,54 @@ button {
 }
 .danger-btn:active { background: var(--bad); color: #fff; }
 
-/* ---------- Joke of the day ---------- */
-.joke-of-day {
-  margin-top: 14px;
-  background: var(--chip-bg);
-  border-radius: 12px;
-  padding: 12px 14px;
-  font-size: 0.88rem;
-  color: var(--ink);
-  line-height: 1.5;
-}
-
-/* ---------- Word of the day ---------- */
+/* ---------- Joke / word of the day (sidebar panels) ----------
+   These sit under the date and weather widgets, so they use the same card
+   shell (surface, border, 12px radius, 14px padding) to make the sidebar
+   read as one stack instead of two flat blocks tacked below two cards. The
+   coloured left edge and the small heading row are what tell them apart:
+   these two are the fun panels, not data. The accent is var(--primary), so
+   it follows whichever cosmetic theme is on. */
+.joke-of-day,
 .word-of-day {
   margin-top: 14px;
-  background: var(--chip-bg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--primary);
   border-radius: 12px;
   padding: 12px 14px;
-  font-size: 0.88rem;
   color: var(--ink);
   line-height: 1.5;
 }
-.word-of-day strong { color: var(--primary-dark); }
+.panel-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.panel-icon { font-size: 1.15rem; line-height: 1; }
+.panel-title {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.joke-text {
+  margin: 0;
+  font-size: 0.9rem;
+}
+.word-term {
+  margin: 0 0 4px;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--primary-dark);
+  line-height: 1.25;
+}
+.word-meaning {
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--ink-soft);
+}
 
 /* ---------- Custom session length ---------- */
 .custom-length-panel {
