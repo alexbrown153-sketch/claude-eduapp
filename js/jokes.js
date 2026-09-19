@@ -34,3 +34,15 @@ export function getJokeOfTheDay(date = new Date()) {
   const dayOfYear = Math.floor((date - startOfYear) / 86400000);
   return JOKES[dayOfYear % JOKES.length];
 }
+
+// Roadmap #86: the refresh button on the home screen widget picks a fresh
+// joke on demand rather than the deterministic day-of-year one above.
+// Avoids repeating whatever joke is currently showing, where possible.
+export function getRandomJoke(excludeText) {
+  if (JOKES.length === 1) return JOKES[0];
+  let choice;
+  do {
+    choice = JOKES[Math.floor(Math.random() * JOKES.length)];
+  } while (choice === excludeText);
+  return choice;
+}

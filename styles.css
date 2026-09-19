@@ -891,6 +891,26 @@ button {
   text-transform: uppercase;
   color: var(--ink-soft);
 }
+/* Roadmap #86: lets the child request a different joke/word without
+   waiting for the day to change. Pushed to the far right of the heading
+   row; sized as a real tap target, not just an icon glyph. */
+.panel-refresh-btn {
+  margin-left: auto;
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: var(--chip-bg);
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+.panel-refresh-btn:active { background: var(--border); transform: scale(0.92); }
 .joke-text {
   margin: 0;
   font-size: 0.9rem;

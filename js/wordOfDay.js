@@ -41,3 +41,15 @@ export function getWordOfTheDay(date = new Date()) {
   const dayOfYear = Math.floor((date - startOfYear) / 86400000);
   return WORDS[dayOfYear % WORDS.length];
 }
+
+// Roadmap #86: the refresh button on the home screen widget picks a fresh
+// word on demand rather than the deterministic day-of-year one above.
+// Avoids repeating whatever word is currently showing, where possible.
+export function getRandomWordOfDay(excludeWord) {
+  if (WORDS.length === 1) return WORDS[0];
+  let choice;
+  do {
+    choice = WORDS[Math.floor(Math.random() * WORDS.length)];
+  } while (choice.word === excludeWord);
+  return choice;
+}

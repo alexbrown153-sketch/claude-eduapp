@@ -3,8 +3,8 @@
 
 import { PHASE_LABELS } from './pacing.js';
 import { SHOP_CATEGORIES, itemsByCategory, getItem, isOwned, availableBalance } from './shop.js';
-import { getJokeOfTheDay } from './jokes.js';
-import { getWordOfTheDay } from './wordOfDay.js';
+import { getJokeOfTheDay, getRandomJoke } from './jokes.js';
+import { getWordOfTheDay, getRandomWordOfDay } from './wordOfDay.js';
 import { CHANGELOG } from './changelog.js';
 
 export const TOPIC_LABELS = {
@@ -21,6 +21,11 @@ const el = (id) => document.getElementById(id);
 
 let numericBuffer = '';
 let mcqSelected = null;
+
+// Currently displayed joke/word, tracked so the refresh button (roadmap #86)
+// can avoid repeating the one already on screen.
+let currentJoke = null;
+let currentWord = null;
 
 // Screens with growing content (badges, mastery bars, session history) must
 // never bury their primary nav button below the fold — those buttons live in
@@ -154,6 +159,29 @@ function computeStrengthSummary(mastery) {
   return { strongest, weakest };
 }
 
+// The joke/word panels share the sidebar's card shell (see styles.css): a
+// small labelled heading row (with a refresh button, roadmap #86), then the
+// content itself, rather than one run-on line with the label buried in it.
+// Both strings come from our own fixed lists, so they need no escaping.
+function renderJokePanel(joke) {
+  el('joke-of-day').innerHTML = `
+    <div class="panel-head">
+      <span class="panel-icon">😄</span><span class="panel-title">Joke of the day</span>
+      <button type="button" class="panel-refresh-btn" id="joke-refresh-btn" aria-label="Get another joke">🔄</button>
+    </div>
+    <p class="joke-text">${joke}</p>`;
+}
+
+function renderWordPanel(word) {
+  el('word-of-day').innerHTML = `
+    <div class="panel-head">
+      <span class="panel-icon">📖</span><span class="panel-title">Word of the day</span>
+      <button type="button" class="panel-refresh-btn" id="word-refresh-btn" aria-label="Get another word">🔄</button>
+    </div>
+    <p class="word-term">${word.word}</p>
+    <p class="word-meaning">${word.meaning}</p>`;
+}
+
 function renderTopicWeightingPreview(plan) {
   const rows = Object.entries(plan.topicWeighting)
     .sort((a, b) => b[1] - a[1])
@@ -183,19 +211,11 @@ export function renderStart(plan, mastery, meta, hasInProgress) {
       + ` &nbsp;·&nbsp; 🎯 Focus area: <strong>${TOPIC_LABELS[weakTopic] || weakTopic}</strong> (${Math.round(weakRec.masteryScore * 100)}%)`;
   }
 
-  // The joke/word panels share the sidebar's card shell (see styles.css): a
-  // small labelled heading row, then the content itself, rather than one
-  // run-on line with the label buried in it. Both strings come from our own
-  // fixed lists, so they need no escaping.
-  el('joke-of-day').innerHTML = `
-    <div class="panel-head"><span class="panel-icon">😄</span><span class="panel-title">Joke of the day</span></div>
-    <p class="joke-text">${getJokeOfTheDay()}</p>`;
+  currentJoke = getJokeOfTheDay();
+  renderJokePanel(currentJoke);
 
-  const word = getWordOfTheDay();
-  el('word-of-day').innerHTML = `
-    <div class="panel-head"><span class="panel-icon">📖</span><span class="panel-title">Word of the day</span></div>
-    <p class="word-term">${word.word}</p>
-    <p class="word-meaning">${word.meaning}</p>`;
+  currentWord = getWordOfTheDay();
+  renderWordPanel(currentWord);
 
   renderDateTime(new Date());
   renderHomeStreakWidget(meta);
@@ -272,6 +292,20 @@ export function bindStartHandlers({ onStart, onResume }) {
 
   el('start-btn').addEventListener('click', onStart);
   el('resume-btn').addEventListener('click', onResume);
+
+  // Delegated on the panel container (not the button itself), since
+  // renderJokePanel/renderWordPanel replace the button element on every
+  // re-render of the Start screen.
+  el('joke-of-day').addEventListener('click', (e) => {
+    if (!e.target.closest('.panel-refresh-btn')) return;
+    currentJoke = getRandomJoke(currentJoke);
+    renderJokePanel(currentJoke);
+  });
+  el('word-of-day').addEventListener('click', (e) => {
+    if (!e.target.closest('.panel-refresh-btn')) return;
+    currentWord = getRandomWordOfDay(currentWord && currentWord.word);
+    renderWordPanel(currentWord);
+  });
 }
 
 // ---------- Settings screen ----------
