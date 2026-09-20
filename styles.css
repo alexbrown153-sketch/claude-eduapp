@@ -404,31 +404,11 @@ button {
   margin-bottom: 14px;
 }
 
-/* Streak-started celebration: a floating toast above the HUD plus a pulse
-   on the streak badge itself — separate from the per-answer correct burst. */
-.streak-toast {
-  position: absolute;
-  top: -6px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: linear-gradient(135deg, #ff8a3d, #e8734a);
-  color: #fff;
-  font-weight: 800;
-  font-size: 0.85rem;
-  padding: 6px 14px;
-  border-radius: 999px;
-  box-shadow: 0 4px 14px rgba(232, 115, 74, 0.4);
-  pointer-events: none;
-  white-space: nowrap;
-  animation: streak-toast-fly 1.2s ease-out forwards;
-  z-index: 6;
-}
-@keyframes streak-toast-fly {
-  0% { opacity: 0; transform: translate(-50%, 10px) scale(0.8); }
-  20% { opacity: 1; transform: translate(-50%, -10px) scale(1.05); }
-  80% { opacity: 1; transform: translate(-50%, -26px) scale(1); }
-  100% { opacity: 0; transform: translate(-50%, -40px) scale(0.95); }
-}
+/* Streak-started celebration. The banner itself now rides in the centred
+   verdict card (see .verdict-streak further down) rather than floating above
+   the HUD, which on a tablet is often scrolled off the top of a long
+   question. The pulse on the HUD badge stays as a secondary cue for when the
+   HUD *is* in view. */
 .streak-pulse { animation: streak-badge-pulse 0.6s ease-out; }
 @keyframes streak-badge-pulse {
   0% { transform: scale(1); }
@@ -458,6 +438,19 @@ button {
   border-radius: var(--radius);
   padding: 22px;
   border: 1px solid var(--border);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Once an answer is checked the whole card takes the verdict's colour, so
+   right/wrong reads from peripheral vision on a big screen even if the
+   feedback text itself is further down the card. */
+.question-card.answered-correct {
+  border-color: var(--good);
+  box-shadow: 0 0 0 3px var(--good-bg);
+}
+.question-card.answered-incorrect {
+  border-color: var(--bad);
+  box-shadow: 0 0 0 3px var(--bad-bg);
 }
 
 .question-prompt {
@@ -588,6 +581,28 @@ button {
 .key:active { background: var(--chip-bg); }
 .key-back { font-size: 1.4rem; }
 
+/* After Check, the answer controls stop being controls and become a record
+   of what was entered. Collapsing the 12-key pad (roughly 250px of a tablet
+   screen) is what lets the question, the verdict and the explanation sit on
+   screen together instead of the verdict being pushed below the fold. */
+#answer-numeric.answer-checked .keypad { display: none; }
+#answer-numeric.answer-checked .numeric-display,
+#answer-text.answer-checked .text-input {
+  margin-bottom: 0;
+}
+.answer-area.answer-checked.answer-checked-correct .numeric-display,
+.answer-area.answer-checked.answer-checked-correct .text-input {
+  border-color: var(--good);
+  background: var(--good-bg);
+  color: var(--good);
+}
+.answer-area.answer-checked.answer-checked-incorrect .numeric-display,
+.answer-area.answer-checked.answer-checked-incorrect .text-input {
+  border-color: var(--bad);
+  background: var(--bad-bg);
+  color: var(--bad);
+}
+
 .text-input {
   width: 100%;
   min-height: 56px;
@@ -605,6 +620,25 @@ button {
 }
 .mcq-grid .choice-btn { min-height: 64px; font-size: 1.2rem; }
 
+/* Multiple choice keeps its buttons on screen after checking (they're far
+   more compact than a keypad), marked up so the right answer and the one
+   that was picked are both obvious at a glance. */
+.mcq-grid .choice-btn.choice-correct {
+  border-color: var(--good);
+  background: var(--good-bg);
+  color: var(--good);
+  font-weight: 800;
+}
+.mcq-grid .choice-btn.choice-correct::after { content: ' \2713'; }
+.mcq-grid .choice-btn.choice-wrong {
+  border-color: var(--bad);
+  background: var(--bad-bg);
+  color: var(--bad);
+  text-decoration: line-through;
+}
+.mcq-grid .choice-btn.choice-wrong::after { content: ' \2715'; text-decoration: none; }
+.mcq-grid .choice-btn[disabled] { opacity: 1; cursor: default; }
+
 /* Check-answer/Next-question share one fixed slot (see index.html) so the
    button never moves between answering and advancing. */
 .action-slot { position: relative; }
@@ -613,14 +647,18 @@ button {
   margin-top: 18px;
   border-radius: var(--radius);
   padding: 20px;
+  /* A thick coloured edge so the panel's verdict is legible from a glance
+     at the side of the screen, not only by reading the heading. */
+  border-left: 8px solid transparent;
 }
-.feedback-inline.correct { background: var(--good-bg); }
-.feedback-inline.incorrect { background: var(--bad-bg); }
+.feedback-inline.correct { background: var(--good-bg); border-left-color: var(--good); }
+.feedback-inline.incorrect { background: var(--bad-bg); border-left-color: var(--bad); }
 
 .feedback-result {
-  font-size: 1.2rem;
+  font-size: 1.35rem;
   font-weight: 800;
   margin: 0 0 10px;
+  line-height: 1.3;
 }
 .feedback-inline.correct .feedback-result { color: var(--good); }
 .feedback-inline.incorrect .feedback-result { color: var(--bad); }
@@ -633,27 +671,172 @@ button {
   white-space: pre-line;
 }
 
-/* A small celebratory particle burst on a correct answer. */
+/* Tablet and up (an iPad in portrait is 768px): this is the primary device,
+   and it has the room to make the verdict genuinely hard to miss. The
+   matching sizes for the centred verdict card sit further down, after the
+   base rules they override. */
+@media (min-width: 700px) {
+  .feedback-inline { padding: 24px 26px; }
+  .feedback-result { font-size: 1.6rem; }
+  .feedback-explanation { font-size: 1.1rem; }
+}
+
+/* ---------- Centred answer verdict (tablet-first feedback) ----------
+   The inline feedback panel above is the permanent record of an answer, but
+   it sits at the bottom of the question card — on an iPad a long prompt, a
+   diagram and the keypad can push it entirely off screen, so the one thing
+   the child most needs to see was the thing most likely to be missed. This
+   overlay is a child of #app (which doesn't scroll), so it always appears in
+   the middle of the content area, and it carries the correct-answer burst
+   and the streak celebration with it. */
+.verdict-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Never intercept a tap — Next sits underneath and a child mid-flow
+     shouldn't have to wait out an animation to reach it. */
+  pointer-events: none;
+  z-index: 7;
+}
+
+.verdict-card {
+  position: relative;
+  min-width: 260px;
+  max-width: min(440px, 86vw);
+  padding: 26px 32px;
+  border-radius: 24px;
+  text-align: center;
+  background: var(--surface);
+  border: 3px solid var(--border);
+  box-shadow: 0 18px 48px rgba(31, 35, 51, 0.28);
+  animation: verdict-pop 0.32s cubic-bezier(0.2, 1.3, 0.5, 1) both;
+}
+.verdict-overlay.correct .verdict-card {
+  border-color: var(--good);
+  background: var(--good-bg);
+}
+.verdict-overlay.incorrect .verdict-card {
+  border-color: var(--bad);
+  background: var(--bad-bg);
+}
+/* Fades out on its own once the timer in js/ui.js hits, rather than
+   vanishing on a frame. */
+.verdict-overlay.leaving .verdict-card {
+  animation: verdict-fade 0.35s ease-in forwards;
+}
+
+@keyframes verdict-pop {
+  0% { opacity: 0; transform: scale(0.72); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes verdict-fade {
+  0% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.94); }
+}
+
+/* The burst particles fly behind the wording (see .correct-burst below), so
+   the verdict itself stays readable through the animation. */
+.verdict-icon,
+.verdict-headline,
+.verdict-detail,
+.verdict-streak {
+  position: relative;
+  z-index: 1;
+}
+
+.verdict-icon {
+  font-size: 3.6rem;
+  line-height: 1;
+  font-weight: 900;
+}
+.verdict-overlay.correct .verdict-icon { color: var(--good); }
+.verdict-overlay.incorrect .verdict-icon { color: var(--bad); }
+
+.verdict-headline {
+  margin: 10px 0 0;
+  font-size: 1.7rem;
+  font-weight: 900;
+  letter-spacing: -0.01em;
+}
+.verdict-overlay.correct .verdict-headline { color: var(--good); }
+.verdict-overlay.incorrect .verdict-headline { color: var(--bad); }
+
+.verdict-detail {
+  margin: 8px 0 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.35;
+}
+.verdict-detail:empty { display: none; }
+
+/* The streak banner, previously a toast above the HUD. */
+.verdict-streak {
+  margin: 14px 0 0;
+  display: inline-block;
+  background: linear-gradient(135deg, #ff8a3d, #e8734a);
+  color: #fff;
+  font-weight: 800;
+  font-size: 1rem;
+  padding: 8px 18px;
+  border-radius: 999px;
+  box-shadow: 0 4px 14px rgba(232, 115, 74, 0.4);
+  white-space: nowrap;
+  animation: verdict-streak-in 0.5s cubic-bezier(0.2, 1.4, 0.5, 1) both;
+}
+@keyframes verdict-streak-in {
+  0% { opacity: 0; transform: translateY(12px) scale(0.7); }
+  70% { opacity: 1; transform: translateY(0) scale(1.08); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* The celebratory particle burst on a correct answer, now anchored to the
+   centre of the verdict card instead of the top of the question card. */
 .correct-burst {
   position: absolute;
-  top: 0;
+  /* Launch from the foot of the card so the particles rise past the wording
+     rather than sitting on top of it at the moment it's being read. */
+  top: 86%;
   left: 50%;
   width: 0;
   height: 0;
   pointer-events: none;
+  z-index: 0;
 }
 .burst-particle {
   position: absolute;
   left: 0;
   top: 0;
-  font-size: 1.4rem;
+  font-size: 1.9rem;
   opacity: 0;
-  animation: burst-fly 0.9s ease-out forwards;
+  animation: burst-fly 1s ease-out forwards;
 }
 @keyframes burst-fly {
   0% { opacity: 1; transform: translate(-50%, 0) scale(0.6); }
-  30% { opacity: 1; transform: translate(calc(-50% + var(--dx)), -30px) scale(1.1); }
-  100% { opacity: 0; transform: translate(calc(-50% + var(--dx)), -70px) scale(1); }
+  30% { opacity: 1; transform: translate(calc(-50% + var(--dx) * 0.45), -70px) scale(1.15); }
+  100% { opacity: 0; transform: translate(calc(-50% + var(--dx)), -170px) scale(1); }
+}
+
+/* Tablet and up — the other half of the breakpoint above. */
+@media (min-width: 700px) {
+  .verdict-card { min-width: 340px; padding: 34px 44px; }
+  .verdict-icon { font-size: 4.6rem; }
+  .verdict-headline { font-size: 2.1rem; }
+  .verdict-detail { font-size: 1.3rem; }
+  .verdict-streak { font-size: 1.1rem; }
+}
+
+/* Motion is decoration here; the colour, the icon and the words carry the
+   verdict on their own, so drop the movement but keep the card. */
+@media (prefers-reduced-motion: reduce) {
+  .verdict-card,
+  .verdict-streak,
+  .badge-card-reveal { animation: none; }
+  .verdict-overlay.leaving .verdict-card { opacity: 0; animation: none; }
+  .correct-burst { display: none; }
+  .streak-pulse { animation: none; }
 }
 
 /* Summary screen */
