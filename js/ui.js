@@ -23,6 +23,16 @@ const el = (id) => document.getElementById(id);
 let numericBuffer = '';
 let mcqSelected = null;
 
+// True between checking an answer and moving to the next question. The
+// answer controls are read-only in that window, so a stray keypad tap (or a
+// physical keypress — see bindQuestionHandlers) can't rewrite the answer
+// that's just been marked.
+let answerLocked = false;
+
+// Handle for the timer that retires the centred verdict overlay, kept so a
+// second verdict (or a streak banner extending the first) can reset it.
+let verdictTimer = null;
+
 // Currently displayed joke/word, tracked so the refresh button (roadmap #86)
 // can avoid repeating the one already on screen.
 let currentJoke = null;
@@ -36,6 +46,10 @@ let currentWord = null;
 export function showScreen(name) {
   document.querySelectorAll('.screen').forEach((s) => s.classList.remove('active'));
   el(`screen-${name}`).classList.add('active');
+
+  // Exiting mid-verdict (the HUD's Exit button, or finishing the session on
+  // the same tap) would otherwise leave the overlay floating over Home.
+  if (name !== 'question') hideVerdict(true);
 
   document.querySelectorAll('.footer-group').forEach((g) => g.classList.remove('active'));
   const footerGroup = el(`footer-${name}`);
@@ -658,17 +672,22 @@ export function renderHud(session, plan) {
 }
 
 // Celebrates the moment a streak "starts" — i.e. exactly when the 🔥 badge
-// first appears (session.streak reaching 2) — with a floating toast and a
-// pulse on the streak badge itself, distinct from the per-answer burst.
+// first appears (session.streak reaching 2) — distinct from the per-answer
+// burst. Called straight after renderFeedback (a streak can only start on a
+// correct answer), so the centred verdict card is already on screen and the
+// banner joins it there; the HUD badge still pulses as a secondary cue, but
+// the HUD is exactly what scrolls out of sight on a long question, which is
+// why the celebration itself no longer lives up there.
 export function triggerStreakAnimation() {
-  const hud = document.querySelector('.session-hud');
-  const old = hud.querySelector('.streak-toast');
-  if (old) old.remove();
-  const toast = document.createElement('div');
-  toast.className = 'streak-toast';
-  toast.textContent = '🔥 Streak!';
-  hud.appendChild(toast);
-  setTimeout(() => toast.remove(), 1300);
+  const streakEl = el('verdict-streak');
+  streakEl.textContent = '🔥 Streak!';
+  streakEl.hidden = false;
+  // Restart the animation in case a previous verdict left it mid-flight.
+  streakEl.style.animation = 'none';
+  void streakEl.offsetWidth;
+  streakEl.style.animation = '';
+  // Give the extra banner time to be read before the card retires.
+  scheduleVerdictDismiss(2400);
 
   const badge = el('hud-streak');
   badge.classList.remove('streak-pulse');
@@ -690,6 +709,7 @@ export function renderQuestion(question) {
   el('question-prompt').hidden = false;
   document.querySelector('.action-slot').hidden = false;
 
+  clearFeedbackState();
   el('feedback-inline').hidden = true;
   el('check-btn').hidden = false;
   el('check-btn').disabled = false;
@@ -754,6 +774,7 @@ export function renderQuestion(question) {
 // show; the only way forward is back to Home (this panel's own button, or
 // the HUD's).
 export function renderBlockedQuestion(topic) {
+  clearFeedbackState();
   el('question-prompt').hidden = true;
   el('question-diagram').hidden = true;
   el('answer-numeric').hidden = true;
@@ -775,6 +796,9 @@ export function getCurrentAnswer(answerType) {
 }
 
 function pressNumericKey(k) {
+  // The answer has been marked and the keypad is folded away; a physical
+  // keypress must not quietly rewrite the number now on show.
+  if (answerLocked) return;
   if (k === 'back') {
     numericBuffer = numericBuffer.slice(0, -1);
   } else if (k === '.' && numericBuffer.includes('.')) {
@@ -829,6 +853,17 @@ export function bindQuestionHandlers({ onCheck, onNext, onExit }) {
 // Check-answer and Next-question occupy the exact same slot (one hidden,
 // one shown at a time) so a second tap lands in the same place with no
 // cursor/finger travel between answering and advancing.
+//
+// Getting the verdict across on a tablet is the job here. A long prompt, a
+// diagram and a 12-key pad easily add up to more than an iPad screen, which
+// used to leave the inline panel below the fold — the child tapped Check and
+// nothing visibly happened. Four things now work together:
+//   1. a big verdict card centred on the screen, wherever you're scrolled;
+//   2. the question card itself takes the verdict's colour;
+//   3. the answer controls collapse into a read-only record of what was
+//      entered, which shortens the card by roughly a keypad;
+//   4. what's left is scrolled so the verdict and the Next button are
+//      actually in view.
 export function renderFeedback(correct, explanation, correctAnswer) {
   el('check-btn').hidden = true;
   el('next-btn').hidden = false;
@@ -839,23 +874,159 @@ export function renderFeedback(correct, explanation, correctAnswer) {
   el('feedback-result').textContent = correct ? 'Correct! 🎉' : `Not quite — the answer was ${correctAnswer}`;
   el('feedback-explanation').textContent = explanation;
 
+  const card = document.querySelector('.question-card');
+  card.classList.toggle('answered-correct', correct);
+  card.classList.toggle('answered-incorrect', !correct);
+
+  lockAnswerArea(correct, correctAnswer);
+  showVerdict(correct, correctAnswer);
+  scrollFeedbackIntoView();
+}
+
+// Turns the answer controls into a record of the answer given: the keypad
+// folds away (leaving the entered number), a typed answer becomes read-only,
+// and multiple choice marks both the right answer and the one picked.
+function lockAnswerArea(correct, correctAnswer) {
+  answerLocked = true;
+  const verdictClass = correct ? 'answer-checked-correct' : 'answer-checked-incorrect';
+
+  ['answer-numeric', 'answer-text'].forEach((id) => {
+    const area = el(id);
+    if (area.hidden) return;
+    area.classList.add('answer-checked', verdictClass);
+  });
+  el('text-input').readOnly = true;
+
+  const mcq = el('answer-mcq');
+  if (!mcq.hidden) {
+    mcq.classList.add('answer-checked');
+    mcq.querySelectorAll('.choice-btn').forEach((btn) => {
+      btn.disabled = true;
+      if (btn.dataset.value === String(correctAnswer)) btn.classList.add('choice-correct');
+      else if (btn.classList.contains('selected')) btn.classList.add('choice-wrong');
+    });
+  }
+}
+
+// Clears everything renderFeedback/lockAnswerArea applied, ready for the
+// next question.
+function clearFeedbackState() {
+  answerLocked = false;
+  hideVerdict(true);
+
+  const card = document.querySelector('.question-card');
+  card.classList.remove('answered-correct', 'answered-incorrect');
+
+  ['answer-numeric', 'answer-text', 'answer-mcq'].forEach((id) => {
+    el(id).classList.remove('answer-checked', 'answer-checked-correct', 'answer-checked-incorrect');
+  });
+  el('text-input').readOnly = false;
+}
+
+// ---------- Centred verdict overlay ----------
+
+// The overlay is a child of #app rather than of the question card, so it's
+// centred on the visible content area and doesn't move with the scroll
+// position of a long question.
+function showVerdict(correct, correctAnswer) {
+  const overlay = el('verdict-overlay');
+  overlay.classList.remove('leaving');
+  overlay.classList.toggle('correct', correct);
+  overlay.classList.toggle('incorrect', !correct);
+  el('verdict-icon').textContent = correct ? '✓' : '✗';
+  el('verdict-headline').textContent = correct ? 'Correct!' : 'Not quite';
+  el('verdict-detail').textContent = correct ? '' : `The answer was ${correctAnswer}`;
+  el('verdict-streak').hidden = true;
+  overlay.hidden = false;
+
+  // Restart the pop animation — the same element is reused every question.
+  const card = el('verdict-card');
+  card.style.animation = 'none';
+  void card.offsetWidth;
+  card.style.animation = '';
+
   if (correct) triggerCorrectBurst();
+  // A wrong answer carries an extra line to read, so it lingers a little.
+  scheduleVerdictDismiss(correct ? 1500 : 2200);
+}
+
+function scheduleVerdictDismiss(afterMs) {
+  clearTimeout(verdictTimer);
+  verdictTimer = setTimeout(() => hideVerdict(false), afterMs);
+}
+
+// immediate=true skips the fade — used when the question or screen changes
+// out from under a verdict that's still showing.
+function hideVerdict(immediate) {
+  clearTimeout(verdictTimer);
+  verdictTimer = null;
+  const overlay = el('verdict-overlay');
+  if (immediate) {
+    overlay.classList.remove('leaving');
+    overlay.hidden = true;
+    return;
+  }
+  if (overlay.hidden) return;
+  overlay.classList.add('leaving');
+  verdictTimer = setTimeout(() => {
+    overlay.hidden = true;
+    overlay.classList.remove('leaving');
+    verdictTimer = null;
+  }, 350);
 }
 
 // A small celebratory particle burst on a correct answer — purely CSS
 // keyframes (see .correct-burst / .burst-particle), no animation library.
+// Anchored to the middle of the verdict card, so it goes off in the centre
+// of the screen rather than at the top of a question card that may well be
+// scrolled out of view.
 function triggerCorrectBurst() {
-  const card = document.querySelector('.question-card');
-  const old = card.querySelector('.correct-burst');
+  const host = el('verdict-card');
+  const old = host.querySelector('.correct-burst');
   if (old) old.remove();
   const burst = document.createElement('div');
   burst.className = 'correct-burst';
   const particles = ['⭐', '✨', '🎉', '✨', '⭐'];
   burst.innerHTML = particles
-    .map((p, i) => `<span class="burst-particle" style="--dx:${(i - 2) * 26}px; animation-delay:${i * 40}ms">${p}</span>`)
+    .map((p, i) => `<span class="burst-particle" style="--dx:${(i - 2) * 52}px; animation-delay:${i * 40}ms">${p}</span>`)
     .join('');
-  card.appendChild(burst);
-  setTimeout(() => burst.remove(), 1200);
+  host.appendChild(burst);
+  setTimeout(() => burst.remove(), 1300);
+}
+
+// Brings the Next button and the feedback panel into view together. #app-scroll
+// (not the window) is the scroll container here, and scrollIntoView on a
+// nested scroller is inconsistent across browsers, so measure and scroll it
+// directly.
+function scrollFeedbackIntoView() {
+  const scroller = el('app-scroll');
+  const slot = document.querySelector('.action-slot');
+  const panel = el('feedback-inline');
+
+  // Wait a frame so the collapsed keypad has been laid out before measuring.
+  requestAnimationFrame(() => {
+    const view = scroller.getBoundingClientRect();
+    const top = slot.getBoundingClientRect().top;
+    const bottom = panel.getBoundingClientRect().bottom;
+    const blockHeight = bottom - top;
+    const margin = 16;
+
+    // A short question needs no help — leave the view alone rather than
+    // scrolling the question itself off the top to centre something that's
+    // already on screen.
+    if (top >= view.top + margin && bottom <= view.bottom - margin) return;
+
+    // Centre the button-plus-feedback block when it fits; otherwise pin its
+    // top near the top of the view so the verdict line is the part on screen.
+    const target = blockHeight <= view.height - margin * 2
+      ? view.top + (view.height - blockHeight) / 2
+      : view.top + margin;
+
+    const delta = top - target;
+    if (Math.abs(delta) < 4) return;
+    const smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    scroller.scrollBy({ top: delta, behavior: smooth ? 'smooth' : 'auto' });
+  });
 }
 
 // ---------- Summary screen ----------

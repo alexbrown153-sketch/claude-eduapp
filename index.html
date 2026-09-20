@@ -155,7 +155,7 @@
         <button id="next-btn" class="primary-btn" hidden>Next question</button>
       </div>
 
-      <div id="feedback-inline" class="feedback-inline" hidden>
+      <div id="feedback-inline" class="feedback-inline" role="status" hidden>
         <p id="feedback-result" class="feedback-result"></p>
         <p id="feedback-explanation" class="feedback-explanation"></p>
       </div>
@@ -277,6 +277,24 @@
 </div>
 </div>
 <div class="scroll-indicator scroll-indicator-bottom" id="scroll-indicator-bottom" role="button" aria-label="Scroll down" hidden>&#9662;</div>
+
+<!-- Answer verdict overlay. On a tablet a long question (plus a diagram and
+     the keypad) pushes the inline feedback panel well below the fold, so the
+     right/wrong moment was easy to miss. This card is centred on the content
+     area rather than in the page flow, so it lands in the middle of the
+     screen wherever you happen to be scrolled. It's decorative and
+     aria-hidden — the inline panel below is the accessible announcement —
+     and it never takes pointer events, so a tap during it still reaches the
+     Next button underneath. The correct-answer burst and the streak
+     celebration both animate inside it (see js/ui.js). -->
+<div id="verdict-overlay" class="verdict-overlay" aria-hidden="true" hidden>
+  <div id="verdict-card" class="verdict-card">
+    <div id="verdict-icon" class="verdict-icon"></div>
+    <p id="verdict-headline" class="verdict-headline"></p>
+    <p id="verdict-detail" class="verdict-detail"></p>
+    <p id="verdict-streak" class="verdict-streak" hidden></p>
+  </div>
+</div>
 </main>
 
 <footer id="app-footer" class="app-footer">

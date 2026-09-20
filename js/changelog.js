@@ -18,6 +18,16 @@ export const ROADMAP_LAST_ITEM_NUMBER = 86;
 
 export const CHANGELOG = [
   {
+    at: '2026-09-20T17:00+01:00',
+    label: 'Feedback',
+    changes: [
+      'Made it much clearer on the iPad whether you got a question right or wrong. A big green tick or red cross now pops up in the middle of the screen the moment you tap Check, instead of the answer appearing in a box right at the bottom of a long question where it was easy to miss.',
+      'The star burst for a correct answer and the \u201cStreak!\u201d celebration now happen in the middle of the screen too, rather than up at the top where they were often scrolled out of sight.',
+      'After you check an answer the number pad folds away and just shows what you typed, the whole question box turns green or red, and the page scrolls so the explanation and the Next question button are both on screen together.',
+      'Multiple choice questions now tick the right answer and cross out the one you picked if it was wrong, so you can see at a glance what you should have chosen.',
+    ],
+  },
+  {
     at: '2026-09-20T10:30+01:00',
     label: 'Coordinates',
     changes: [
