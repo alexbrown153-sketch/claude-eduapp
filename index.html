@@ -81,6 +81,7 @@
           <button class="choice-btn chip" data-topic="arithmetic">Arithmetic</button>
           <button class="choice-btn chip" data-topic="fdp">Fractions / %</button>
           <button class="choice-btn chip" data-topic="geometry">Geometry</button>
+          <button class="choice-btn chip" data-topic="coordinates">Coordinates</button>
           <button class="choice-btn chip" data-topic="wordProblems">Word problems</button>
           <button class="choice-btn chip" data-topic="ratio">Ratio &amp; proportion</button>
           <button class="choice-btn chip" data-topic="algebra">Algebra</button>
@@ -111,7 +112,12 @@
       <p id="question-prompt" class="question-prompt"></p>
 
       <div id="question-diagram" class="question-diagram" hidden>
-        <img id="question-diagram-img" alt="Diagram for this question" />
+        <img id="question-diagram-img" alt="Diagram for this question" hidden />
+        <!-- Drawn diagrams (currently the coordinate grids in
+             js/coordinates.js) arrive as SVG markup on the question itself
+             and are dropped in here; the <img> above is for a diagram
+             captured from an imported PDF. -->
+        <div id="question-diagram-svg" class="question-diagram-svg" hidden></div>
       </div>
 
       <div id="question-blocked" class="question-blocked" hidden>

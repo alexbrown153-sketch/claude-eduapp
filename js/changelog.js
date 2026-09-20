@@ -18,6 +18,14 @@ export const ROADMAP_LAST_ITEM_NUMBER = 86;
 
 export const CHANGELOG = [
   {
+    at: '2026-09-20T10:30+01:00',
+    label: 'Coordinates',
+    changes: [
+      'Added a new Coordinates topic, alongside the others on the Home screen and in Progress. It covers reading points off a grid, finding the missing corner of a rectangle or parallelogram, midpoints, naming the four quadrants, and translations \u2014 getting harder as you get better at it, like every other topic.',
+      'Coordinates questions come with their own grid drawn on screen to work from, and the answers are multiple choice so there is no fiddly typing of brackets and minus signs on the iPad.',
+    ],
+  },
+  {
     at: '2026-09-19T09:00+01:00',
     label: 'Roadmap 86',
     changes: [

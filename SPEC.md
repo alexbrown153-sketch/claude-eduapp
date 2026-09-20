@@ -33,6 +33,7 @@ This follows the shape of two apps already built: **The Study** (a chess opening
 - Ratio & proportion
 - Algebra basics (simple equations, sequences, substitution)
 - Geometry & measures (angles, area/perimeter, 2D/3D shapes, units)
+- Coordinates & the grid (reading and plotting points, missing vertices of shapes, midpoints, quadrants, translations)
 - Data handling & statistics (tables, charts, averages)
 - Time, money, and real-world word problems
 - Multi-step reasoning / worded problems (the hardest and most exam-differentiating category)

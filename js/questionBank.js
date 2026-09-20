@@ -14,6 +14,7 @@
 // full history if this area needs revisiting again.
 
 import { getWordProblem } from './wordProblems.js';
+import { genCoordinates } from './coordinates.js';
 
 function randInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -695,6 +696,7 @@ const GENERATORS = {
   ratio: genRatio,
   algebra: genAlgebra,
   dataHandling: genDataHandling,
+  coordinates: genCoordinates,
 };
 
 export function getQuestion(topic, tier, usedWordProblemIds) {
