@@ -3,7 +3,7 @@
 
 const NS = 'sprint:v1:default';
 
-export const TOPICS = ['arithmetic', 'fdp', 'geometry', 'wordProblems', 'ratio', 'algebra', 'dataHandling'];
+export const TOPICS = ['arithmetic', 'fdp', 'geometry', 'coordinates', 'wordProblems', 'ratio', 'algebra', 'dataHandling'];
 
 function defaultMasteryRecord() {
   return {

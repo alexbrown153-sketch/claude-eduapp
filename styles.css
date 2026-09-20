@@ -497,6 +497,64 @@ button {
   background: #fff;
 }
 
+/* Coordinate grids (js/coordinates.js) are inline SVG rather than an image,
+   so they take their colours from the theme variables and stay crisp at any
+   size. Every rule below is scoped to .coord-grid — the SVG has no styling
+   of its own. */
+.question-diagram-svg {
+  display: flex;
+  justify-content: center;
+}
+.coord-grid {
+  width: 100%;
+  max-width: 340px;
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 6px;
+}
+.coord-grid .cg-grid {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.coord-grid .cg-axis {
+  stroke: var(--ink-soft);
+  stroke-width: 2;
+}
+.coord-grid .cg-tick {
+  fill: var(--ink-soft);
+  font-size: 10px;
+}
+.coord-grid .cg-axis-name {
+  fill: var(--ink-soft);
+  font-size: 11px;
+  font-style: italic;
+}
+.coord-grid .cg-quadrant {
+  fill: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 0.45;
+  text-anchor: middle;
+}
+.coord-grid .cg-segment {
+  stroke: var(--primary);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+.coord-grid .cg-dashed {
+  stroke-dasharray: 5 4;
+}
+.coord-grid .cg-point {
+  fill: var(--primary);
+}
+.coord-grid .cg-point-label {
+  fill: var(--primary-dark);
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .answer-area { margin-bottom: 16px; }
 
 .numeric-display {

@@ -517,6 +517,9 @@ function normalizeExtractedAnswer(raw) {
 
 const TOPIC_KEYWORDS = [
   { topic: 'fdp', words: ['%', 'percent', 'fraction', 'decimal'] },
+  // Ahead of geometry: a question about translating or plotting a shape on
+  // a grid is a coordinates question, even though it names a shape too.
+  { topic: 'coordinates', words: ['coordinate', 'quadrant', 'x-axis', 'y-axis', 'midpoint', 'translated', 'translation', 'plot the point', 'grid'] },
   { topic: 'geometry', words: ['triangle', 'parallelogram', 'rectangle', 'square', 'circle', 'angle', 'perimeter', 'area', 'cube', 'volume', 'degrees', 'symmetry', 'isosceles'] },
   { topic: 'ratio', words: ['ratio', 'proportion', 'scale'] },
   { topic: 'algebra', words: ['solve', 'equation', '(x', 'x)', ' x ', 'value of x'] },

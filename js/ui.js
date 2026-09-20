@@ -11,6 +11,7 @@ export const TOPIC_LABELS = {
   arithmetic: 'Arithmetic',
   fdp: 'Fractions / %',
   geometry: 'Geometry',
+  coordinates: 'Coordinates',
   wordProblems: 'Word problems',
   ratio: 'Ratio & proportion',
   algebra: 'Algebra',
@@ -696,7 +697,11 @@ export function renderQuestion(question) {
 
   el('question-prompt').textContent = question.prompt;
 
-  el('question-diagram').hidden = !question.diagramImage;
+  // Two kinds of diagram: an image captured from an imported PDF, or SVG
+  // markup the generator drew itself (coordinates.js). Neither, either, but
+  // never both.
+  el('question-diagram').hidden = !question.diagramImage && !question.diagramSvg;
+  el('question-diagram-img').hidden = !question.diagramImage;
   if (question.diagramImage) {
     el('question-diagram-img').src = question.diagramImage;
   } else {
@@ -705,6 +710,8 @@ export function renderQuestion(question) {
     // every non-diagram question — remove the attribute instead.
     el('question-diagram-img').removeAttribute('src');
   }
+  el('question-diagram-svg').hidden = !question.diagramSvg;
+  el('question-diagram-svg').innerHTML = question.diagramSvg || '';
 
   numericBuffer = '';
   mcqSelected = null;
