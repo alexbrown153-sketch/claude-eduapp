@@ -328,6 +328,11 @@ export function bindStartHandlers({ onStart, onResume }) {
 export function renderSettings(meta, syncConfig) {
   el('child-name-input').value = meta.childName || '';
   el('weather-city-input').value = meta.weatherCity || '';
+  document.querySelectorAll('#colour-mode-choices .choice-btn').forEach((btn) => {
+    const on = btn.dataset.colourMode === (meta.colourMode || 'light');
+    btn.classList.toggle('selected', on);
+    btn.setAttribute('aria-pressed', String(on));
+  });
   renderSyncSettings(syncConfig);
   renderChangelog();
 }
@@ -366,7 +371,11 @@ function renderChangelog() {
   }).join('');
 }
 
-export function bindSettingsHandlers({ onNameChange, onCityChange, onClearProgress, onSyncConfigChange }) {
+export function bindSettingsHandlers({ onNameChange, onCityChange, onColourModeChange, onClearProgress, onSyncConfigChange }) {
+  document.querySelectorAll('#colour-mode-choices .choice-btn').forEach((btn) => {
+    btn.addEventListener('click', () => onColourModeChange(btn.dataset.colourMode));
+  });
+
   const pushSyncConfig = () => onSyncConfigChange({
     workerUrl: el('sync-url-input').value.trim(),
     appKey: el('sync-key-input').value.trim(),

@@ -33,6 +33,7 @@ function defaultMeta() {
     spentPoints: 0,
     childName: '',
     weatherCity: '',
+    colourMode: 'light', // 'light' | 'dark' | 'auto' (follow the device) — Roadmap #87
   };
 }
 
