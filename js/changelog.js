@@ -14,9 +14,17 @@
 // roadmap file. The Suggestions screen numbers new suggestions from here, so
 // they slot straight onto the end of that file (see suggestions in ui.js).
 // Bump it whenever items are appended to the roadmap file.
-export const ROADMAP_LAST_ITEM_NUMBER = 86;
+export const ROADMAP_LAST_ITEM_NUMBER = 87;
 
 export const CHANGELOG = [
+  {
+    at: '2026-09-25T12:00+01:00',
+    label: 'Roadmap 87',
+    changes: [
+      'Added a dark mode. Settings now has an Appearance section with three buttons: Light, Dark, and Match device, which follows the iPad\u2019s own light/dark setting and switches over with it. The choice is remembered, and it starts on Light so nothing changes until you pick.',
+      'Dark mode works with whichever colour theme you\u2019ve bought from the shop \u2014 the theme colour stays, and just the background, text and boxes go dark.',
+    ],
+  },
   {
     at: '2026-09-20T17:00+01:00',
     label: 'Feedback',

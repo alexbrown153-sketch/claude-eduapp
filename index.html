@@ -6,6 +6,16 @@
 <title>Tiffin Prep</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A7%AE%3C/text%3E%3C/svg%3E" />
 <link rel="stylesheet" href="styles.css" />
+<script>
+  // Light/dark mode (Roadmap #87), applied before the page draws so a dark
+  // choice doesn't flash white first. js/app.js owns this setting and
+  // re-applies it once the modules load; this only mirrors its rule.
+  try {
+    var pref = (JSON.parse(localStorage.getItem('sprint:v1:default:meta')) || {}).colourMode;
+    var dark = pref === 'dark' || (pref === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    document.documentElement.dataset.mode = dark ? 'dark' : 'light';
+  } catch (e) { /* no storage: stay light */ }
+</script>
 </head>
 <body>
 
@@ -207,6 +217,14 @@
       <input id="weather-city-input" class="name-input" type="text" placeholder="e.g. London" maxlength="40" autocomplete="off" />
     </div>
     <p class="weather-hint">Looks up today's weather for this city using a free weather service &mdash; needs an internet connection.</p>
+
+    <h3 class="section-subheading">Appearance</h3>
+    <div class="choice-grid mode-choices" id="colour-mode-choices" role="group" aria-label="Light or dark mode">
+      <button class="choice-btn" data-colour-mode="light">&#9728;&#65039; Light</button>
+      <button class="choice-btn" data-colour-mode="dark">&#127769; Dark</button>
+      <button class="choice-btn" data-colour-mode="auto">&#128241; Match device</button>
+    </div>
+    <p class="weather-hint">Match device follows the iPad's own light/dark setting and switches with it.</p>
 
     <h3 class="section-subheading">Send suggestions to GitHub</h3>
     <p class="weather-hint">Optional. With this filled in, a suggestion is added straight to the roadmap file on GitHub instead of waiting to be copied across. Set up the relay first &mdash; see <code>worker/README.md</code>. The app key here can only add a line to that one file; it is not a GitHub password and gives no other access.</p>

@@ -52,6 +52,18 @@ function applyCosmetics(shopState) {
   document.body.dataset.font = shopState.equipped.font;
 }
 
+// Light/dark mode (Roadmap #87). 'auto' follows the device's own setting and
+// keeps following it while the app is open. The inline script in index.html
+// applies the same rule before first paint; this is the source of truth.
+const darkQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+function applyColourMode(pref) {
+  const dark = pref === 'dark' || (pref === 'auto' && Boolean(darkQuery && darkQuery.matches));
+  document.documentElement.dataset.mode = dark ? 'dark' : 'light';
+}
+if (darkQuery && darkQuery.addEventListener) {
+  darkQuery.addEventListener('change', () => applyColourMode(Storage.getMeta().colourMode));
+}
+
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -127,6 +139,13 @@ function goToImport() {
 function onNameChange(name) {
   state.meta = { ...state.meta, childName: name };
   Storage.setMeta(state.meta);
+  ui.renderSettings(state.meta, Storage.getSyncConfig());
+}
+
+function onColourModeChange(mode) {
+  state.meta = { ...state.meta, colourMode: mode };
+  Storage.setMeta(state.meta);
+  applyColourMode(mode);
   ui.renderSettings(state.meta, Storage.getSyncConfig());
 }
 
@@ -257,6 +276,7 @@ function handleClearProgress() {
   if (!sure) return;
   Storage.resetAll();
   applyCosmetics(Storage.getShopState());
+  applyColourMode(Storage.getMeta().colourMode);
   goToStart();
 }
 
@@ -393,6 +413,7 @@ ui.bindStartHandlers({
 ui.bindSettingsHandlers({
   onNameChange,
   onCityChange,
+  onColourModeChange,
   onClearProgress: handleClearProgress,
   onSyncConfigChange,
 });
@@ -424,6 +445,7 @@ ui.bindGlobalHandlers({
 });
 
 applyCosmetics(Storage.getShopState());
+applyColourMode(Storage.getMeta().colourMode);
 ui.initScrollIndicators();
 goToStart();
 

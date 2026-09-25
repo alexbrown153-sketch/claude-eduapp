@@ -13,7 +13,11 @@
   --chip-active-bg: #4c5fd5;
   --chip-active-ink: #ffffff;
   --border: #e1e3ee;
+  --disabled-bg: #b7bce8;
   --radius: 16px;
+  /* Lets the browser draw its own bits (number/text fields, scrollbars) to
+     match; dark mode flips it below. */
+  color-scheme: light;
 }
 
 * { box-sizing: border-box; }
@@ -49,6 +53,13 @@ body {
   height: 100dvh;
   overflow: hidden;
 }
+
+/* Accent colour for *text* (headings, highlighted numbers, owned-item
+   labels). It's --primary-dark in light mode, but that shade is also used as
+   a button/gradient background behind white text, so dark mode can't simply
+   lighten it — hence a separate variable. Declared on body, not :root, so it
+   picks up the --primary-dark a shop theme sets on body. */
+body { --accent-ink: var(--primary-dark); }
 
 button {
   font-family: inherit;
@@ -109,7 +120,7 @@ button {
   min-width: 0;
   font-size: 1.19rem;
   font-weight: 800;
-  color: var(--primary-dark);
+  color: var(--accent-ink);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -125,7 +136,7 @@ button {
 .header-points {
   font-size: 0.95rem;
   font-weight: 700;
-  color: var(--primary-dark);
+  color: var(--accent-ink);
 }
 
 .settings-btn {
@@ -344,7 +355,7 @@ button {
 .choice-btn.selected {
   border-color: var(--primary);
   background: var(--chip-bg);
-  color: var(--primary-dark);
+  color: var(--accent-ink);
 }
 .choice-btn.chip.selected {
   background: var(--chip-active-bg);
@@ -365,7 +376,7 @@ button {
   font-weight: 700;
 }
 .primary-btn:active { background: var(--primary-dark); }
-.primary-btn:disabled { background: #b7bce8; }
+.primary-btn:disabled { background: var(--disabled-bg); }
 
 .secondary-btn {
   display: block;
@@ -373,7 +384,7 @@ button {
   min-height: 52px;
   margin-top: 12px;
   background: var(--surface);
-  color: var(--primary-dark);
+  color: var(--accent-ink);
   border: 2px solid var(--primary);
   border-radius: 12px;
   font-size: 1rem;
@@ -543,7 +554,7 @@ button {
   fill: var(--primary);
 }
 .coord-grid .cg-point-label {
-  fill: var(--primary-dark);
+  fill: var(--accent-ink);
   font-size: 13px;
   font-weight: 700;
 }
@@ -867,7 +878,7 @@ button {
 }
 .streak-widget-main { font-size: 1.5rem; font-weight: 800; color: var(--ink); }
 .streak-widget-label { font-size: 0.82rem; color: var(--ink-soft); margin-top: 2px; }
-.streak-widget-points { font-size: 0.82rem; color: var(--primary-dark); font-weight: 700; margin-top: 8px; }
+.streak-widget-points { font-size: 0.82rem; color: var(--accent-ink); font-weight: 700; margin-top: 8px; }
 
 /* ---------- Next session recommendation widget (Roadmap #85) ---------- */
 .next-session-widget {
@@ -879,7 +890,7 @@ button {
 }
 .next-session-title { font-size: 0.95rem; font-weight: 700; color: var(--ink); margin-bottom: 6px; }
 .next-session-body { font-size: 0.86rem; color: var(--ink-soft); line-height: 1.45; margin: 0; }
-.next-session-length { font-size: 0.8rem; color: var(--primary-dark); font-weight: 700; margin: 8px 0 0; }
+.next-session-length { font-size: 0.8rem; color: var(--accent-ink); font-weight: 700; margin: 8px 0 0; }
 
 .mastery-bars { display: flex; flex-direction: column; gap: 12px; }
 .mastery-row .mastery-label {
@@ -1078,6 +1089,13 @@ button {
 
 /* ---------- Settings: danger zone ---------- */
 .danger-heading { color: var(--bad); }
+/* Light / Dark / Match device — three across at every width, unlike the
+   2-then-4 column session-length grid it borrows its buttons from. */
+.choice-grid.mode-choices {
+  grid-template-columns: repeat(3, 1fr);
+  margin-bottom: 8px;
+}
+
 .danger-hint {
   font-size: 0.82rem;
   color: var(--ink-soft);
@@ -1160,7 +1178,7 @@ button {
   margin: 0 0 4px;
   font-size: 1.15rem;
   font-weight: 800;
-  color: var(--primary-dark);
+  color: var(--accent-ink);
   line-height: 1.25;
 }
 .word-meaning {
@@ -1203,7 +1221,7 @@ button {
 .unit-btn.selected {
   border-color: var(--primary);
   background: var(--chip-bg);
-  color: var(--primary-dark);
+  color: var(--accent-ink);
 }
 
 /* ---------- Topic weighting preview ---------- */
@@ -1217,7 +1235,7 @@ button {
   margin: 0 0 6px;
   font-size: 0.82rem;
   font-weight: 700;
-  color: var(--primary-dark);
+  color: var(--accent-ink);
 }
 .weighting-row {
   display: flex;
@@ -1511,8 +1529,8 @@ button {
   background: var(--primary);
   color: #fff;
 }
-.shop-item-action:disabled { background: #b7bce8; }
-.shop-item-action.owned { background: var(--chip-bg); color: var(--primary-dark); }
+.shop-item-action:disabled { background: var(--disabled-bg); }
+.shop-item-action.owned { background: var(--chip-bg); color: var(--accent-ink); }
 
 .footer-link-row {
   display: flex;
@@ -1540,6 +1558,34 @@ body[data-theme="theme-berry"] {
   --chip-bg: #f2e6fa;
   --chip-active-bg: #9748c9;
 }
+
+/* ---------- Dark mode (Roadmap #87) ----------
+   Chosen in Settings > Appearance; app.js resolves Light / Dark / Match
+   device into data-mode on <html>. Only the neutral colours change — the
+   shop theme's --primary is kept, so a bought colour theme still shows.
+   These rules sit on body (not :root) and after the theme rules so they win
+   over a theme's light --chip-bg; each theme then gets its own darkened chip
+   and a lighter accent, since its light-mode shades are unreadable on a dark
+   background. Images (question diagrams) keep their white card on purpose:
+   they're drawn for paper. */
+html[data-mode="dark"] { color-scheme: dark; }
+html[data-mode="dark"] body {
+  --bg: #14161f;
+  --surface: #1f2230;
+  --ink: #e8eaf3;
+  --ink-soft: #a3a8bf;
+  --good: #3cc48c;
+  --good-bg: #16362a;
+  --bad: #f06a6e;
+  --bad-bg: #3d1c1f;
+  --chip-bg: #2a2f48;
+  --border: #353a52;
+  --disabled-bg: #454a66;
+  --accent-ink: #aab5ff;
+}
+html[data-mode="dark"] body[data-theme="theme-sunset"] { --chip-bg: #3d2a22; --accent-ink: #ffb08f; }
+html[data-mode="dark"] body[data-theme="theme-forest"] { --chip-bg: #1f3a2b; --accent-ink: #86dcae; }
+html[data-mode="dark"] body[data-theme="theme-berry"] { --chip-bg: #35254a; --accent-ink: #d4a6f2; }
 
 /* ---------- Cosmetic fonts ---------- */
 body[data-font="font-rounded"] {
@@ -1627,7 +1673,7 @@ body[data-font="font-mono"] {
 .changelog-items {
   font-size: 0.72rem;
   font-weight: 700;
-  color: var(--primary-dark);
+  color: var(--accent-ink);
   background: var(--chip-bg);
   border-radius: 999px;
   padding: 2px 8px;
@@ -1699,7 +1745,7 @@ body[data-font="font-mono"] {
   height: 32px;
   border-radius: 999px;
   background: var(--chip-bg);
-  color: var(--primary-dark);
+  color: var(--accent-ink);
   font-weight: 800;
   font-size: 0.85rem;
   display: flex;
@@ -1826,6 +1872,6 @@ body[data-font="font-mono"] {
   border-radius: 999px;
   padding: 2px 8px;
   background: var(--chip-bg);
-  color: var(--primary-dark);
+  color: var(--accent-ink);
 }
 .suggestion-tag-sent { background: var(--good-bg); color: var(--good); }
