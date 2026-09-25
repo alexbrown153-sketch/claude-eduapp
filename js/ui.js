@@ -736,12 +736,12 @@ export function renderWeather(state) {
 
 // ---------- Question screen ----------
 
-// `boss` is true while the boss question (Roadmap #92) is on screen — it
-// sits on top of the chosen length, so "Q11 / 10" would look like a bug.
+// `boss` is true while the boss challenge (Roadmap #92/#95) is on screen —
+// it sits on top of the chosen length, so "Q11 / 10" would look like a bug.
 export function renderHud(session, plan, boss = false) {
   const regular = session.questions.filter((q) => !q.boss).length;
   let count;
-  if (boss) count = '👾 Boss';
+  if (boss) count = '👹 Boss challenge';
   else if (session.lengthType === 'questions') count = `Q${Math.min(regular + 1, session.lengthValue)} / ${session.lengthValue}`;
   else count = `Q${regular + 1}`;
   el('hud-progress').textContent = count;
@@ -798,7 +798,7 @@ export function updateTimer(remainingMs) {
   timerEl.textContent = `⏱ ${m}:${String(s).padStart(2, '0')}`;
 }
 
-export function renderQuestion(question) {
+export function renderQuestion(question, boss = null) {
   el('question-blocked').hidden = true;
   el('question-prompt').hidden = false;
   document.querySelector('.action-slot').hidden = false;
@@ -810,7 +810,7 @@ export function renderQuestion(question) {
   el('next-btn').hidden = true;
 
   el('question-prompt').textContent = question.prompt;
-  renderBossBanner(question.isBoss);
+  renderBossBanner(question.isBoss ? boss : null);
 
   // Two kinds of diagram: an image captured from an imported PDF, or SVG
   // markup the generator drew itself (coordinates.js). Neither, either, but
@@ -868,38 +868,143 @@ export function renderQuestion(question) {
 // questionBank.js's header comment). Hides everything a real question would
 // show; the only way forward is back to Home (this panel's own button, or
 // the HUD's).
-// ---------- Boss question (Roadmap #92) ----------
+// ---------- Boss challenge (Roadmap #92, #94, #95) ----------
 
-// Full health while the boss is being answered. A right answer drains it to
-// nothing (see renderBossResult); a wrong one leaves it standing, with no
-// penalty — it's just still there next time.
-function renderBossBanner(isBoss) {
-  const banner = el('boss-banner');
-  document.querySelector('.question-card').classList.toggle('boss-question', Boolean(isBoss));
-  banner.hidden = !isBoss;
-  if (!isBoss) return;
-  banner.classList.remove('defeated', 'survived');
-  el('boss-health-fill').style.width = '100%';
-  el('boss-status').textContent = 'Final challenge · from your strongest topic · triple points';
+// The beast is drawn here rather than in index.html because it's drawn
+// twice: once per half, each clipped along the same zig-zag crack, so that
+// on the final hit the two halves can split apart and fly off (see
+// .boss-beast.destroyed in styles.css). Damage from earlier hits is shown by
+// the .dmg-N parts, which CSS reveals as data-damage climbs: first a horn
+// snaps and a crack appears, then the other horn goes, an eye is knocked
+// out and a tooth falls out.
+const BEAST_CRACK = '100,18 92,48 108,72 90,100 110,128 96,152 104,176';
+
+function beastArt() {
+  return `
+    <g class="beast-arms">
+      <path d="M38 112 Q14 108 10 132 L22 128 L20 142 L32 132 L34 144 Q44 128 48 122 Z" class="beast-limb dmg-hide-2" />
+      <path d="M162 112 Q186 108 190 132 L178 128 L180 142 L168 132 L166 144 Q156 128 152 122 Z" class="beast-limb" />
+    </g>
+    <path d="M60 46 L40 6 L78 38 Z" class="beast-horn dmg-hide-1" />
+    <path d="M60 46 L54 32 L70 38 Z" class="beast-horn dmg-show-1" />
+    <path d="M140 46 L160 6 L122 38 Z" class="beast-horn dmg-hide-2" />
+    <path d="M140 46 L146 32 L130 38 Z" class="beast-horn dmg-show-2" />
+    <path d="M100 26 C150 26 172 62 170 108 C168 150 140 174 100 174 C60 174 32 150 30 108 C28 62 50 26 100 26 Z" class="beast-body" />
+    <path d="M100 118 C130 118 150 132 152 150 C140 166 122 172 100 172 C78 172 60 166 48 150 C50 132 70 118 100 118 Z" class="beast-belly" />
+    <path d="M52 64 L86 80" class="beast-brow" />
+    <path d="M148 64 L114 80" class="beast-brow" />
+    <circle cx="72" cy="88" r="12" class="beast-eye" />
+    <circle cx="74" cy="90" r="5" class="beast-pupil" />
+    <circle cx="128" cy="88" r="12" class="beast-eye dmg-hide-2" />
+    <circle cx="126" cy="90" r="5" class="beast-pupil dmg-hide-2" />
+    <path d="M118 80 L138 98 M138 80 L118 98" class="beast-x-eye dmg-show-2" />
+    <path d="M62 116 Q100 140 138 116 Q132 150 100 152 Q68 150 62 116 Z" class="beast-mouth" />
+    <path d="M72 120 L78 132 L84 123 Z M116 123 L122 132 L128 120 Z" class="beast-tooth" />
+    <path d="M94 128 L100 140 L106 128 Z" class="beast-tooth dmg-hide-2" />
+    <path d="M86 146 L92 138 L98 147 Z M102 147 L108 138 L114 146 Z" class="beast-tooth" />
+    <path d="M${BEAST_CRACK.split(' ').slice(0, 4).join(' L')}" class="beast-crack dmg-show-1" />
+    <path d="M${BEAST_CRACK.split(' ').join(' L')}" class="beast-crack dmg-show-2" />
+    <path d="M150 60 L138 74 L146 80 L136 92" class="beast-crack dmg-show-2" />
+  `;
 }
 
-export function renderBossResult(correct, pointsEarned) {
+function beastSvg() {
+  // Everything left of the crack, and everything right of it. The polygons
+  // run well past the art on the outer sides so nothing gets trimmed, and
+  // the left one reaches 1 unit over the crack so the two halves overlap
+  // instead of leaving a hairline seam down the beast's face.
+  const leftEdge = BEAST_CRACK.split(' ').map((p) => {
+    const [x, y] = p.split(',').map(Number);
+    return `${x + 1},${y}`;
+  }).join(' ');
+  const left = `-40,-20 101,-20 ${leftEdge} 101,220 -40,220`;
+  const right = `240,-20 100,-20 ${BEAST_CRACK} 100,220 240,220`;
+  return `
+    <svg class="boss-beast" id="boss-beast" viewBox="0 0 200 190" data-damage="0" role="img" aria-label="An angry boss monster">
+      <defs>
+        <clipPath id="beast-clip-l"><polygon points="${left}" /></clipPath>
+        <clipPath id="beast-clip-r"><polygon points="${right}" /></clipPath>
+      </defs>
+      <g class="beast-half beast-half-l" clip-path="url(#beast-clip-l)">${beastArt()}</g>
+      <g class="beast-half beast-half-r" clip-path="url(#beast-clip-r)">${beastArt()}</g>
+    </svg>
+  `;
+}
+
+// One pip per challenge question: filled for a hit, grey for a miss, empty
+// for one still to come.
+function renderBossPips(boss) {
+  el('boss-pips').innerHTML = Array.from({ length: boss.total }, (_, i) => {
+    const state = boss.results[i] === undefined ? '' : (boss.results[i] ? ' hit' : ' miss');
+    return `<span class="boss-pip${state}"></span>`;
+  }).join('');
+}
+
+// Shown for every question of the challenge. `boss` is bossProgress() from
+// session.js, or null for an ordinary question. The first challenge question
+// draws a fresh beast; later ones keep it, battered, as it was.
+function renderBossBanner(boss) {
   const banner = el('boss-banner');
-  banner.classList.add(correct ? 'defeated' : 'survived');
+  const isBoss = Boolean(boss);
+  document.querySelector('.question-card').classList.toggle('boss-question', isBoss);
+  el('screen-question').classList.toggle('boss-mode', isBoss);
+  banner.hidden = !isBoss;
+  if (!isBoss) return;
+
+  if (boss.asked === 0 || !el('boss-beast')) el('boss-stage').innerHTML = beastSvg();
+  const beast = el('boss-beast');
+  beast.dataset.damage = String(boss.hits);
+  beast.classList.remove('hit', 'roar', 'destroyed');
+  el('boss-health-fill').style.width = `${((boss.total - boss.hits) / boss.total) * 100}%`;
+  el('boss-round').textContent = `Question ${boss.asked + 1} of ${boss.total}`;
+  el('boss-status').textContent = boss.asked === 0
+    ? 'You scored over 80%, so the boss has come out to fight! Three hits destroy it. Triple points for every hit.'
+    : `${boss.total - boss.hits} hit${boss.total - boss.hits === 1 ? '' : 's'} left to destroy it.`;
+  renderBossPips(boss);
+}
+
+// `boss` is bossProgress() taken after the answer was recorded, so hits
+// already includes this one. `bonus` is the extra for destroying the beast
+// completely (0 until the third hit).
+export function renderBossResult(correct, pointsEarned, boss, bonus = 0) {
+  renderBossPips(boss);
+  const beast = el('boss-beast');
+  el('boss-round').textContent = `Question ${boss.asked} of ${boss.total}`;
+
+  // Restart the hit/roar animation even if the last answer played the same.
+  beast.classList.remove('hit', 'roar');
+  void beast.getBoundingClientRect();
+
   if (correct) {
-    // Next frame, so the width transition runs from full rather than
-    // jumping straight to empty.
-    requestAnimationFrame(() => { el('boss-health-fill').style.width = '0%'; });
-    el('boss-status').textContent = `Boss defeated! +${pointsEarned} points`;
-    triggerStreakAnimation('👾 Boss defeated! x3 points');
+    beast.dataset.damage = String(boss.hits);
+    beast.classList.add('hit');
+    requestAnimationFrame(() => {
+      el('boss-health-fill').style.width = `${((boss.total - boss.hits) / boss.total) * 100}%`;
+    });
   } else {
-    el('boss-status').textContent = 'The boss survives this time — you\u2019ll get it next session.';
+    beast.classList.add('roar');
+  }
+
+  const finished = boss.asked >= boss.total;
+  if (correct && bonus > 0) {
+    beast.classList.add('destroyed');
+    el('boss-status').textContent = `BOSS DESTROYED! +${pointsEarned} points and a +${bonus} bonus!`;
+    triggerStreakAnimation(`💥 Boss destroyed! +${bonus} bonus`);
+  } else if (correct) {
+    el('boss-status').textContent = finished
+      ? `Hit! +${pointsEarned} points. The boss limps away with ${boss.hits} of ${boss.total} hits — finish it off next time.`
+      : `Hit! +${pointsEarned} points. ${boss.total - boss.hits} more to destroy it.`;
+    triggerStreakAnimation('👹 Direct hit! x3 points');
+  } else {
+    el('boss-status').textContent = finished
+      ? `The boss blocked that one. It escapes with ${boss.hits} of ${boss.total} hits — you’ll get it next time.`
+      : 'The boss blocked that one — keep going!';
   }
 }
 
 export function renderBlockedQuestion(topic) {
   clearFeedbackState();
-  renderBossBanner(false);
+  renderBossBanner(null);
   el('question-prompt').hidden = true;
   el('question-diagram').hidden = true;
   el('answer-numeric').hidden = true;
@@ -1198,10 +1303,19 @@ export function renderSummary(entry, newlyEarnedBadges = [], meta = {}, shopStat
   }
 }
 
-// Sessions from before the boss existed have no boss question at all.
+// Sessions from before the boss existed have no boss row at all; ones from
+// the single boss question days (#92) keep their old wording.
 function bossRow(entry) {
-  if (!entry.questions.some((q) => q.boss)) return '';
-  return `<div class="summary-row"><span class="label">Boss question</span><span class="value">${entry.summary.bossDefeated ? '👾 Defeated!' : 'Survived — next time!'}</span></div>`;
+  const { summary } = entry;
+  const bossQs = entry.questions.filter((q) => q.boss).length;
+  const row = (label, value) => `<div class="summary-row"><span class="label">${label}</span><span class="value">${value}</span></div>`;
+  if (summary.bossLocked) return row('Boss challenge', '🔒 Get over 80% right to unlock it');
+  if (bossQs === 0) return '';
+  if (bossQs === 1 && summary.bossHits === undefined) {
+    return row('Boss question', summary.bossDefeated ? '👾 Defeated!' : 'Survived — next time!');
+  }
+  if (summary.bossDefeated) return row('Boss challenge', `💥 Destroyed! +${summary.bossBonus} bonus`);
+  return row('Boss challenge', `👹 ${summary.bossHits} of ${bossQs} hits — next time!`);
 }
 
 // Roadmap #89: the NEW RECORD banner, one line per record beaten.
