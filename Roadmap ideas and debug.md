@@ -103,3 +103,9 @@ Future roadmap ideas
 85. Add a new widget on the right hand side under the streak widget. It should display a recommendation for the users next session based on their strengths and weaknesses.
 86. Add a refresh icon to both the joke and word of the day widgets which allows the user to request a new joke or word.
 87. Introduce a light or dark mode to the app controlled via settings.
+88. **Combo meter.** Each correct answer in a row adds to a combo: x2 points at 3, x3 at 6, with a flame that grows. A wrong answer quietly resets it. Nothing is taken away, so it stays non-punitive (SPEC §8). Hooks into the existing points calculation.
+89. **Personal-best board.** Show his records on the home screen: best accuracy, longest combo, fastest correct answer, most questions in a day. When he beats one, flash a "NEW RECORD!" banner. He's competing with himself, which suits a single-profile app.
+90. **Mission framing for the last week.** Rename each day's pacing phase as a mission: "Mission: 5 days to go — Operation Fractions", then "Final Briefing" on the day before. Only the text changes; the pacing logic stays the same.
+91. **Daily mystery chest.** The first session he finishes each day opens a chest containing 20–100 bonus points, or sometimes a shop item he can only get from the chest. It rewards turning up every day, which matters most this week. Keep the odds fixed and generous, with no "nearly won" teasing.
+92. **Boss question.** End each session with one dramatic "boss" question from his strongest topic, worth triple points, with a health bar that empties when he gets it right.
+93. The dark/light mode buttons, on the settings page, do not work.
