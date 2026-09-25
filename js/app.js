@@ -4,7 +4,7 @@
 
 import { Storage, TOPICS } from './storage.js';
 import { computeTodaysPlan } from './pacing.js';
-import { startSession, pickNextQuestion, recordAnswer, isSessionComplete, finishSession } from './session.js';
+import { startSession, pickNextQuestion, recordAnswer, isSessionComplete, finishSession, settleBossGate, bossProgress } from './session.js';
 import { getBadgeDefinitions, evaluateBadges } from './badges.js';
 import { computePersonalBests, findNewRecords } from './records.js';
 import { isChestAvailable, rollChest, localDateStr } from './chest.js';
@@ -345,7 +345,10 @@ function resumeSession() {
   state.session = { ...raw, usedWordProblemIds: new Set(raw.usedWordProblemIds) };
   ui.showScreen('question');
   startTimerIfNeeded();
-  nextQuestion();
+  // Through onNext rather than straight to nextQuestion: a session left
+  // right after its last regular answer still needs the boss gate (#94)
+  // settled, and one left after its final answer just needs finishing.
+  onNext();
 }
 
 function startTimerIfNeeded() {
@@ -372,18 +375,18 @@ function nextQuestion() {
   if (state.currentQuestion.blocked) {
     ui.renderBlockedQuestion(state.currentQuestion.topic);
   } else {
-    ui.renderQuestion(state.currentQuestion);
+    ui.renderQuestion(state.currentQuestion, bossProgress(state.session));
   }
 }
 
 function onCheck() {
   const answer = ui.getCurrentAnswer(state.currentQuestion.answerType);
   const timeMs = Date.now() - state.questionStartTime;
-  const { correct, streak, pointsEarned } = recordAnswer(state.session, state.mastery, state.currentQuestion, answer, timeMs);
+  const { correct, streak, pointsEarned, bossBonus } = recordAnswer(state.session, state.mastery, state.currentQuestion, answer, timeMs);
   ui.renderHud(state.session, state.plan, Boolean(state.currentQuestion.isBoss));
   ui.renderFeedback(correct, state.currentQuestion.explanation, state.currentQuestion.correctAnswer);
   if (state.currentQuestion.isBoss) {
-    ui.renderBossResult(correct, pointsEarned);
+    ui.renderBossResult(correct, pointsEarned, bossProgress(state.session), bossBonus);
   } else if (streak === 2) {
     ui.triggerStreakAnimation('🔥 Streak!');
   } else if (streak === 3 || streak === 6) {
@@ -414,6 +417,9 @@ function openDailyChestIfDue() {
 }
 
 function onNext() {
+  // Roadmap #94: the moment the regular questions run out, decide whether
+  // the boss challenge unlocks; if not, the session simply ends here.
+  settleBossGate(state.session);
   if (isSessionComplete(state.session)) {
     stopTimer();
     const recordsBefore = computePersonalBests(Storage.getSessions());

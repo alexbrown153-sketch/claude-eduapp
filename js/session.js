@@ -21,9 +21,14 @@ export function startSession({ topicWeighting, topicFocus, lengthType, lengthVal
     score: 0,
     streak: 0,
     bestStreak: 0,
-    // Roadmap #92: every session ends on one boss question. bossDone flips
-    // once it has been answered; bossDefeated records how it went.
+    // Roadmap #92/#94/#95: a session can end on the boss challenge.
+    // bossDone flips once the challenge is over (or was never unlocked);
+    // bossLocked records that accuracy wasn't high enough to face it;
+    // bossHits counts challenge questions answered correctly, and
+    // bossDefeated is true only when all of them were.
     bossDone: false,
+    bossLocked: false,
+    bossHits: 0,
     bossDefeated: false,
     usedWordProblemIds: new Set(),
   };
@@ -40,6 +45,17 @@ export function comboMultiplier(streak) {
 }
 
 export const BOSS_POINTS_MULTIPLIER = 3;
+
+// Roadmap #95: the boss challenge is three questions, and destroying the
+// boss completely (all three right) adds a flat bonus on top of the triple
+// points each hit already earns.
+export const BOSS_QUESTION_COUNT = 3;
+export const BOSS_DEFEAT_BONUS = 100;
+
+// Roadmap #94: the challenge only unlocks for MORE than 80% of the session's
+// own questions right — 80% exactly doesn't count, so 8/10 misses out and
+// 9/10 gets in.
+export const BOSS_UNLOCK_ACCURACY = 0.8;
 
 // Roadmap #92: the boss comes from the strongest topic — the highest mastery
 // score among topics actually practised, so it isn't just whichever topic
@@ -63,10 +79,43 @@ function pickBossQuestion(session, mastery) {
   return { ...q, isBoss: true };
 }
 
+function bossQuestionsAsked(session) {
+  return session.questions.filter((q) => q.boss).length;
+}
+
 // The session's own length (question count or minutes) is used up, so the
-// only thing left before the summary is the boss question.
+// only thing left before the summary is the boss challenge.
 export function isBossDue(session) {
   return session.bossDone === false && hasReachedLength(session);
+}
+
+// Roadmap #94: decides, once the regular questions are finished, whether the
+// boss challenge unlocks. Called before every "is the session over?" check
+// (onNext in app.js) rather than from recordAnswer, because a timed session
+// can run out between answers. Only the first time matters: once a boss
+// question has been asked the challenge is under way and runs to the end.
+export function settleBossGate(session) {
+  if (!isBossDue(session) || bossQuestionsAsked(session) > 0) return;
+  const regular = session.questions.filter((q) => !q.boss);
+  const correct = regular.filter((q) => q.correct).length;
+  const accuracy = regular.length ? correct / regular.length : 0;
+  if (accuracy <= BOSS_UNLOCK_ACCURACY) {
+    session.bossDone = true;
+    session.bossLocked = true;
+  }
+}
+
+// Where the challenge stands, for the UI: how many of the three questions
+// have been answered, how many hits the boss has taken, and right/wrong for
+// each answered one (so a resumed challenge still shows the right pips).
+export function bossProgress(session) {
+  const results = session.questions.filter((q) => q.boss).map((q) => q.correct);
+  return {
+    asked: results.length,
+    hits: session.bossHits || 0,
+    total: BOSS_QUESTION_COUNT,
+    results,
+  };
 }
 
 // Roadmap ideas.md #80: question sourcing is back to pure auto-generation
@@ -136,10 +185,17 @@ export function recordAnswer(session, mastery, question, userInput, timeMs) {
   const pointsEarned = correct ? (10 + speedBonus + streakBonus) * multiplier * bossMultiplier : 0;
   session.score += pointsEarned;
 
+  let bossBonus = 0;
   if (question.isBoss) {
-    session.bossDone = true;
-    session.bossDefeated = correct;
+    if (correct) session.bossHits = (session.bossHits || 0) + 1;
+    // +1 for the question being pushed just below.
+    if (bossQuestionsAsked(session) + 1 >= BOSS_QUESTION_COUNT) {
+      session.bossDone = true;
+      session.bossDefeated = session.bossHits >= BOSS_QUESTION_COUNT;
+      if (session.bossDefeated) bossBonus = BOSS_DEFEAT_BONUS;
+    }
   }
+  session.score += bossBonus;
 
   session.questions.push({
     topic: question.topic,
@@ -150,15 +206,16 @@ export function recordAnswer(session, mastery, question, userInput, timeMs) {
     pointsEarned,
     ...(question.isBoss ? { boss: true } : {}),
   });
+  session.bossBonus = (session.bossBonus || 0) + bossBonus;
 
   Storage.setMastery(mastery);
   Storage.setInProgress({ ...session, usedWordProblemIds: [...session.usedWordProblemIds] });
 
-  return { correct, pointsEarned, streak: session.streak, multiplier };
+  return { correct, pointsEarned, streak: session.streak, multiplier, bossBonus };
 }
 
-// The chosen length only — the boss question comes on top of it, so a
-// 10-question session is 10 questions and then the boss.
+// The chosen length only — the boss challenge comes on top of it, so a
+// 10-question session is 10 questions and then the boss's three.
 function hasReachedLength(session) {
   const regular = session.questions.filter((q) => !q.boss).length;
   if (session.lengthType === 'questions') {
@@ -169,7 +226,9 @@ function hasReachedLength(session) {
 }
 
 // A session saved before the boss existed has no bossDone flag; treat it as
-// already done so resuming it doesn't spring a boss on an old session.
+// already done so resuming it doesn't spring a boss on an old session. One
+// saved mid-way through the old single boss question (#92) just carries on
+// as a three-question challenge.
 export function isSessionComplete(session) {
   return hasReachedLength(session) && session.bossDone !== false;
 }
@@ -198,6 +257,9 @@ export function finishSession(session, meta) {
     pointsEarned: session.score,
     bestStreak: session.bestStreak,
     bossDefeated: Boolean(session.bossDefeated),
+    bossLocked: Boolean(session.bossLocked),
+    bossHits: session.bossHits || 0,
+    bossBonus: session.bossBonus || 0,
   };
 
   const entry = {

@@ -120,11 +120,17 @@
     </div>
 
     <div class="question-card">
-      <!-- Roadmap #92: shown only for the end-of-session boss question. -->
+      <!-- Roadmap #92/#95: shown only during the end-of-session boss
+           challenge. The beast itself is drawn into #boss-stage by ui.js. -->
       <div id="boss-banner" class="boss-banner" hidden>
-        <div class="boss-head"><span class="boss-icon">&#128126;</span><span class="boss-title">Boss question</span></div>
+        <div class="boss-head">
+          <span class="boss-title">Boss challenge</span>
+          <span id="boss-round" class="boss-round"></span>
+        </div>
+        <div id="boss-stage" class="boss-stage"></div>
         <div class="boss-health" aria-hidden="true"><div id="boss-health-fill" class="boss-health-fill"></div></div>
-        <p id="boss-status" class="boss-status"></p>
+        <div id="boss-pips" class="boss-pips" aria-hidden="true"></div>
+        <p id="boss-status" class="boss-status" role="status"></p>
       </div>
       <p id="question-prompt" class="question-prompt"></p>
 

@@ -14,9 +14,18 @@
 // roadmap file. The Suggestions screen numbers new suggestions from here, so
 // they slot straight onto the end of that file (see suggestions in ui.js).
 // Bump it whenever items are appended to the roadmap file.
-export const ROADMAP_LAST_ITEM_NUMBER = 93;
+export const ROADMAP_LAST_ITEM_NUMBER = 95;
 
 export const CHANGELOG = [
+  {
+    at: '2026-09-25T17:06+01:00',
+    label: 'Roadmap 94\u201395',
+    changes: [
+      'The boss question is now the Boss Challenge: three questions against a big angry monster. Every question you get right knocks a bit off it \u2014 first a horn snaps and it cracks, then the other horn goes and it gets an eye knocked out \u2014 and the third hit splits it in two. Destroy it completely and you get a 100-point bonus on top of the triple points for each hit.',
+      'The Boss Challenge has its own look: a dark arena with the monster, a health bar and three dots showing your hits. Get one wrong and the monster just roars \u2014 nothing is taken off you, and the challenge carries on to the next question.',
+      'You now have to earn the Boss Challenge: it only appears if you get more than 80% of the session\u2019s questions right (so 9 out of 10, or all 5 in a 5-question session). If you don\u2019t quite get there, the end-of-session summary tells you what you need to unlock it next time.',
+    ],
+  },
   {
     at: '2026-09-25T13:50+01:00',
     label: 'Roadmap 88\u201393',
