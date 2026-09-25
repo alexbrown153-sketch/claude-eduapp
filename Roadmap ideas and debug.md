@@ -110,3 +110,4 @@ Future roadmap ideas
 92. **Boss question.** End each session with one dramatic "boss" question from his strongest topic, worth triple points, with a health bar that empties when he gets it right.
 93. The dark/light mode buttons, on the settings page, do not work.
 94. Only allow access to the boss question if the user gets more than 80% of the questions correct.
+95. Change the boss question to be the boss challenge. The challenge has a different visual style to normal questions. The challenge comprises 3 questions. The boss is depicted as a large angry beast. As each question is answered correctly the boss gets visually destroyed a little. Getting all three questions correct destroys him completely and user gets additional bonus points.
