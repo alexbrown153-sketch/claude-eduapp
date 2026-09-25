@@ -21,8 +21,52 @@ export function startSession({ topicWeighting, topicFocus, lengthType, lengthVal
     score: 0,
     streak: 0,
     bestStreak: 0,
+    // Roadmap #92: every session ends on one boss question. bossDone flips
+    // once it has been answered; bossDefeated records how it went.
+    bossDone: false,
+    bossDefeated: false,
     usedWordProblemIds: new Set(),
   };
+}
+
+// Roadmap #88: the combo meter. The run of correct answers in a row
+// (session.streak) multiplies each answer's points — x2 from the 3rd in a
+// row, x3 from the 6th. A wrong answer just resets the run; points already
+// banked are never taken away (SPEC §8: non-punitive).
+export function comboMultiplier(streak) {
+  if (streak >= 6) return 3;
+  if (streak >= 3) return 2;
+  return 1;
+}
+
+export const BOSS_POINTS_MULTIPLIER = 3;
+
+// Roadmap #92: the boss comes from the strongest topic — the highest mastery
+// score among topics actually practised, so it isn't just whichever topic
+// happens to sit first at the untouched 50% default. No practice data yet
+// (a first session) falls back to this session's own topic mix.
+function strongestTopic(session, mastery) {
+  const practised = Object.entries(mastery).filter(([, rec]) => rec.questionsSeen > 0);
+  if (practised.length === 0) return session.topicFocus || weightedRandomPick(session.topicWeighting);
+  return practised.sort((a, b) => b[1].masteryScore - a[1].masteryScore)[0][0];
+}
+
+// One tier above the child's current level in that topic, capped at 5 — it
+// should feel like a boss, and it's drawn from the topic they're best at.
+function pickBossQuestion(session, mastery) {
+  const topic = strongestTopic(session, mastery);
+  const record = mastery[topic];
+  const tier = Math.min(5, (record.difficultyLevel || selectDifficultyTier(record)) + 1);
+  const q = getQuestion(topic, tier, session.usedWordProblemIds);
+  if (!q) return null;
+  if (q.source === 'authored' && q.id) session.usedWordProblemIds.add(q.id);
+  return { ...q, isBoss: true };
+}
+
+// The session's own length (question count or minutes) is used up, so the
+// only thing left before the summary is the boss question.
+export function isBossDue(session) {
+  return session.bossDone === false && hasReachedLength(session);
 }
 
 // Roadmap ideas.md #80: question sourcing is back to pure auto-generation
@@ -34,6 +78,11 @@ export function startSession({ topicWeighting, topicFocus, lengthType, lengthVal
 // day — cheap insurance against another reversal, not active behavior
 // right now.
 export function pickNextQuestion(session, mastery) {
+  if (isBossDue(session)) {
+    const boss = pickBossQuestion(session, mastery);
+    if (boss) return boss;
+    session.bossDone = true; // nothing to fight; skip straight to the end
+  }
   const topic = session.topicFocus || weightedRandomPick(session.topicWeighting);
   const record = mastery[topic];
   const tier = selectDifficultyTier(record);
@@ -76,11 +125,21 @@ export function recordAnswer(session, mastery, question, userInput, timeMs) {
 
   const speedBonus = correct && timeMs < EXPECTED_TIME_MS[tier] ? 5 : 0;
   const streakBonus = correct ? Math.min(session.streak + 1, 5) : 0;
-  const pointsEarned = correct ? 10 + speedBonus + streakBonus : 0;
 
   session.streak = correct ? session.streak + 1 : 0;
   session.bestStreak = Math.max(session.bestStreak, session.streak);
+
+  // The multiplier uses the run *including* this answer, so the 3rd correct
+  // in a row is the first one worth double.
+  const multiplier = correct ? comboMultiplier(session.streak) : 1;
+  const bossMultiplier = question.isBoss ? BOSS_POINTS_MULTIPLIER : 1;
+  const pointsEarned = correct ? (10 + speedBonus + streakBonus) * multiplier * bossMultiplier : 0;
   session.score += pointsEarned;
+
+  if (question.isBoss) {
+    session.bossDone = true;
+    session.bossDefeated = correct;
+  }
 
   session.questions.push({
     topic: question.topic,
@@ -89,20 +148,30 @@ export function recordAnswer(session, mastery, question, userInput, timeMs) {
     correct,
     timeMs,
     pointsEarned,
+    ...(question.isBoss ? { boss: true } : {}),
   });
 
   Storage.setMastery(mastery);
   Storage.setInProgress({ ...session, usedWordProblemIds: [...session.usedWordProblemIds] });
 
-  return { correct, pointsEarned, streak: session.streak };
+  return { correct, pointsEarned, streak: session.streak, multiplier };
 }
 
-export function isSessionComplete(session) {
+// The chosen length only — the boss question comes on top of it, so a
+// 10-question session is 10 questions and then the boss.
+function hasReachedLength(session) {
+  const regular = session.questions.filter((q) => !q.boss).length;
   if (session.lengthType === 'questions') {
-    return session.questions.length >= session.lengthValue;
+    return regular >= session.lengthValue;
   }
   const elapsedMs = Date.now() - session.startedAt;
   return elapsedMs >= session.lengthValue * 60 * 1000;
+}
+
+// A session saved before the boss existed has no bossDone flag; treat it as
+// already done so resuming it doesn't spring a boss on an old session.
+export function isSessionComplete(session) {
+  return hasReachedLength(session) && session.bossDone !== false;
 }
 
 function isYesterday(lastDateStr, todayDateStr) {
@@ -128,6 +197,7 @@ export function finishSession(session, meta) {
     totalTimeMs,
     pointsEarned: session.score,
     bestStreak: session.bestStreak,
+    bossDefeated: Boolean(session.bossDefeated),
   };
 
   const entry = {

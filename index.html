@@ -104,6 +104,7 @@
       <aside class="start-side-right">
         <div id="home-streak-widget" class="home-streak-widget"></div>
         <div id="next-session-widget" class="next-session-widget"></div>
+        <div id="personal-bests-widget" class="next-session-widget personal-bests-widget" hidden></div>
       </aside>
     </div>
   </section>
@@ -119,6 +120,12 @@
     </div>
 
     <div class="question-card">
+      <!-- Roadmap #92: shown only for the end-of-session boss question. -->
+      <div id="boss-banner" class="boss-banner" hidden>
+        <div class="boss-head"><span class="boss-icon">&#128126;</span><span class="boss-title">Boss question</span></div>
+        <div class="boss-health" aria-hidden="true"><div id="boss-health-fill" class="boss-health-fill"></div></div>
+        <p id="boss-status" class="boss-status"></p>
+      </div>
       <p id="question-prompt" class="question-prompt"></p>
 
       <div id="question-diagram" class="question-diagram" hidden>
@@ -176,6 +183,8 @@
   <section id="screen-summary" class="screen">
     <div id="summary-avatar" class="summary-avatar"></div>
     <h2 class="section-heading" id="summary-heading">Session complete!</h2>
+    <div id="new-records" class="new-records" role="status" hidden></div>
+    <div id="chest-reward" class="chest-reward" hidden></div>
     <div id="new-badges" class="new-badges" hidden></div>
     <div class="summary-card" id="summary-card"></div>
   </section>
