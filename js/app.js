@@ -6,6 +6,8 @@ import { Storage, TOPICS } from './storage.js';
 import { computeTodaysPlan } from './pacing.js';
 import { startSession, pickNextQuestion, recordAnswer, isSessionComplete, finishSession } from './session.js';
 import { getBadgeDefinitions, evaluateBadges } from './badges.js';
+import { computePersonalBests, findNewRecords } from './records.js';
+import { isChestAvailable, rollChest, localDateStr } from './chest.js';
 import { parsePdfQuestions } from './pdfQuestions.js';
 import { fetchWeatherForCity } from './weather.js';
 import { getItem, isOwned, availableBalance } from './shop.js';
@@ -96,7 +98,10 @@ function goToStart() {
   stopTimer();
   loadState();
   ui.updateHeader(state.plan, state.meta, state.shopState, getEarnedBadgesSorted());
-  ui.renderStart(state.plan, state.mastery, state.meta, !!Storage.getInProgress());
+  ui.renderStart(state.plan, state.mastery, state.meta, !!Storage.getInProgress(), {
+    personalBests: computePersonalBests(Storage.getSessions()),
+    chestAvailable: isChestAvailable(state.meta),
+  });
   ui.showScreen('start');
   refreshWeather();
 }
@@ -306,6 +311,7 @@ function handlePurchaseOrEquip(itemId) {
   const meta = Storage.getMeta();
 
   if (!isOwned(itemId, shopState.ownedItemIds)) {
+    if (item.chestOnly) return; // only the daily chest hands these out
     if (availableBalance(meta) < item.cost) return;
     meta.spentPoints = (meta.spentPoints || 0) + item.cost;
     shopState.ownedItemIds = [...shopState.ownedItemIds, itemId];
@@ -362,7 +368,7 @@ function stopTimer() {
 function nextQuestion() {
   state.currentQuestion = pickNextQuestion(state.session, state.mastery);
   state.questionStartTime = Date.now();
-  ui.renderHud(state.session, state.plan);
+  ui.renderHud(state.session, state.plan, Boolean(state.currentQuestion.isBoss));
   if (state.currentQuestion.blocked) {
     ui.renderBlockedQuestion(state.currentQuestion.topic);
   } else {
@@ -373,17 +379,49 @@ function nextQuestion() {
 function onCheck() {
   const answer = ui.getCurrentAnswer(state.currentQuestion.answerType);
   const timeMs = Date.now() - state.questionStartTime;
-  const { correct, streak } = recordAnswer(state.session, state.mastery, state.currentQuestion, answer, timeMs);
-  ui.renderHud(state.session, state.plan);
+  const { correct, streak, pointsEarned } = recordAnswer(state.session, state.mastery, state.currentQuestion, answer, timeMs);
+  ui.renderHud(state.session, state.plan, Boolean(state.currentQuestion.isBoss));
   ui.renderFeedback(correct, state.currentQuestion.explanation, state.currentQuestion.correctAnswer);
-  if (streak === 2) ui.triggerStreakAnimation();
+  if (state.currentQuestion.isBoss) {
+    ui.renderBossResult(correct, pointsEarned);
+  } else if (streak === 2) {
+    ui.triggerStreakAnimation('🔥 Streak!');
+  } else if (streak === 3 || streak === 6) {
+    // The moments the combo meter (Roadmap #88) steps up.
+    ui.triggerStreakAnimation(`🔥 Combo x${streak === 3 ? 2 : 3}!`);
+  }
+}
+
+// Roadmap #91. Opened by the first session finished on a given day. Points
+// are added to the total straight away, an item goes straight into the
+// owned list (not auto-equipped — that's the child's call in the Shop).
+function openDailyChestIfDue() {
+  const today = localDateStr();
+  if (!isChestAvailable(state.meta, today)) return null;
+  const shopState = Storage.getShopState();
+  const reward = rollChest(shopState.ownedItemIds);
+  const meta = { ...state.meta, lastChestDate: today };
+  if (reward.type === 'points') {
+    meta.totalPoints = (meta.totalPoints || 0) + reward.points;
+  } else {
+    shopState.ownedItemIds = [...shopState.ownedItemIds, reward.itemId];
+    Storage.setShopState(shopState);
+    state.shopState = shopState;
+  }
+  Storage.setMeta(meta);
+  state.meta = meta;
+  return reward;
 }
 
 function onNext() {
   if (isSessionComplete(state.session)) {
     stopTimer();
+    const recordsBefore = computePersonalBests(Storage.getSessions());
     const { entry, meta } = finishSession(state.session, state.meta);
     state.meta = meta;
+    const newRecords = findNewRecords(recordsBefore, computePersonalBests(Storage.getSessions()));
+    // Before badges, so chest points count towards the points badges.
+    const chestReward = openDailyChestIfDue();
 
     const badgeCtx = { meta: state.meta, mastery: state.mastery, sessionCount: Storage.getSessions().length };
     const { earnedIds, newlyEarnedIds } = evaluateBadges(BADGE_DEFINITIONS, badgeCtx, Storage.getBadges());
@@ -391,7 +429,11 @@ function onNext() {
     const newlyEarnedBadges = BADGE_DEFINITIONS.filter((b) => newlyEarnedIds.includes(b.id));
 
     ui.updateHeader(state.plan, state.meta, state.shopState, getEarnedBadgesSorted());
-    ui.renderSummary(entry, newlyEarnedBadges, state.meta, state.shopState);
+    ui.renderSummary(entry, newlyEarnedBadges, state.meta, state.shopState, {
+      newRecords,
+      personalBests: computePersonalBests(Storage.getSessions()),
+      chestReward,
+    });
     ui.showScreen('summary');
   } else {
     nextQuestion();

@@ -322,6 +322,12 @@ button {
 }
 .focus-phase { font-size: 1.1rem; font-weight: 700; margin: 0 0 6px; }
 .focus-tone { margin: 0; opacity: 0.92; font-size: 0.95rem; }
+/* Roadmap #90: the last-week mission title reads like a codename. */
+.focus-card.mission .focus-phase {
+  font-size: 1.2rem;
+  letter-spacing: 0.01em;
+}
+.focus-card.mission .focus-phase::before { content: '\1F575\FE0F  '; }
 .focus-countdown {
   display: inline-block;
   margin: 10px 0 0;
@@ -848,6 +854,11 @@ button {
   .verdict-overlay.leaving .verdict-card { opacity: 0; animation: none; }
   .correct-burst { display: none; }
   .streak-pulse { animation: none; }
+  .combo-flame,
+  .boss-icon,
+  .new-records,
+  .chest-reward,
+  .chest-icon { animation: none !important; }
 }
 
 /* Summary screen */
@@ -891,6 +902,124 @@ button {
 .next-session-title { font-size: 0.95rem; font-weight: 700; color: var(--ink); margin-bottom: 6px; }
 .next-session-body { font-size: 0.86rem; color: var(--ink-soft); line-height: 1.45; margin: 0; }
 .next-session-length { font-size: 0.8rem; color: var(--accent-ink); font-weight: 700; margin: 8px 0 0; }
+
+/* ---------- Daily mystery chest line (Roadmap #91) ---------- */
+.streak-widget-chest {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--accent-ink);
+  line-height: 1.35;
+}
+.streak-widget-chest-done { color: var(--ink-soft); font-weight: 600; }
+
+/* ---------- Personal bests widget (Roadmap #89) ---------- */
+.pb-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.84rem;
+}
+.pb-row:last-child { border-bottom: none; padding-bottom: 0; }
+.pb-label { color: var(--ink-soft); }
+.pb-value { font-weight: 800; color: var(--ink); white-space: nowrap; }
+
+/* ---------- Combo meter in the session HUD (Roadmap #88) ----------
+   The flame steps up a size at each multiplier: x1, x2 (3 in a row), x3
+   (6 in a row). */
+/* Reset the pill look .session-hud span gives every span in the HUD. */
+.session-hud .combo-flame {
+  display: inline-block;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  margin-right: 2px;
+  transition: transform 0.25s ease;
+  transform-origin: 50% 80%;
+}
+#hud-streak[data-combo="2"] .combo-flame { transform: scale(1.25); margin-right: 4px; }
+#hud-streak[data-combo="3"] .combo-flame { transform: scale(1.5); margin-right: 6px; animation: combo-flicker 0.9s ease-in-out infinite; }
+#hud-streak:empty { display: none; }
+.combo-mult { color: #e8734a; margin-left: 2px; }
+#hud-streak[data-combo="3"] { border-color: #e8734a; }
+@keyframes combo-flicker {
+  0%, 100% { transform: scale(1.5) rotate(-4deg); }
+  50% { transform: scale(1.62) rotate(4deg); }
+}
+
+/* ---------- Boss question (Roadmap #92) ---------- */
+.question-card.boss-question { border: 2px solid #7a3fc0; }
+.boss-banner {
+  margin: -6px 0 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #2b1747, #4a2478);
+  color: #fff;
+}
+.boss-head { display: flex; align-items: center; gap: 8px; font-weight: 900; font-size: 1.1rem; letter-spacing: 0.04em; text-transform: uppercase; }
+.boss-icon { font-size: 1.6rem; }
+.boss-banner:not(.defeated):not(.survived) .boss-icon { animation: boss-bob 1.6s ease-in-out infinite; }
+@keyframes boss-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+.boss-health {
+  margin-top: 10px;
+  height: 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  overflow: hidden;
+}
+.boss-health-fill {
+  height: 100%;
+  width: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ff4d6d, #ff9f43);
+  transition: width 1.1s cubic-bezier(0.3, 0.8, 0.3, 1);
+}
+.boss-status { margin: 8px 0 0; font-size: 0.85rem; font-weight: 700; opacity: 0.92; }
+.boss-banner.defeated .boss-status { color: #9ff0c4; opacity: 1; }
+
+/* ---------- Summary: NEW RECORD banner (#89) and chest (#91) ---------- */
+.new-records {
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  background: linear-gradient(135deg, #1f9d6b, #2fc48a);
+  color: #fff;
+  text-align: center;
+  animation: record-flash 0.9s ease-out 2;
+}
+.new-records-title { margin: 0 0 6px; font-size: 1.5rem; font-weight: 900; letter-spacing: 0.06em; }
+.new-records-list { list-style: none; margin: 0; padding: 0; font-size: 0.98rem; line-height: 1.6; }
+@keyframes record-flash {
+  0% { transform: scale(0.85); opacity: 0; }
+  40% { transform: scale(1.05); opacity: 1; box-shadow: 0 0 0 8px rgba(47, 196, 138, 0.35); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(47, 196, 138, 0); }
+}
+.chest-reward {
+  margin-bottom: 16px;
+  padding: 16px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 2px solid #f0c243;
+  text-align: center;
+  animation: badge-pop 0.5s ease-out;
+}
+.chest-icon { font-size: 2.4rem; animation: chest-open 0.7s cubic-bezier(0.2, 1.4, 0.5, 1) both; }
+@keyframes chest-open {
+  0% { transform: scale(0.5) rotate(-12deg); }
+  60% { transform: scale(1.2) rotate(6deg); }
+  100% { transform: scale(1) rotate(0); }
+}
+.chest-title { margin: 4px 0 0; font-size: 0.85rem; font-weight: 700; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.05em; }
+.chest-prize { margin: 6px 0 0; font-size: 1.35rem; font-weight: 900; color: var(--ink); }
+.chest-note { margin: 4px 0 0; font-size: 0.85rem; color: var(--ink-soft); }
 
 .mastery-bars { display: flex; flex-direction: column; gap: 12px; }
 .mastery-row .mastery-label {
@@ -1568,7 +1697,10 @@ body[data-theme="theme-berry"] {
    and a lighter accent, since its light-mode shades are unreadable on a dark
    background. Images (question diagrams) keep their white card on purpose:
    they're drawn for paper. */
-html[data-mode="dark"] { color-scheme: dark; }
+/* html paints its own background from :root's (light) --bg, and iPad Safari
+   shows it in the rubber-band overscroll and around the safe areas — so it
+   needs the dark shade too, not just body. */
+html[data-mode="dark"] { color-scheme: dark; background: #14161f; }
 html[data-mode="dark"] body {
   --bg: #14161f;
   --surface: #1f2230;

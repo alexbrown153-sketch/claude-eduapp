@@ -1,7 +1,8 @@
 // Cosmetic points-shop catalog (SPEC.md §8 gamification, kept lightweight per
 // CLAUDE.md — spending affects only cosmetics, never question content or
 // difficulty). Each item's `id`'s prefix is its category. Cost-0 items are
-// each category's default and are always considered owned.
+// each category's default and are always considered owned. `chestOnly`
+// items have no cost at all: they come only from the daily mystery chest.
 
 export const SHOP_ITEMS = [
   // Themes — override CSS custom properties via [data-theme] on <body>.
@@ -40,6 +41,9 @@ export const SHOP_ITEMS = [
   { id: 'avatar-unicorn', category: 'avatar', label: 'Unicorn', cost: 150, emoji: '🦄' },
   { id: 'avatar-alien', category: 'avatar', label: 'Alien', cost: 300, emoji: '👽' },
   { id: 'avatar-dragon', category: 'avatar', label: 'Dragon', cost: 1500, emoji: '🐉' },
+  // Chest-only (Roadmap #91): no price, can't be bought — the only way to
+  // get one is from the daily mystery chest (see chest.js).
+  { id: 'avatar-owl', category: 'avatar', label: 'Wise Owl', chestOnly: true, emoji: '🦉' },
 
   // Moods — a second, independent small emoji badge (opposite corner from
   // accessories), so the character can be customised two ways at once.
@@ -49,6 +53,7 @@ export const SHOP_ITEMS = [
   { id: 'mood-heart', category: 'mood', label: 'Loving it', cost: 150, emoji: '💖' },
   { id: 'mood-sleepy', category: 'mood', label: 'Sleepy', cost: 120, emoji: '💤' },
   { id: 'mood-strong', category: 'mood', label: 'Strong', cost: 150, emoji: '💪' },
+  { id: 'mood-lucky', category: 'mood', label: 'Lucky', chestOnly: true, emoji: '🍀' },
 
   // Frames — a ring drawn around the avatar via CSS.
   { id: 'frame-none', category: 'frame', label: 'No frame', cost: 0 },
@@ -63,6 +68,7 @@ export const SHOP_ITEMS = [
   { id: 'accessory-bow', category: 'accessory', label: 'Bow', cost: 300, emoji: '🎀' },
   { id: 'accessory-sunglasses', category: 'accessory', label: 'Sunglasses', cost: 350, emoji: '🕶️' },
   { id: 'accessory-crown', category: 'accessory', label: 'Crown', cost: 600, emoji: '👑' },
+  { id: 'accessory-medal', category: 'accessory', label: 'Treasure medal', chestOnly: true, emoji: '🎖️' },
 
   // Avatar colours — tint the circular background behind the avatar emoji.
   { id: 'avatarColor-default', category: 'avatarColor', label: 'Classic', cost: 0, swatch: '#eef0fb' },

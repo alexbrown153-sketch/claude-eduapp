@@ -2,6 +2,7 @@
 // app.js decides what happens; this module only reads/writes the DOM.
 
 import { PHASE_LABELS } from './pacing.js';
+import { comboMultiplier } from './session.js';
 import { SHOP_CATEGORIES, itemsByCategory, getItem, isOwned, availableBalance } from './shop.js';
 import { getJokeOfTheDay, getRandomJoke } from './jokes.js';
 import { getWordOfTheDay, getRandomWordOfDay } from './wordOfDay.js';
@@ -16,6 +17,20 @@ export const TOPIC_LABELS = {
   ratio: 'Ratio & proportion',
   algebra: 'Algebra',
   dataHandling: 'Data handling',
+};
+
+// Short codenames for the last-week mission titles (Roadmap #90) —
+// "Operation Fractions / %" reads badly, so these are separate from the
+// display labels above.
+const MISSION_CODENAMES = {
+  arithmetic: 'Arithmetic',
+  fdp: 'Fractions',
+  geometry: 'Geometry',
+  coordinates: 'Coordinates',
+  wordProblems: 'Word Problems',
+  ratio: 'Ratio',
+  algebra: 'Algebra',
+  dataHandling: 'Data',
 };
 
 const el = (id) => document.getElementById(id);
@@ -205,8 +220,30 @@ function renderTopicWeightingPreview(plan) {
   el('topic-weighting-preview').innerHTML = `<p class="weighting-title">Today's mix if you practice all topics:</p>${rows}`;
 }
 
-export function renderStart(plan, mastery, meta, hasInProgress) {
-  el('focus-phase').textContent = PHASE_LABELS[plan.phase] || 'Practice';
+// Roadmap #90: in the final week each day's pacing phase is presented as a
+// mission. Only the wording changes — the plan behind it (phase, length,
+// topic weighting) is exactly what pacing.js decided. The operation is
+// named after the same weakest topic the "Focus area" line and the Next
+// session widget point at, so the three never disagree; until there's
+// enough data for that, it's named after the phase instead.
+export function missionTitle(plan, mastery) {
+  const days = plan.daysRemaining;
+  if (days > 7 || days < 0) return null;
+  if (days === 0) return 'Mission Day — good luck!';
+  if (days === 1) return 'Final Briefing';
+  const summary = computeStrengthSummary(mastery);
+  let operation;
+  if (plan.phase === 'diagnostic') operation = 'Recon';
+  else if (plan.phase === 'late-stage') operation = 'Exam Conditions';
+  else if (summary) operation = MISSION_CODENAMES[summary.weakest[0]] || TOPIC_LABELS[summary.weakest[0]];
+  else operation = 'Mixed Bag';
+  return `Mission: ${days} days to go — Operation ${operation}`;
+}
+
+export function renderStart(plan, mastery, meta, hasInProgress, extras = {}) {
+  const mission = missionTitle(plan, mastery);
+  el('focus-phase').textContent = mission || PHASE_LABELS[plan.phase] || 'Practice';
+  el('focus-card').classList.toggle('mission', Boolean(mission));
   el('focus-tone').textContent = meta.childName
     ? `Hi ${meta.childName}! ${plan.framingTone}`
     : plan.framingTone;
@@ -233,8 +270,9 @@ export function renderStart(plan, mastery, meta, hasInProgress) {
   renderWordPanel(currentWord);
 
   renderDateTime(new Date());
-  renderHomeStreakWidget(meta);
+  renderHomeStreakWidget(meta, extras.chestAvailable);
   renderNextSessionWidget(mastery, plan);
+  renderPersonalBestsWidget(extras.personalBests);
 
   selectClosestLengthButton(plan.sessionLengthSuggestion);
   el('custom-length-panel').hidden = true;
@@ -604,21 +642,49 @@ export function renderDateTime(date) {
 // Streak/points widget — moved here from the Progress screen and mirrored
 // on the right of the home page, opposite the weather/time sidebar on the
 // left (see .start-side-right in styles.css).
-function renderHomeStreakWidget(meta) {
+// The chest line (Roadmap #91) sits here because the chest and the day
+// streak reward the same thing: turning up today.
+function renderHomeStreakWidget(meta, chestAvailable) {
   const target = el('home-streak-widget');
+  const chestLine = chestAvailable
+    ? '<div class="streak-widget-chest">🎁 Today\u2019s mystery chest opens when you finish a session</div>'
+    : '<div class="streak-widget-chest streak-widget-chest-done">🎁 Chest opened today — back tomorrow!</div>';
   if (meta.currentStreakDays > 0) {
     target.innerHTML = `
       <div class="streak-widget-main">🔥 ${meta.currentStreakDays}</div>
       <div class="streak-widget-label">day streak</div>
       <div class="streak-widget-points">⭐ ${meta.totalPoints || 0} total points</div>
+      ${chestLine}
     `;
   } else {
     target.innerHTML = `
       <div class="streak-widget-main">⭐ ${meta.totalPoints || 0}</div>
       <div class="streak-widget-label">total points</div>
       <div class="streak-widget-points">Start today's streak!</div>
+      ${chestLine}
     `;
   }
+}
+
+// Roadmap #89. The four records, as display rows. Shared by the Home widget
+// and the summary screen's NEW RECORD banner so both word them the same.
+const RECORD_ROWS = [
+  { key: 'bestAccuracy', icon: '🎯', label: 'Best accuracy', format: (v) => `${Math.round(v * 100)}%` },
+  { key: 'longestCombo', icon: '🔥', label: 'Longest combo', format: (v) => `${v} in a row` },
+  { key: 'fastestCorrectMs', icon: '⚡', label: 'Fastest correct answer', format: (v) => `${(v / 1000).toFixed(1)}s` },
+  { key: 'mostQuestionsInDay', icon: '📅', label: 'Most questions in a day', format: (v) => `${v}` },
+];
+
+function renderPersonalBestsWidget(bests) {
+  const target = el('personal-bests-widget');
+  if (!bests) { target.hidden = true; return; }
+  target.hidden = false;
+  const rows = RECORD_ROWS.map(({ key, icon, label, format }) => `
+    <div class="pb-row">
+      <span class="pb-label">${icon} ${label}</span>
+      <span class="pb-value">${bests[key] === null ? '—' : format(bests[key])}</span>
+    </div>`).join('');
+  target.innerHTML = `<div class="next-session-title">🏆 Personal bests</div>${rows}`;
 }
 
 // Roadmap #85: a small "what to practice next" widget under the streak
@@ -670,14 +736,33 @@ export function renderWeather(state) {
 
 // ---------- Question screen ----------
 
-export function renderHud(session, plan) {
-  const count = session.lengthType === 'questions'
-    ? `Q${session.questions.length + 1} / ${session.lengthValue}`
-    : `Q${session.questions.length + 1}`;
+// `boss` is true while the boss question (Roadmap #92) is on screen — it
+// sits on top of the chosen length, so "Q11 / 10" would look like a bug.
+export function renderHud(session, plan, boss = false) {
+  const regular = session.questions.filter((q) => !q.boss).length;
+  let count;
+  if (boss) count = '👾 Boss';
+  else if (session.lengthType === 'questions') count = `Q${Math.min(regular + 1, session.lengthValue)} / ${session.lengthValue}`;
+  else count = `Q${regular + 1}`;
   el('hud-progress').textContent = count;
   el('hud-score').textContent = `⭐ ${session.score}`;
-  el('hud-streak').textContent = session.streak > 1 ? `🔥 ${session.streak}` : '';
+  renderComboMeter(session.streak);
   el('hud-timer').hidden = !plan.timerVisible || session.lengthType !== 'minutes';
+}
+
+// Roadmap #88: the combo meter. The flame grows a size at each multiplier
+// step (x2 at 3 in a row, x3 at 6), and the multiplier shows once it's
+// earning anything. A wrong answer just clears it — no "combo lost"
+// message, per SPEC §8's non-punitive rule.
+function renderComboMeter(streak) {
+  const target = el('hud-streak');
+  const mult = comboMultiplier(streak);
+  target.dataset.combo = String(mult);
+  if (streak < 2) {
+    target.textContent = '';
+    return;
+  }
+  target.innerHTML = `<span class="combo-flame">🔥</span> ${streak}${mult > 1 ? ` <strong class="combo-mult">x${mult}</strong>` : ''}`;
 }
 
 // Celebrates the moment a streak "starts" — i.e. exactly when the 🔥 badge
@@ -687,9 +772,9 @@ export function renderHud(session, plan) {
 // banner joins it there; the HUD badge still pulses as a secondary cue, but
 // the HUD is exactly what scrolls out of sight on a long question, which is
 // why the celebration itself no longer lives up there.
-export function triggerStreakAnimation() {
+export function triggerStreakAnimation(text) {
   const streakEl = el('verdict-streak');
-  streakEl.textContent = '🔥 Streak!';
+  streakEl.textContent = text;
   streakEl.hidden = false;
   // Restart the animation in case a previous verdict left it mid-flight.
   streakEl.style.animation = 'none';
@@ -725,6 +810,7 @@ export function renderQuestion(question) {
   el('next-btn').hidden = true;
 
   el('question-prompt').textContent = question.prompt;
+  renderBossBanner(question.isBoss);
 
   // Two kinds of diagram: an image captured from an imported PDF, or SVG
   // markup the generator drew itself (coordinates.js). Neither, either, but
@@ -782,8 +868,38 @@ export function renderQuestion(question) {
 // questionBank.js's header comment). Hides everything a real question would
 // show; the only way forward is back to Home (this panel's own button, or
 // the HUD's).
+// ---------- Boss question (Roadmap #92) ----------
+
+// Full health while the boss is being answered. A right answer drains it to
+// nothing (see renderBossResult); a wrong one leaves it standing, with no
+// penalty — it's just still there next time.
+function renderBossBanner(isBoss) {
+  const banner = el('boss-banner');
+  document.querySelector('.question-card').classList.toggle('boss-question', Boolean(isBoss));
+  banner.hidden = !isBoss;
+  if (!isBoss) return;
+  banner.classList.remove('defeated', 'survived');
+  el('boss-health-fill').style.width = '100%';
+  el('boss-status').textContent = 'Final challenge · from your strongest topic · triple points';
+}
+
+export function renderBossResult(correct, pointsEarned) {
+  const banner = el('boss-banner');
+  banner.classList.add(correct ? 'defeated' : 'survived');
+  if (correct) {
+    // Next frame, so the width transition runs from full rather than
+    // jumping straight to empty.
+    requestAnimationFrame(() => { el('boss-health-fill').style.width = '0%'; });
+    el('boss-status').textContent = `Boss defeated! +${pointsEarned} points`;
+    triggerStreakAnimation('👾 Boss defeated! x3 points');
+  } else {
+    el('boss-status').textContent = 'The boss survives this time — you\u2019ll get it next session.';
+  }
+}
+
 export function renderBlockedQuestion(topic) {
   clearFeedbackState();
+  renderBossBanner(false);
   el('question-prompt').hidden = true;
   el('question-diagram').hidden = true;
   el('answer-numeric').hidden = true;
@@ -1040,7 +1156,7 @@ function scrollFeedbackIntoView() {
 
 // ---------- Summary screen ----------
 
-export function renderSummary(entry, newlyEarnedBadges = [], meta = {}, shopState = null) {
+export function renderSummary(entry, newlyEarnedBadges = [], meta = {}, shopState = null, extras = {}) {
   const { summary } = entry;
   const accuracyPct = Math.round(summary.accuracy * 100);
   const avgSec = Math.round(summary.avgTimeMs / 1000);
@@ -1055,8 +1171,12 @@ export function renderSummary(entry, newlyEarnedBadges = [], meta = {}, shopStat
     <div class="summary-row"><span class="label">Avg. time / question</span><span class="value">${avgSec}s</span></div>
     <div class="summary-row"><span class="label">Topics practiced</span><span class="value">${topics || '—'}</span></div>
     <div class="summary-row"><span class="label">Points earned</span><span class="value">⭐ ${summary.pointsEarned}</span></div>
-    <div class="summary-row"><span class="label">Best streak</span><span class="value">🔥 ${summary.bestStreak}</span></div>
+    <div class="summary-row"><span class="label">Best combo</span><span class="value">🔥 ${summary.bestStreak}</span></div>
+    ${bossRow(entry)}
   `;
+
+  renderNewRecords(extras.newRecords || [], extras.personalBests);
+  renderChestReward(extras.chestReward);
 
   const badgeEl = el('new-badges');
   if (newlyEarnedBadges.length === 0) {
@@ -1076,6 +1196,53 @@ export function renderSummary(entry, newlyEarnedBadges = [], meta = {}, shopStat
       </div>
     `;
   }
+}
+
+// Sessions from before the boss existed have no boss question at all.
+function bossRow(entry) {
+  if (!entry.questions.some((q) => q.boss)) return '';
+  return `<div class="summary-row"><span class="label">Boss question</span><span class="value">${entry.summary.bossDefeated ? '👾 Defeated!' : 'Survived — next time!'}</span></div>`;
+}
+
+// Roadmap #89: the NEW RECORD banner, one line per record beaten.
+function renderNewRecords(newRecords, bests) {
+  const target = el('new-records');
+  if (!newRecords.length || !bests) {
+    target.hidden = true;
+    target.innerHTML = '';
+    return;
+  }
+  const lines = RECORD_ROWS
+    .filter((r) => newRecords.includes(r.key))
+    .map((r) => `<li>${r.icon} ${r.label}: <strong>${r.format(bests[r.key])}</strong></li>`)
+    .join('');
+  target.hidden = false;
+  target.innerHTML = `<p class="new-records-title">NEW RECORD!</p><ul class="new-records-list">${lines}</ul>`;
+}
+
+// Roadmap #91: the chest simply opens on what's inside — no reel, no
+// near-miss, nothing to tease.
+function renderChestReward(reward) {
+  const target = el('chest-reward');
+  if (!reward) {
+    target.hidden = true;
+    target.innerHTML = '';
+    return;
+  }
+  let prize;
+  if (reward.type === 'points') {
+    prize = `<p class="chest-prize">⭐ +${reward.points} bonus points</p>`;
+  } else {
+    const item = getItem(reward.itemId);
+    prize = `<p class="chest-prize">${item.emoji || '🎁'} ${item.label}</p>
+      <p class="chest-note">A chest-only item — it's in the Shop now, ready to equip.</p>`;
+  }
+  target.hidden = false;
+  target.innerHTML = `
+    <div class="chest-icon">🎁</div>
+    <p class="chest-title">Daily mystery chest</p>
+    ${prize}
+  `;
 }
 
 export function bindSummaryHandlers({ onRestart }) {
@@ -1197,7 +1364,10 @@ export function renderShop(shopState, meta) {
       let disabled = false;
       if (equipped) actionLabel = 'Equipped';
       else if (owned) actionLabel = 'Equip';
-      else {
+      else if (item.chestOnly) {
+        actionLabel = '🎁 Chest only';
+        disabled = true;
+      } else {
         actionLabel = `Buy ⭐${item.cost}`;
         disabled = availableBalance(meta) < item.cost;
       }

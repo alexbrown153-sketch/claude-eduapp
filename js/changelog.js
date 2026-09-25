@@ -14,9 +14,21 @@
 // roadmap file. The Suggestions screen numbers new suggestions from here, so
 // they slot straight onto the end of that file (see suggestions in ui.js).
 // Bump it whenever items are appended to the roadmap file.
-export const ROADMAP_LAST_ITEM_NUMBER = 87;
+export const ROADMAP_LAST_ITEM_NUMBER = 93;
 
 export const CHANGELOG = [
+  {
+    at: '2026-09-25T13:50+01:00',
+    label: 'Roadmap 88\u201393',
+    changes: [
+      'Combo meter: get 3 right in a row and every answer is worth double points, 6 in a row and it\u2019s triple. The flame at the top of the question grows as your combo goes up. A wrong answer just starts the combo again \u2014 you never lose points you\u2019ve already won.',
+      'Personal bests: a new box on the Home screen shows your records \u2014 best accuracy, longest combo, fastest correct answer and most questions in a day. Beat one and a big NEW RECORD! banner shows at the end of the session.',
+      'Missions: for the last week before the exam, the big blue box on the Home screen turns each day into a mission, like \u201cMission: 5 days to go \u2014 Operation Fractions\u201d, and the day before is the \u201cFinal Briefing\u201d. Only the words have changed; the practice plan behind it is the same.',
+      'Daily mystery chest: the first session you finish each day opens a chest with 20 to 100 bonus points, or sometimes a special item for your character that you can\u2019t buy in the Shop. The chest just shows what you won.',
+      'Boss question: every session now ends with one harder boss question from your strongest topic, worth triple points. Get it right and its health bar drains away. Get it wrong and nothing is taken off you \u2014 it just survives until next time.',
+      'Dark mode: the Light, Dark and Match device buttons all worked when tested here, so the most likely cause is the iPad still using an older, cached copy of the app. The page background behind the app now goes dark too, which it didn\u2019t before.',
+    ],
+  },
   {
     at: '2026-09-25T12:00+01:00',
     label: 'Roadmap 87',

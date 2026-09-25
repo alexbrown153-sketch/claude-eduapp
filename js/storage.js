@@ -34,6 +34,7 @@ function defaultMeta() {
     childName: '',
     weatherCity: '',
     colourMode: 'light', // 'light' | 'dark' | 'auto' (follow the device) — Roadmap #87
+    lastChestDate: null, // local YYYY-MM-DD the daily mystery chest was last opened — Roadmap #91
   };
 }
 
