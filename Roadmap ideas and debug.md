@@ -109,3 +109,4 @@ Future roadmap ideas
 91. **Daily mystery chest.** The first session he finishes each day opens a chest containing 20–100 bonus points, or sometimes a shop item he can only get from the chest. It rewards turning up every day, which matters most this week. Keep the odds fixed and generous, with no "nearly won" teasing.
 92. **Boss question.** End each session with one dramatic "boss" question from his strongest topic, worth triple points, with a health bar that empties when he gets it right.
 93. The dark/light mode buttons, on the settings page, do not work.
+94. Only allow access to the boss question if the user gets more than 80% of the questions correct.
