@@ -40,8 +40,28 @@ function simplifyFrac(num, den) {
 function round2(n) {
   return Math.round(n * 100) / 100;
 }
+// A fraction whose denominator is 1 is a whole number, so it's stored and
+// shown as one ("1", not "1/1"): the child types the whole number and is
+// marked right, and the answer they're shown matches what they'd write.
 function formatFrac(num, den) {
-  return num === 0 ? '0' : `${num}/${den}`;
+  if (num === 0) return '0';
+  if (den === 1) return String(num);
+  return `${num}/${den}`;
+}
+// The tail of a worked explanation: the unsimplified result, then its
+// simplest form — but only when simplifying actually changes it, so an
+// answer already in simplest form isn't repeated ("3/10 = 3/10").
+function fracWorking(num, den) {
+  const raw = `${num}/${den}`;
+  const s = simplifyFrac(num, den);
+  const simplest = formatFrac(s.num, s.den);
+  return simplest === raw ? raw : `${raw} = ${simplest}`;
+}
+// Mixed numbers ("1 5/12") aren't accepted as answers (Alex's decision), so
+// when the answer is an improper fraction the prompt says so up front. A
+// whole-number answer isn't a fraction at all, so it keeps the plain wording.
+function simplestFormHint(s) {
+  return s.den > 1 && s.num > s.den ? '(simplest form, as an improper fraction)' : '(simplest form)';
 }
 
 // ---------- Arithmetic ----------
@@ -145,7 +165,11 @@ const COMMON_FRACTIONS = [
 
 function fdpT1() {
   const f = pick(COMMON_FRACTIONS);
-  const percent = Math.round((f.num / f.den) * 100);
+  // Exact, never rounded: every denominator in COMMON_FRACTIONS divides 1000,
+  // so 1/8 is 0.125 = 12.5% (not 13%). Multiplying before dividing keeps
+  // floating point out of it (1/20 × 100 would give 5.000000000000001).
+  const percent = (f.num * 100) / f.den;
+  const decimal = f.num / f.den;
   const decoys = new Set([percent]);
   let attempts = 0;
   while (decoys.size < 4 && attempts < 30) {
@@ -159,7 +183,7 @@ function fdpT1() {
     topic: 'fdp', subtopic: 'equivalence', difficulty: 1, source: 'generated',
     prompt: `What is ${f.num}/${f.den} as a percentage?`,
     answerType: 'mcq', correctAnswer: String(percent), choices,
-    explanation: `${f.num}/${f.den} = ${(f.num / f.den).toFixed(2)} = ${percent}%`,
+    explanation: `${f.num}/${f.den} = ${decimal} = ${percent}%`,
   };
 }
 
@@ -174,9 +198,9 @@ function fdpT2() {
     const simplified = simplifyFrac(resultNum, den);
     return {
       topic: 'fdp', subtopic: 'fractions', difficulty: 2, source: 'generated',
-      prompt: `${a}/${den} ${op} ${b}/${den} = ? (simplest form)`,
+      prompt: `${a}/${den} ${op} ${b}/${den} = ? ${simplestFormHint(simplified)}`,
       answerType: 'text', correctAnswer: formatFrac(simplified.num, simplified.den), choices: null,
-      explanation: `${a}/${den} ${op} ${b}/${den} = ${resultNum}/${den} = ${formatFrac(simplified.num, simplified.den)}`,
+      explanation: `${a}/${den} ${op} ${b}/${den} = ${fracWorking(resultNum, den)}`,
     };
   }
   const percent = pick([10, 20, 25, 50, 75]);
@@ -206,9 +230,9 @@ function fdpT3Frac() {
   const simplified = simplifyFrac(resultNum, lcm);
   return {
     topic: 'fdp', subtopic: 'fractions', difficulty: 3, source: 'generated',
-    prompt: `${a}/${d1} ${op} ${b}/${d2} = ? (simplest form)`,
+    prompt: `${a}/${d1} ${op} ${b}/${d2} = ? ${simplestFormHint(simplified)}`,
     answerType: 'text', correctAnswer: formatFrac(simplified.num, simplified.den), choices: null,
-    explanation: `Common denominator ${lcm}: ${an}/${lcm} ${op} ${bn}/${lcm} = ${resultNum}/${lcm} = ${formatFrac(simplified.num, simplified.den)}`,
+    explanation: `Common denominator ${lcm}: ${an}/${lcm} ${op} ${bn}/${lcm} = ${fracWorking(resultNum, lcm)}`,
   };
 }
 
@@ -245,11 +269,11 @@ function fdpT4() {
     const simplified = simplifyFrac(resultNum, resultDen);
     return {
       topic: 'fdp', subtopic: 'fractions', difficulty: 4, source: 'generated',
-      prompt: `${f1.num}/${f1.den} ${op} ${f2.num}/${f2.den} = ? (simplest form)`,
-      answerType: 'text', correctAnswer: `${simplified.num}/${simplified.den}`, choices: null,
+      prompt: `${f1.num}/${f1.den} ${op} ${f2.num}/${f2.den} = ? ${simplestFormHint(simplified)}`,
+      answerType: 'text', correctAnswer: formatFrac(simplified.num, simplified.den), choices: null,
       explanation: op === '×'
-        ? `Multiply numerators and denominators: (${f1.num}×${f2.num})/(${f1.den}×${f2.den}) = ${resultNum}/${resultDen} = ${simplified.num}/${simplified.den}`
-        : `Flip and multiply: ${f1.num}/${f1.den} × ${f2.den}/${f2.num} = ${resultNum}/${resultDen} = ${simplified.num}/${simplified.den}`,
+        ? `Multiply numerators and denominators: (${f1.num}×${f2.num})/(${f1.den}×${f2.den}) = ${fracWorking(resultNum, resultDen)}`
+        : `Flip and multiply: ${f1.num}/${f1.den} × ${f2.den}/${f2.num} = ${fracWorking(resultNum, resultDen)}`,
     };
   }
   const base = pick([40, 50, 60, 80, 120, 150, 200]);
@@ -266,9 +290,16 @@ function fdpT4() {
 }
 
 function fdpT5() {
-  const base = pick([80, 100, 120, 150, 200, 240]);
-  const p1 = pick([10, 20, 25]);
-  const p2 = pick([10, 15, 20]);
+  let base;
+  let p1;
+  let p2;
+  // A price has to come out in whole pennies. One combination doesn't
+  // (£150, 25% then 15% gives £95.625), so pick again rather than round it.
+  do {
+    base = pick([80, 100, 120, 150, 200, 240]);
+    p1 = pick([10, 20, 25]);
+    p2 = pick([10, 15, 20]);
+  } while ((base * (100 - p1) * (100 - p2)) % 100 !== 0);
   const afterFirst = base * (1 - p1 / 100);
   const afterSecond = afterFirst * (1 - p2 / 100);
   const answer = round2(afterSecond);
@@ -447,7 +478,9 @@ function ratioT2() {
 
 function ratioT3() {
   const p1 = randInt(1, 6);
-  const p2 = randInt(1, 6);
+  // The two parts must differ, or there's no "smaller" or "larger" share.
+  let p2 = randInt(1, 6);
+  while (p2 === p1) p2 = randInt(1, 6);
   const unit = randInt(2, 9);
   const total = (p1 + p2) * unit;
   const askSmaller = Math.random() < 0.5;
@@ -706,4 +739,30 @@ export function getQuestion(topic, tier, usedWordProblemIds) {
   const gen = GENERATORS[topic];
   if (!gen) throw new Error(`Unknown topic: ${topic}`);
   return gen(tier);
+}
+
+// Roadmap #101: "Try one like it" after a wrong answer — another question of
+// the same kind with new numbers. Same kind means the same topic, tier and
+// subtopic, and for arithmetic the same operation(s) as well: tiers 1-3 all
+// share the subtopic 'mixed', so without that a missed 47 + 38 could come
+// back as 7 × 8. Each generator picks its variant at random, so this just
+// retries until one matches with a different prompt, and gives up after a
+// fixed number of tries (null: no button is shown). Hand-written word
+// problems and imported questions have no "new numbers" to give, so they
+// never get one.
+const SIMILAR_ATTEMPTS = 40;
+function arithmeticOps(prompt) {
+  return (prompt.match(/[+\-×÷]/g) || []).join('');
+}
+export function getSimilarQuestion(question) {
+  if (question.source !== 'generated') return null;
+  const gen = GENERATORS[question.topic];
+  if (!gen) return null;
+  for (let i = 0; i < SIMILAR_ATTEMPTS; i += 1) {
+    const q = gen(question.difficulty);
+    if (q.subtopic !== question.subtopic || q.prompt === question.prompt) continue;
+    if (question.topic === 'arithmetic' && arithmeticOps(q.prompt) !== arithmeticOps(question.prompt)) continue;
+    return q;
+  }
+  return null;
 }

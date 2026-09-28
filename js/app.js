@@ -4,22 +4,19 @@
 
 import { Storage, TOPICS } from './storage.js';
 import { computeTodaysPlan } from './pacing.js';
-import { startSession, pickNextQuestion, recordAnswer, isSessionComplete, finishSession, settleBossGate, bossProgress } from './session.js';
+import { startSession, pickNextQuestion, recordAnswer, isSessionComplete, finishSession, settleBossGate, bossProgress, hasReachedLength } from './session.js';
+import { getSimilarQuestion } from './questionBank.js';
 import { getBadgeDefinitions, evaluateBadges } from './badges.js';
-import { computePersonalBests, findNewRecords } from './records.js';
+import { computePersonalBests, findNewRecords, computeFixedMistakes } from './records.js';
 import { isChestAvailable, rollChest, localDateStr } from './chest.js';
-import { parsePdfQuestions } from './pdfQuestions.js';
+import { parsePdfQuestions, loadPdfJs } from './pdfQuestions.js';
 import { fetchWeatherForCity } from './weather.js';
-import { getItem, isOwned, availableBalance } from './shop.js';
+import { getItem, isOwned, availableBalance, STREAK_SHIELD, MAX_STREAK_SHIELDS } from './shop.js';
 import { ROADMAP_LAST_ITEM_NUMBER } from './changelog.js';
 import { isSyncConfigured, pushSuggestion } from './roadmapSync.js';
 import * as ui from './ui.js';
 
 const BADGE_DEFINITIONS = getBadgeDefinitions(TOPICS, ui.TOPIC_LABELS);
-
-if (window.pdfjsLib) {
-  window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-}
 
 const state = {
   meta: null,
@@ -30,6 +27,10 @@ const state = {
   currentQuestion: null,
   questionStartTime: null,
   timerInterval: null,
+  // Roadmap #101: the "Try one like it" question on offer after a wrong
+  // answer, or null. Only lives while that answer is on screen, so it isn't
+  // saved with the in-progress session.
+  followUp: null,
 };
 
 function loadState() {
@@ -109,7 +110,8 @@ function goToStart() {
 function goToProgress() {
   const mastery = Storage.getMastery();
   const meta = Storage.getMeta();
-  ui.renderProgress(mastery, meta, Storage.getSessions(), BADGE_DEFINITIONS, Storage.getBadges());
+  const sessions = Storage.getSessions();
+  ui.renderProgress(mastery, meta, sessions, BADGE_DEFINITIONS, Storage.getBadges(), computeFixedMistakes(sessions));
   ui.showScreen('progress');
 }
 
@@ -135,6 +137,9 @@ function refreshSuggestions() {
 }
 
 function goToImport() {
+  // Roadmap #114: start fetching pdf.js now, so it's likely ready by the
+  // time a file is picked. A failure is reported when a file is picked.
+  loadPdfJs().catch(() => {});
   ui.renderImportSummary(Storage.getCustomQuestions());
   ui.renderImportErrors([]);
   ui.renderImportPreview([]);
@@ -288,6 +293,11 @@ function handleClearProgress() {
 function handleImportPdfFile(file) {
   const reader = new FileReader();
   reader.onload = async () => {
+    // If pdf.js can't load (offline), parsePdfQuestions shows its own
+    // "PDF support didn't load" message, so the error needs nothing more.
+    try {
+      await loadPdfJs();
+    } catch (e) { /* reported by parsePdfQuestions */ }
     const { valid, errors } = await parsePdfQuestions(reader.result, TOPICS);
     if (valid.length > 0) Storage.addCustomQuestions(valid);
     ui.renderImportErrors(errors);
@@ -327,6 +337,22 @@ function handlePurchaseOrEquip(itemId) {
   ui.renderShop(shopState, state.meta);
 }
 
+// Roadmap #112: buying a Streak Shield. It's a counter on meta, not an owned
+// item, and only one can be held, so a second tap (or a stale button) does
+// nothing.
+function handleBuyStreakShield() {
+  const meta = Storage.getMeta();
+  if ((meta.streakShields || 0) >= MAX_STREAK_SHIELDS) return;
+  if (availableBalance(meta) < STREAK_SHIELD.cost) return;
+  meta.spentPoints = (meta.spentPoints || 0) + STREAK_SHIELD.cost;
+  meta.streakShields = (meta.streakShields || 0) + 1;
+  Storage.setMeta(meta);
+
+  state.meta = meta;
+  ui.updateHeader(state.plan, state.meta, state.shopState, getEarnedBadgesSorted());
+  ui.renderShop(Storage.getShopState(), state.meta);
+}
+
 function beginSession({ lengthType, lengthValue, topicFocus }) {
   state.session = startSession({
     topicWeighting: state.plan.topicWeighting,
@@ -353,7 +379,7 @@ function resumeSession() {
 
 function startTimerIfNeeded() {
   stopTimer();
-  if (!state.plan.timerVisible || state.session.lengthType !== 'minutes') return;
+  if (state.session.lengthType !== 'minutes') return;
   const endAt = state.session.startedAt + state.session.lengthValue * 60 * 1000;
   ui.updateTimer(endAt - Date.now());
   state.timerInterval = setInterval(() => {
@@ -369,9 +395,14 @@ function stopTimer() {
 }
 
 function nextQuestion() {
-  state.currentQuestion = pickNextQuestion(state.session, state.mastery);
+  showQuestion(pickNextQuestion(state.session, state.mastery));
+}
+
+function showQuestion(question) {
+  state.followUp = null;
+  state.currentQuestion = question;
   state.questionStartTime = Date.now();
-  ui.renderHud(state.session, state.plan, Boolean(state.currentQuestion.isBoss));
+  ui.renderHud(state.session, Boolean(state.currentQuestion.isBoss));
   if (state.currentQuestion.blocked) {
     ui.renderBlockedQuestion(state.currentQuestion.topic);
   } else {
@@ -383,8 +414,9 @@ function onCheck() {
   const answer = ui.getCurrentAnswer(state.currentQuestion.answerType);
   const timeMs = Date.now() - state.questionStartTime;
   const { correct, streak, pointsEarned, bossBonus } = recordAnswer(state.session, state.mastery, state.currentQuestion, answer, timeMs);
-  ui.renderHud(state.session, state.plan, Boolean(state.currentQuestion.isBoss));
+  ui.renderHud(state.session, Boolean(state.currentQuestion.isBoss));
   ui.renderFeedback(correct, state.currentQuestion.explanation, state.currentQuestion.correctAnswer);
+  offerFollowUp(correct);
   if (state.currentQuestion.isBoss) {
     ui.renderBossResult(correct, pointsEarned, bossProgress(state.session), bossBonus);
   } else if (streak === 2) {
@@ -393,6 +425,35 @@ function onCheck() {
     // The moments the combo meter (Roadmap #88) steps up.
     ui.triggerStreakAnimation(`🔥 Combo x${streak === 3 ? 2 : 3}!`);
   }
+}
+
+// Roadmap #101: after a wrong answer, maybe offer one more question of the
+// same kind with new numbers. One per miss — the follow-up itself never
+// offers another, so no wrong-answer loop can form (SPEC §6). Never for the
+// boss, word problems or imported questions (getSimilarQuestion only works
+// for generated ones), and only while the session still has room: the
+// follow-up counts towards the chosen length like any other question.
+function offerFollowUp(correct) {
+  const q = state.currentQuestion;
+  state.followUp = null;
+  if (!correct && !q.isFollowUp && !q.isBoss && !hasReachedLength(state.session)) {
+    const similar = getSimilarQuestion(q);
+    if (similar) state.followUp = { ...similar, isFollowUp: true };
+  }
+  ui.showTryOneLikeIt(Boolean(state.followUp));
+}
+
+function onTryOneLikeIt() {
+  const followUp = state.followUp;
+  state.followUp = null;
+  if (!followUp) return; // a second quick tap
+  // A timed session can run out while the explanation is being read; the
+  // button then just does what Next would (boss gate or summary).
+  if (hasReachedLength(state.session)) {
+    onNext();
+    return;
+  }
+  showQuestion(followUp);
 }
 
 // Roadmap #91. Opened by the first session finished on a given day. Points
@@ -423,7 +484,7 @@ function onNext() {
   if (isSessionComplete(state.session)) {
     stopTimer();
     const recordsBefore = computePersonalBests(Storage.getSessions());
-    const { entry, meta } = finishSession(state.session, state.meta);
+    const { entry, meta, shieldUsed } = finishSession(state.session, state.meta);
     state.meta = meta;
     const newRecords = findNewRecords(recordsBefore, computePersonalBests(Storage.getSessions()));
     // Before badges, so chest points count towards the points badges.
@@ -439,6 +500,9 @@ function onNext() {
       newRecords,
       personalBests: computePersonalBests(Storage.getSessions()),
       chestReward,
+      fixedToday: computeFixedMistakes(Storage.getSessions()).filter((f) => f.sessionId === entry.sessionId),
+      mastery: state.mastery,
+      shieldUsed,
     });
     ui.showScreen('summary');
   } else {
@@ -466,7 +530,7 @@ ui.bindSettingsHandlers({
   onSyncConfigChange,
 });
 
-ui.bindQuestionHandlers({ onCheck, onNext, onExit: goToStart });
+ui.bindQuestionHandlers({ onCheck, onNext, onExit: goToStart, onTryOneLikeIt });
 
 ui.bindSummaryHandlers({ onRestart: goToStart });
 
@@ -475,7 +539,7 @@ ui.bindImportHandlers({
   onClear: handleClearImportedQuestions,
 });
 
-ui.bindShopHandlers({ onPurchaseOrEquip: handlePurchaseOrEquip });
+ui.bindShopHandlers({ onPurchaseOrEquip: handlePurchaseOrEquip, onBuyStreakShield: handleBuyStreakShield });
 
 ui.bindSuggestionsHandlers({
   onSubmit: handleSubmitSuggestion,

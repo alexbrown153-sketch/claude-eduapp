@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Tiffin Prep</title>
+<title>Sprint</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A7%AE%3C/text%3E%3C/svg%3E" />
 <link rel="stylesheet" href="styles.css" />
 <script>
@@ -33,7 +33,7 @@
       <button id="nav-import-btn" class="nav-btn" data-nav="import" hidden><span class="nav-icon">&#128229;</span><span class="nav-label">Import</span></button>
     </nav>
     <div class="header-brand">
-      <span class="header-title">Tiffin 11+ Maths Prep</span>
+      <span class="header-title">Sprint</span>
       <span id="header-avatar" class="header-avatar"></span>
     </div>
     <div class="header-actions">
@@ -66,7 +66,6 @@
         <div class="focus-card" id="focus-card">
           <p class="focus-phase" id="focus-phase"></p>
           <p class="focus-tone" id="focus-tone"></p>
-          <p class="focus-countdown" id="focus-countdown"></p>
           <div id="strength-summary" class="strength-summary" hidden></div>
         </div>
 
@@ -165,6 +164,12 @@
           <button class="key" data-key="0">0</button>
           <button class="key key-back" data-key="back">&#9003;</button>
         </div>
+        <!-- Roadmap #98: only shown for remainder and fraction answers, so
+             they can be typed without the iPad keyboard popping up. -->
+        <div id="keypad-extra" class="keypad keypad-extra" hidden>
+          <button class="key" data-key="r" aria-label="remainder">r</button>
+          <button class="key" data-key="/" aria-label="fraction bar">/</button>
+        </div>
       </div>
 
       <div id="answer-text" class="answer-area" hidden>
@@ -176,6 +181,9 @@
       <div class="action-slot">
         <button id="check-btn" class="primary-btn">Check answer</button>
         <button id="next-btn" class="primary-btn" hidden>Next question</button>
+        <!-- Roadmap #101: offered after some wrong answers, just under Next,
+             so Next stays exactly where Check was. -->
+        <button id="retry-btn" class="secondary-btn retry-btn" hidden>Try one like it</button>
       </div>
 
       <div id="feedback-inline" class="feedback-inline" role="status" hidden>
@@ -193,6 +201,8 @@
     <div id="chest-reward" class="chest-reward" hidden></div>
     <div id="new-badges" class="new-badges" hidden></div>
     <div class="summary-card" id="summary-card"></div>
+    <div id="summary-notes" class="summary-notes" hidden></div>
+    <div id="summary-takeaways" class="summary-takeaways"></div>
   </section>
 
   <!-- PROGRESS SCREEN -->
@@ -204,6 +214,9 @@
 
     <h3 class="section-subheading">Strengths &amp; weaknesses</h3>
     <div id="strength-overview" class="strength-overview"></div>
+
+    <h3 class="section-subheading">Mistakes I fixed</h3>
+    <div id="fixed-mistakes" class="fixed-mistakes"></div>
 
     <h3 class="section-subheading">Badges</h3>
     <div id="badges-grid" class="badges-grid"></div>
@@ -342,11 +355,9 @@
   </div>
 </footer>
 
-<!-- Deliberate exception to this project's usual no-external-network-calls
-     rule: extracting text from an arbitrary PDF needs a real parser, which
-     can't be hand-rolled. Loaded from a CDN, so PDF question import only
-     works with an internet connection; every other feature stays offline. -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<!-- pdf.js (the one CDN script, a deliberate exception to the no-network
+     rule) is no longer loaded here: since Roadmap #114 it's fetched only when
+     the Import screen is opened — see loadPdfJs in js/pdfQuestions.js. -->
 <script type="module" src="js/app.js"></script>
 </body>
 </html>

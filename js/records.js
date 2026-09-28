@@ -62,3 +62,52 @@ export function findNewRecords(before, after) {
   if (before.mostQuestionsInDay !== null && after.mostQuestionsInDay > before.mostQuestionsInDay) beaten.push('mostQuestionsInDay');
   return beaten;
 }
+
+// Roadmap #105: "Mistakes I fixed". Only topic and subtopic are saved with
+// each answer (not the question itself), and generated questions get new
+// numbers every time, so the honest unit is the *kind* of question. A kind is
+// fixed when it was answered wrong in one session and then right in a LATER
+// session — right again in the same session could be a lucky guess, so it
+// doesn't count. Once fixed it stays fixed: a later wrong answer never takes
+// it off the list (SPEC §8, nothing is taken away). Worked out from the
+// session log every time, like the records above, so it stores nothing.
+//
+// Subtopics that don't name a kind (missing on old sessions, arithmetic's
+// catch-all 'mixed', imported questions) fall back to the topic alone.
+const TOPIC_ONLY_SUBTOPICS = ['mixed', 'examberry', 'custom-pdf'];
+
+function kindOf(q) {
+  const sub = q.subtopic && !TOPIC_ONLY_SUBTOPICS.includes(q.subtopic) ? q.subtopic : null;
+  return { key: `${q.topic}|${sub || ''}`, topic: q.topic, subtopic: sub };
+}
+
+// Returns every fix, newest first:
+// [{ topic, subtopic (or null), wrongDate, fixedDate, sessionId }], where the
+// dates are the ISO timestamps of the session with the first wrong answer and
+// the later session that first got it right.
+export function computeFixedMistakes(sessions) {
+  const firstWrong = {}; // kind key -> { index, date } while still unfixed
+  const fixed = {}; // kind key -> fix record
+  const order = [];
+  sessions.forEach((s, index) => {
+    (s.questions || []).forEach((q) => {
+      if (!q || !q.topic) return;
+      const kind = kindOf(q);
+      if (fixed[kind.key]) return;
+      const wrong = firstWrong[kind.key];
+      if (!q.correct) {
+        if (!wrong) firstWrong[kind.key] = { index, date: s.date };
+      } else if (wrong && wrong.index < index) {
+        fixed[kind.key] = {
+          topic: kind.topic,
+          subtopic: kind.subtopic,
+          wrongDate: wrong.date,
+          fixedDate: s.date,
+          sessionId: s.sessionId,
+        };
+        order.push(kind.key);
+      }
+    });
+  });
+  return order.reverse().map((k) => fixed[k]);
+}

@@ -216,7 +216,7 @@ export function recordAnswer(session, mastery, question, userInput, timeMs) {
 
 // The chosen length only — the boss challenge comes on top of it, so a
 // 10-question session is 10 questions and then the boss's three.
-function hasReachedLength(session) {
+export function hasReachedLength(session) {
   const regular = session.questions.filter((q) => !q.boss).length;
   if (session.lengthType === 'questions') {
     return regular >= session.lengthValue;
@@ -234,11 +234,17 @@ export function isSessionComplete(session) {
 }
 
 function isYesterday(lastDateStr, todayDateStr) {
-  if (!lastDateStr) return false;
+  return daysBetweenDateStrs(lastDateStr, todayDateStr) === 1;
+}
+
+// Whole calendar days between two YYYY-MM-DD strings (rounded, so a clock
+// change in between doesn't matter). NaN — never an error — if either is
+// missing or unreadable, which no streak rule matches.
+function daysBetweenDateStrs(lastDateStr, todayDateStr) {
+  if (!lastDateStr) return NaN;
   const last = new Date(`${lastDateStr}T00:00:00`);
   const today = new Date(`${todayDateStr}T00:00:00`);
-  const diffDays = Math.round((today - last) / 86400000);
-  return diffDays === 1;
+  return Math.round((today - last) / 86400000);
 }
 
 // Writes the full session log entry and updates streak/points meta. Returns
@@ -277,10 +283,19 @@ export function finishSession(session, meta) {
 
   const today = todayStr();
   const newMeta = { ...meta };
+  let shieldUsed = false;
   if (meta.lastPracticeDate === today) {
     // already practiced today; streak unchanged
   } else if (isYesterday(meta.lastPracticeDate, today)) {
     newMeta.currentStreakDays = (meta.currentStreakDays || 0) + 1;
+  } else if (daysBetweenDateStrs(meta.lastPracticeDate, today) === 2 && (meta.streakShields || 0) > 0) {
+    // Roadmap #112: exactly one missed day, and a Streak Shield to cover it.
+    // The missed day is bridged, not counted (6 on Thu, nothing on Fri,
+    // practice on Sat makes 7), and the shield is used up. A longer gap
+    // falls through to the reset below and the shield is kept.
+    newMeta.currentStreakDays = (meta.currentStreakDays || 0) + 1;
+    newMeta.streakShields = (meta.streakShields || 0) - 1;
+    shieldUsed = true;
   } else {
     newMeta.currentStreakDays = 1;
   }
@@ -292,5 +307,6 @@ export function finishSession(session, meta) {
   Storage.setMeta(newMeta);
   Storage.clearInProgress();
 
-  return { entry, meta: newMeta };
+  // shieldUsed is only for the summary screen; it isn't saved anywhere.
+  return { entry, meta: newMeta, shieldUsed };
 }

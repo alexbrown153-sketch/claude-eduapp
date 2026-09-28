@@ -1,6 +1,6 @@
 // Daily mystery chest (Roadmap #91). The first session finished each day
-// opens a chest. It rewards turning up every day, which matters most in the
-// last week before the exam.
+// opens a chest. It rewards turning up every day, which is what builds the
+// practice habit.
 //
 // The odds are fixed and generous, and the chest never teases: there's no
 // "so close!", no spinning reel, no near-miss display. You're shown what you
