@@ -2,13 +2,11 @@
 
 ## Project
 
-**Sprint** (working name) — a self-contained browser app for 11+ exam maths practice, for one child sitting the exam on **Friday 2 October 2026**. Read `SPEC.md` in this repo first for the full product spec before writing code — all previously-open decisions are now settled and logged in SPEC.md §11.
-
-**Timeline matters here.** The build window is short (~2.5 weeks from spec date to exam). Get a working end-to-end slice — even just arithmetic questions in a basic session loop — usable in the first day or two, then layer in adaptive difficulty, the countdown/pacing view, progress tracking, and gamification. Don't block a usable v1 on having every topic or every feature built.
+**Sprint** (working name) — a self-contained browser app for 11+ exam maths practice. Read `SPEC.md` in this repo first for the full product spec before writing code — all previously-open decisions are now settled and logged in SPEC.md §11.
 
 ## Precedent / Style to Match
 
-Alex has built similar self-contained browser apps before: **The Study** (a chess opening/middlegame trainer) and **The Wire** (a news aggregator). Follow the same philosophy — no unnecessary backend, works as a lightweight personal web app, clean minimal UI, data persisted locally. Don't over-engineer this into a multi-service architecture; it's a personal project for one family.
+Alex has built similar self-contained browser apps before. He wants no unnecessary backend, works as a lightweight personal web app, clean minimal UI, data persisted locally. Don't over-engineer this into a multi-service architecture; it's a personal project for one family.
 
 ## Tech Stack
 

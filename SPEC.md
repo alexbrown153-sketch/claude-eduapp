@@ -2,19 +2,18 @@
 
 *"Sprint" is a suggested working name — ties together the drill-sprint session format and the short countdown to the exam. Easy to rename during the build if it doesn't land.*
 
-> **Timeline note:** the exam is **Friday 2 October 2026** — about 17 days from when this spec was written (15 September 2026). See §6a for how this shapes build priorities. This is a tight window: get a working, usable version in front of the child within the first day or two of building, then iterate daily, rather than polishing before anything is usable.
 
 ## 1. Vision
 
-A self-contained, browser-based maths practice app that helps a child preparing for the 11+ entrance exam build fluency, speed, and confidence across the exam's core maths topics — through short, adaptive drill sessions that stay engaging over months of repeated use.
+A self-contained, browser-based maths practice app that helps a child preparing for the 11+ entrance exam build fluency, speed, and confidence across the exam's core maths topics — through short, adaptive drill sessions that stay engaging over months of repeated use. The key is engagement from the child user. They should want to use it more as they find it enjoyable and pleasureable.
 
 ## 2. Background & Precedent
 
-This follows the shape of two apps already built: **The Study** (a chess opening/middlegame trainer) and **The Wire** (a news aggregator). Both are self-contained browser apps with no backend. The Study in particular is the closest precedent: a training-session loop with progress history. Reuse that proven shape rather than inventing a new interaction pattern from scratch.
+No background. This is a new concept.
 
 ## 3. Target User
 
-- **Primary:** one child in Year 6, preparing for the 11+ entrance exam on 2 October 2026.
+- **Primary:** one child in Year 6, preparing for the 11+ entrance exam.
 - **Secondary:** parent (Alex) — reviews progress, may adjust settings or topic focus, not a primary daily user.
 - **Decision:** single profile only for this build. Keep the data model (session log, mastery scores) keyed by a profile ID even though there's only one, so a second profile could be added later without restructuring the data — but don't build any profile-switching UI now.
 
@@ -49,19 +48,6 @@ This follows the shape of two apps already built: **The Study** (a chess opening
 - Session composition skews toward difficulty near the child's current mastery, with some stretch questions and some reinforcement of weak topics — similar in spirit to spaced repetition.
 - Avoid frustration: don't stack too many hard questions back-to-back after a wrong answer.
 
-## 6a. Countdown & Pacing Plan
-
-**Decision:** yes, include this. Exam date is **Friday 2 October 2026**, so from a 15 September build start there are roughly 17 days / 2.5 weeks to work with. The app should show days-remaining and suggest a focus for "today" rather than leaving the child to guess what to practice.
-
-Suggested shape (Claude Code should adapt exact days to whatever the actual build/launch date turns out to be, anchored to 2 Oct 2026):
-
-- **Day 1 (diagnostic):** a short mixed-topic session covering all core topics at medium difficulty, purely to seed initial per-topic mastery scores. No pressure framing — this just calibrates the adaptive engine.
-- **Bulk of the window (roughly days 2–13):** daily adaptive sessions, weighted toward the weakest topics from the diagnostic, cycling through every topic at least twice by the end of this phase so nothing gets neglected.
-- **Late stage (roughly days 14–15):** longer, mixed-topic sessions that feel closer to exam conditions (more questions, a visible timer) to build stamina and pacing under light time pressure.
-- **Final 1–2 days before the exam:** light, confidence-building review only — short sessions, skewed toward topics already at high mastery, no new/unfamiliar material. The goal here is calm, not cramming.
-
-This plan is a default the app can compute automatically from "today" and the exam date — it shouldn't require Alex to hand-schedule anything, and it should re-adjust gracefully if a day or two gets skipped.
-
 ## 7. Progress Tracking & Stats
 
 - Session history log: date, topics covered, accuracy, average time per question.
@@ -84,13 +70,6 @@ This plan is a default the app can compute automatically from "today" and the ex
 - No login/accounts required for MVP.
 - Fast load, minimal dependencies, works offline.
 
-## 10. Out of Scope (MVP)
-
-- Verbal/non-verbal reasoning sections (unless requested later).
-- Multiplayer or social features.
-- Cloud sync / multi-device accounts.
-- A detailed parent analytics dashboard beyond a basic stats view (candidate for v2).
-
 ## 11. Decisions Log
 
 All previously-open decisions have been settled:
@@ -99,7 +78,6 @@ All previously-open decisions have been settled:
 |---|---|
 | Profiles | Single child, single profile. Data model keyed by profile ID for future extensibility, but no profile-switching UI. |
 | Exam board style | General 11+ coverage, not tied to one board's format. |
-| Countdown / pacing | Yes — exam is Friday 2 October 2026. See §6a for the pacing plan shape. |
 | Primary device | Tablet (iPad), touch-first design. Laptop should still work. |
 | Name / branding | Working name **"Sprint"** — encouraging, age-appropriate, ties to the countdown framing. Not locked in; easy to change. |
 | Question sourcing | Mixed: procedurally generate arithmetic/number questions; hand-author a bank of word/reasoning problems. |
