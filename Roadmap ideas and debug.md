@@ -111,22 +111,22 @@ Future roadmap ideas
 93. The dark/light mode buttons, on the settings page, do not work.
 94. Only allow access to the boss question if the user gets more than 80% of the questions correct.
 95. Change the boss question to be the boss challenge. The challenge has a different visual style to normal questions. The challenge comprises 3 questions. The boss is depicted as a large angry beast. As each question is answered correctly the boss gets visually destroyed a little. Getting all three questions correct destroys him completely and user gets additional bonus points.
-96. Show a "You did it!" screen on exam day (2 October) and afterwards, instead of the mission countdown. pacing.js still has no phase for after the exam.
-97. When an answer is the right value in the wrong form, like 0.3 for 3/10 or 16.625 for 16 r 5, say "Right number! Now write it as a fraction" and give another try instead of marking it wrong
-98. Add "r" and "/" keys to the on-screen keypad so remainders and fractions can be typed without the iPad keyboard popping up
-99. On iPad portrait, put the mission card and topic buttons at the top of Home, and move the clock, weather, joke and word of the day below them, so the child sees what to do first
-100. Make the "Not quite" pop-up smaller or fade away by itself so it doesn't cover the worked explanation
-101. Add a "Try one like it" button after a wrong answer that gives the same kind of question with new numbers
-102. Add a free Hint button that shows only the first step of the method, for word problems and multi-step questions
-103. Add a "Night before" session: 5 to 8 confidence-builder questions from strong topics only, with no timer and no boss
-104. Add an exam-day tips card with short reminders like "check your units", "skip it and come back" and "check it makes sense"
-105. Add a "Mistakes I fixed" list that shows questions I got wrong before and then got right later, to build confidence
-106. Give a gentle "Does that look sensible?" nudge when an answer is way off, like 12 degrees for a triangle's third angle, before it gets marked
+96. Remove the countdown and deadline-based pacing from Home. Drop the day counter, the mission titles and the late-stage/final-review phases. The focus card should always suggest today's practice, based on the weakest and least-recently-practised topics, and all saved progress must be kept.
+97. When a typed answer has the right value in the wrong form, like 0.3 for 3/10 or 16.625 for 16 r 5, say "Right number!", tell the child which form is wanted, and give one more try instead of marking it wrong
+98. Add "r" and "/" keys to the on-screen keypad so remainder and fraction answers can be typed without the iPad keyboard popping up
+99. On iPad portrait, put the focus/suggestion card and topic buttons at the top of Home, and move the clock, weather, joke and word of the day below them, so the child sees what to do first
+100. Make the "Not quite" pop-up smaller, shorter and tap-to-dismiss so it doesn't cover the worked explanation
+101. Add a "Try one like it" button after a wrong answer that gives one more question of the same kind with new numbers
+102. Add a free Hint button that shows only the first step of the method, for word problems and multi-step generated questions. Each hint goes live only once Alex has signed off its wording.
+103. Add an "Easy wins" session, always available from the start screen: 6 confidence-builder questions from his strongest topics, with no timer and no boss
+104. Add a "Maths habit of the day" card to the start screen that shows one short tip a day, such as "check your units", "does your answer make sense?" and "read the question twice"
+105. Add a "Mistakes I fixed" list that shows the kinds of question I used to get wrong and now get right, so I can see my progress
+106. Give a gentle "Does that look sensible?" nudge before marking when a typed number is wildly off, such as ten times too big, the wrong sign, or an angle that can't exist
 107. Add a scribble pad over the question so the child can do working-out with a finger or Apple Pencil
-108. Add a read-aloud button for long word problems, using the built-in iPad voice so it works offline
-109. Let timed sessions include a "skip and come back later" option, like in a real exam
-110. End the summary with "Best thing today" and "One thing to practise tomorrow" in kid-friendly words, instead of just a list of topics
-111. Show the points adding up on the summary (85 from questions plus 100 from the chest makes 185), because the top-bar total jumps with no explanation
-112. Add a streak shield from the shop, so one missed day after the exam doesn't wipe out the streak
-113. Use simpler mission names than "Operation Recon", for example "Operation Find My Superpowers"
-114. Only load the pdf.js CDN script when Import is opened, so everyday use doesn't fire a failed network request and a console error when offline
+108. Add a read-aloud button for built-in word problems, using the iPad's own voice so it works offline
+109. Let timed sessions include a "skip and come back later" option, so a hard question doesn't leave him stuck
+110. End the summary with "Best thing today" and "One thing to practise next time" in kid-friendly words, instead of just a list of topics
+111. Show how the points add up on the summary (85 from questions plus 100 from the chest makes 185), because the top-bar star total jumps with nothing on screen to explain it
+112. Add a one-use streak shield to the shop, so one missed day doesn't wipe out the practice streak
+113. Dropped: the "Operation …" mission names only appeared in the old countdown, which item 96 removes, so there is nothing left to rename.
+114. Load the pdf.js CDN script only when Import is opened, so everyday offline use doesn't make a failed network request, log a console error or start slowly
