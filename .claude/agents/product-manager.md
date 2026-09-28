@@ -29,7 +29,7 @@ Weigh each item on these criteria, in this order:
 1. **Engagement** Keeps the child practising. Anything that makes the app more fun, more motivating, or
    more habit-forming is high priority.
 2. **Correctness of maths content.** Wrong answers, misleading explanations, or bad
-   difficulty tagging put a real child's exam preparation at risk. They always come first.
+   difficulty tagging put a real child's exam preparation at risk.
 3. **Blockers to daily practice.** Anything that stops a session from starting, finishing
    or saving, or that loses progress data.
 4. **Fit with the current pacing phase (SPEC §6a).** Close to the exam, prefer small,
