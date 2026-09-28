@@ -3,7 +3,7 @@
 
 import { PHASE_LABELS } from './pacing.js';
 import { comboMultiplier } from './session.js';
-import { SHOP_CATEGORIES, itemsByCategory, getItem, isOwned, availableBalance } from './shop.js';
+import { SHOP_CATEGORIES, itemsByCategory, getItem, isOwned, availableBalance, STREAK_SHIELD, MAX_STREAK_SHIELDS } from './shop.js';
 import { getJokeOfTheDay, getRandomJoke } from './jokes.js';
 import { getWordOfTheDay, getRandomWordOfDay } from './wordOfDay.js';
 import { CHANGELOG } from './changelog.js';
@@ -19,24 +19,26 @@ export const TOPIC_LABELS = {
   dataHandling: 'Data handling',
 };
 
-// Short codenames for the last-week mission titles (Roadmap #90) —
-// "Operation Fractions / %" reads badly, so these are separate from the
-// display labels above.
-const MISSION_CODENAMES = {
-  arithmetic: 'Arithmetic',
-  fdp: 'Fractions',
-  geometry: 'Geometry',
-  coordinates: 'Coordinates',
-  wordProblems: 'Word Problems',
-  ratio: 'Ratio',
-  algebra: 'Algebra',
-  dataHandling: 'Data',
-};
-
 const el = (id) => document.getElementById(id);
 
 let numericBuffer = '';
 let mcqSelected = null;
+
+// Roadmap #98: a typed ('text') answer made only of digits, spaces, '.', '/'
+// and 'r' — a remainder like "12 r 3" or a fraction like "3/4" — is entered
+// on the on-screen keypad (plus an r and / row) instead of the text box, so
+// the iPad keyboard never slides up over the question. Ratios ("2:3"), times
+// ("3:30") and words keep the text box.
+let keypadExtra = false;
+function usesKeypad(question) {
+  if (question.answerType === 'numeric') return true;
+  return question.answerType === 'text' && /^[0-9 ./r]+$/.test(String(question.correctAnswer));
+}
+// "12r3" is shown (and handed to marking) as "12 r 3"; marking ignores
+// spaces anyway, so this is only for looks.
+function keypadText() {
+  return numericBuffer.replace('r', ' r ');
+}
 
 // True between checking an answer and moving to the next question. The
 // answer controls are read-only in that window, so a stray keypad tap (or a
@@ -220,36 +222,24 @@ function renderTopicWeightingPreview(plan) {
   el('topic-weighting-preview').innerHTML = `<p class="weighting-title">Today's mix if you practice all topics:</p>${rows}`;
 }
 
-// Roadmap #90: in the final week each day's pacing phase is presented as a
-// mission. Only the wording changes — the plan behind it (phase, length,
-// topic weighting) is exactly what pacing.js decided. The operation is
-// named after the same weakest topic the "Focus area" line and the Next
-// session widget point at, so the three never disagree; until there's
-// enough data for that, it's named after the phase instead.
-export function missionTitle(plan, mastery) {
-  const days = plan.daysRemaining;
-  if (days > 7 || days < 0) return null;
-  if (days === 0) return 'Mission Day — good luck!';
-  if (days === 1) return 'Final Briefing';
+// Roadmap #96 (SPEC §6a): the focus card names today's focus — the same
+// weakest topic as the "Focus area" line, the Next session widget and the
+// summary's "practise next time" line, so all of them always agree. Until
+// there's enough data for that it falls back to the phase's own label, and
+// during the diagnostic it just says "Diagnostic".
+function focusTitle(plan, mastery) {
+  if (plan.phase === 'diagnostic') return PHASE_LABELS.diagnostic;
   const summary = computeStrengthSummary(mastery);
-  let operation;
-  if (plan.phase === 'diagnostic') operation = 'Recon';
-  else if (plan.phase === 'late-stage') operation = 'Exam Conditions';
-  else if (summary) operation = MISSION_CODENAMES[summary.weakest[0]] || TOPIC_LABELS[summary.weakest[0]];
-  else operation = 'Mixed Bag';
-  return `Mission: ${days} days to go — Operation ${operation}`;
+  if (!summary) return PHASE_LABELS[plan.phase] || 'Daily practice';
+  const topic = summary.weakest[0];
+  return `Today's focus: ${TOPIC_LABELS[topic] || topic}`;
 }
 
 export function renderStart(plan, mastery, meta, hasInProgress, extras = {}) {
-  const mission = missionTitle(plan, mastery);
-  el('focus-phase').textContent = mission || PHASE_LABELS[plan.phase] || 'Practice';
-  el('focus-card').classList.toggle('mission', Boolean(mission));
+  el('focus-phase').textContent = focusTitle(plan, mastery);
   el('focus-tone').textContent = meta.childName
     ? `Hi ${meta.childName}! ${plan.framingTone}`
     : plan.framingTone;
-  el('focus-countdown').textContent = plan.daysRemaining >= 0
-    ? `${plan.daysRemaining} day${plan.daysRemaining === 1 ? '' : 's'} to go`
-    : 'Exam day!';
 
   const summary = computeStrengthSummary(mastery);
   const summaryEl = el('strength-summary');
@@ -649,11 +639,16 @@ function renderHomeStreakWidget(meta, chestAvailable) {
   const chestLine = chestAvailable
     ? '<div class="streak-widget-chest">🎁 Today\u2019s mystery chest opens when you finish a session</div>'
     : '<div class="streak-widget-chest streak-widget-chest-done">🎁 Chest opened today — back tomorrow!</div>';
+  // Roadmap #112: a held Streak Shield, ready to cover one missed day.
+  const shieldLine = (meta.streakShields || 0) > 0
+    ? '<div class="streak-widget-shield">🛡️ Shield ready</div>'
+    : '';
   if (meta.currentStreakDays > 0) {
     target.innerHTML = `
       <div class="streak-widget-main">🔥 ${meta.currentStreakDays}</div>
       <div class="streak-widget-label">day streak</div>
       <div class="streak-widget-points">⭐ ${meta.totalPoints || 0} total points</div>
+      ${shieldLine}
       ${chestLine}
     `;
   } else {
@@ -661,6 +656,7 @@ function renderHomeStreakWidget(meta, chestAvailable) {
       <div class="streak-widget-main">⭐ ${meta.totalPoints || 0}</div>
       <div class="streak-widget-label">total points</div>
       <div class="streak-widget-points">Start today's streak!</div>
+      ${shieldLine}
       ${chestLine}
     `;
   }
@@ -738,7 +734,8 @@ export function renderWeather(state) {
 
 // `boss` is true while the boss challenge (Roadmap #92/#95) is on screen —
 // it sits on top of the chosen length, so "Q11 / 10" would look like a bug.
-export function renderHud(session, plan, boss = false) {
+// Roadmap #96: a timed session always shows its clock.
+export function renderHud(session, boss = false) {
   const regular = session.questions.filter((q) => !q.boss).length;
   let count;
   if (boss) count = '👹 Boss challenge';
@@ -747,7 +744,7 @@ export function renderHud(session, plan, boss = false) {
   el('hud-progress').textContent = count;
   el('hud-score').textContent = `⭐ ${session.score}`;
   renderComboMeter(session.streak);
-  el('hud-timer').hidden = !plan.timerVisible || session.lengthType !== 'minutes';
+  el('hud-timer').hidden = session.lengthType !== 'minutes';
 }
 
 // Roadmap #88: the combo meter. The flame grows a size at each multiplier
@@ -789,9 +786,11 @@ export function triggerStreakAnimation(text) {
   badge.classList.add('streak-pulse');
 }
 
+// Writes the text even while the clock is still hidden: the first call comes
+// just before renderHud reveals it, and skipping it left the clock blank for
+// up to a second at the start of a timed session.
 export function updateTimer(remainingMs) {
   const timerEl = el('hud-timer');
-  if (timerEl.hidden) return;
   const totalSec = Math.max(0, Math.ceil(remainingMs / 1000));
   const m = Math.floor(totalSec / 60);
   const s = totalSec % 60;
@@ -808,6 +807,7 @@ export function renderQuestion(question, boss = null) {
   el('check-btn').hidden = false;
   el('check-btn').disabled = false;
   el('next-btn').hidden = true;
+  el('retry-btn').hidden = true;
 
   el('question-prompt').textContent = question.prompt;
   renderBossBanner(question.isBoss ? boss : null);
@@ -833,8 +833,11 @@ export function renderQuestion(question, boss = null) {
   el('numeric-display').innerHTML = '&nbsp;';
   el('text-input').value = '';
 
-  el('answer-numeric').hidden = question.answerType !== 'numeric';
-  el('answer-text').hidden = question.answerType !== 'text';
+  const keypad = usesKeypad(question);
+  keypadExtra = keypad && question.answerType === 'text';
+  el('answer-numeric').hidden = !keypad;
+  el('keypad-extra').hidden = !keypadExtra;
+  el('answer-text').hidden = question.answerType !== 'text' || keypad;
   el('answer-mcq').hidden = question.answerType !== 'mcq';
 
   if (question.answerType === 'mcq') {
@@ -854,7 +857,7 @@ export function renderQuestion(question, boss = null) {
     });
   }
 
-  if (question.answerType === 'text') {
+  if (question.answerType === 'text' && !keypad) {
     el('text-input').focus();
   }
 }
@@ -1022,6 +1025,7 @@ export function renderBlockedQuestion(topic) {
 export function getCurrentAnswer(answerType) {
   if (answerType === 'numeric') return numericBuffer;
   if (answerType === 'mcq') return mcqSelected || '';
+  if (!el('answer-numeric').hidden) return keypadText();
   return el('text-input').value;
 }
 
@@ -1031,15 +1035,17 @@ function pressNumericKey(k) {
   if (answerLocked) return;
   if (k === 'back') {
     numericBuffer = numericBuffer.slice(0, -1);
-  } else if (k === '.' && numericBuffer.includes('.')) {
-    // ignore extra decimal point
+  } else if ((k === 'r' || k === '/') && !keypadExtra) {
+    // only remainder/fraction questions have these keys
+  } else if ((k === '.' || k === 'r' || k === '/') && numericBuffer.includes(k)) {
+    // ignore a second decimal point, remainder "r" or fraction bar
   } else {
     numericBuffer += k;
   }
-  el('numeric-display').textContent = numericBuffer || ' ';
+  el('numeric-display').textContent = keypadText() || ' ';
 }
 
-export function bindQuestionHandlers({ onCheck, onNext, onExit }) {
+export function bindQuestionHandlers({ onCheck, onNext, onExit, onTryOneLikeIt }) {
   document.querySelectorAll('.key').forEach((key) => {
     key.addEventListener('click', () => pressNumericKey(key.dataset.key));
   });
@@ -1051,6 +1057,7 @@ export function bindQuestionHandlers({ onCheck, onNext, onExit }) {
     if (el('answer-numeric').hidden) return;
     if (e.key >= '0' && e.key <= '9') pressNumericKey(e.key);
     else if (e.key === '.') pressNumericKey('.');
+    else if (keypadExtra && (e.key === 'r' || e.key === 'R' || e.key === '/')) pressNumericKey(e.key.toLowerCase());
     else if (e.key === 'Backspace') pressNumericKey('back');
     else return;
     e.preventDefault();
@@ -1067,15 +1074,28 @@ export function bindQuestionHandlers({ onCheck, onNext, onExit }) {
     // mouse click), the browser's own "Enter activates the focused button"
     // behaviour already fires its click handler — dispatching onCheck/
     // onNext here too would run it a second time (double-scoring, etc).
+    // Enter never picks "Try one like it" (Roadmap #101) — Next stays the
+    // keyboard's forward action.
     const active = document.activeElement;
-    if (active === el('check-btn') || active === el('next-btn') || active === el('hud-exit-btn')) return;
+    if ([el('check-btn'), el('next-btn'), el('retry-btn'), el('hud-exit-btn')].includes(active)) return;
     e.preventDefault();
     if (!el('check-btn').hidden) onCheck();
     else if (!el('next-btn').hidden) onNext();
   });
 
+  // Roadmap #100: any touch while the wrong-answer card is up starts its
+  // fade straight away. Passive, and the overlay itself never takes pointer
+  // events, so the tap still does its normal job (e.g. Next moves on).
+  // Correct answers keep their full celebration.
+  document.addEventListener('pointerdown', () => {
+    const overlay = el('verdict-overlay');
+    if (overlay.hidden || !overlay.classList.contains('incorrect') || overlay.classList.contains('leaving')) return;
+    hideVerdict(false);
+  }, { passive: true });
+
   el('check-btn').addEventListener('click', onCheck);
   el('next-btn').addEventListener('click', onNext);
+  el('retry-btn').addEventListener('click', onTryOneLikeIt);
   el('hud-exit-btn').addEventListener('click', onExit);
   el('question-blocked-home-btn').addEventListener('click', onExit);
 }
@@ -1111,6 +1131,12 @@ export function renderFeedback(correct, explanation, correctAnswer) {
   lockAnswerArea(correct, correctAnswer);
   showVerdict(correct, correctAnswer);
   scrollFeedbackIntoView();
+}
+
+// Roadmap #101: app.js decides whether a follow-up is on offer; this only
+// shows or hides the button (renderQuestion hides it again).
+export function showTryOneLikeIt(show) {
+  el('retry-btn').hidden = !show;
 }
 
 // Turns the answer controls into a record of the answer given: the keypad
@@ -1176,8 +1202,9 @@ function showVerdict(correct, correctAnswer) {
   card.style.animation = '';
 
   if (correct) triggerCorrectBurst();
-  // A wrong answer carries an extra line to read, so it lingers a little.
-  scheduleVerdictDismiss(correct ? 1500 : 2200);
+  // Roadmap #100: a wrong answer's card goes quickly (and on any touch, see
+  // bindQuestionHandlers) so the worked explanation under it can be read.
+  scheduleVerdictDismiss(correct ? 1500 : 1200);
 }
 
 function scheduleVerdictDismiss(afterMs) {
@@ -1275,11 +1302,13 @@ export function renderSummary(entry, newlyEarnedBadges = [], meta = {}, shopStat
     <div class="summary-row"><span class="label">Accuracy</span><span class="value">${accuracyPct}%</span></div>
     <div class="summary-row"><span class="label">Avg. time / question</span><span class="value">${avgSec}s</span></div>
     <div class="summary-row"><span class="label">Topics practiced</span><span class="value">${topics || '—'}</span></div>
-    <div class="summary-row"><span class="label">Points earned</span><span class="value">⭐ ${summary.pointsEarned}</span></div>
+    ${pointsRows(summary, meta, extras.chestReward)}
     <div class="summary-row"><span class="label">Best combo</span><span class="value">🔥 ${summary.bestStreak}</span></div>
     ${bossRow(entry)}
   `;
 
+  renderSummaryNotes(extras.fixedToday || [], extras.shieldUsed ? meta.currentStreakDays : 0);
+  renderTakeaways(entry, extras.mastery);
   renderNewRecords(extras.newRecords || [], extras.personalBests);
   renderChestReward(extras.chestReward);
 
@@ -1303,6 +1332,30 @@ export function renderSummary(entry, newlyEarnedBadges = [], meta = {}, shopStat
   }
 }
 
+// Roadmap #111: how the points add up, so the jump in the top-bar ⭐ is
+// explained. pointsEarned already includes the boss bonus, so it's split
+// back out here rather than shown twice. Each part shows only when it's
+// above 0; with nothing but question points there's no sum to show, so it
+// stays the one "Points earned" row. "You now have" is the spendable
+// balance — the same number as the top bar — not the lifetime total.
+function pointsRows(summary, meta, chestReward) {
+  const row = (label, value, cls = '') => `<div class="summary-row${cls}"><span class="label">${label}</span><span class="value">⭐ ${value}</span></div>`;
+  const bossBonus = summary.bossBonus || 0;
+  const questionPts = summary.pointsEarned - bossBonus;
+  const chestPts = chestReward && chestReward.type === 'points' ? chestReward.points : 0;
+  const balance = row('You now have', availableBalance(meta), ' summary-row-total');
+  if (bossBonus === 0 && chestPts === 0) {
+    return row('Points earned', summary.pointsEarned) + balance;
+  }
+  return [
+    questionPts > 0 ? row('Questions', questionPts, ' summary-row-part') : '',
+    bossBonus > 0 ? row('Boss bonus', bossBonus, ' summary-row-part') : '',
+    chestPts > 0 ? row('Mystery chest', chestPts, ' summary-row-part') : '',
+    row('Added today', questionPts + bossBonus + chestPts, ' summary-row-total'),
+    balance,
+  ].join('');
+}
+
 // Sessions from before the boss existed have no boss row at all; ones from
 // the single boss question days (#92) keep their old wording.
 function bossRow(entry) {
@@ -1314,8 +1367,94 @@ function bossRow(entry) {
   if (bossQs === 1 && summary.bossHits === undefined) {
     return row('Boss question', summary.bossDefeated ? '👾 Defeated!' : 'Survived — next time!');
   }
-  if (summary.bossDefeated) return row('Boss challenge', `💥 Destroyed! +${summary.bossBonus} bonus`);
+  // The bonus itself is in the points breakdown (#111), so it isn't repeated.
+  if (summary.bossDefeated) return row('Boss challenge', '💥 Destroyed!');
   return row('Boss challenge', `👹 ${summary.bossHits} of ${bossQs} hits — next time!`);
+}
+
+// Roadmap #105: how a kind of question is named — "Fractions / %:
+// Percentages", or just the topic when there's no useful subtopic.
+function mistakeKindLabel(fix) {
+  const topic = TOPIC_LABELS[fix.topic] || fix.topic;
+  if (!fix.subtopic) return topic;
+  const sub = fix.subtopic.replace(/-/g, ' ');
+  return `${topic}: ${sub.charAt(0).toUpperCase()}${sub.slice(1)}`;
+}
+
+// "Mon 5 Oct", on the child's own calendar day. Built by hand because
+// browsers disagree on the short format ("Mon, 5 Oct", "Mon 5 Oct.").
+const SHORT_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function shortDay(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return 'an earlier day';
+  return `${SHORT_DAYS[d.getDay()]} ${d.getDate()} ${SHORT_MONTHS[d.getMonth()]}`;
+}
+
+// The one-line notes under the summary card. Nothing to say, no box.
+// shieldStreak is the streak a Streak Shield (#112) just saved, or 0.
+function renderSummaryNotes(fixedToday, shieldStreak = 0) {
+  const lines = [];
+  if (shieldStreak > 0) lines.push(`🛡️ Your shield saved your ${shieldStreak}-day streak!`);
+  if (fixedToday.length > 0) {
+    const n = fixedToday.length;
+    const kinds = [...new Set(fixedToday.map(mistakeKindLabel))].join(', ');
+    lines.push(`✅ You fixed ${n} old mistake${n === 1 ? '' : 's'} today: ${kinds}`);
+  }
+  const target = el('summary-notes');
+  target.hidden = lines.length === 0;
+  target.innerHTML = lines.map((l) => `<p class="summary-note">${escapeHtml(l)}</p>`).join('');
+}
+
+// Roadmap #110, line 1: the best thing about this session, from its own
+// questions only (boss questions included). The first rule that applies:
+// the topic with 2+ right and the best accuracy (ties: more right, then
+// faster on average); else a combo of 3+; else any right answer at all;
+// else a kind word for having a go. Never a telling-off (SPEC §8).
+function bestThingToday(entry) {
+  const byTopic = {};
+  entry.questions.forEach((q) => {
+    const t = byTopic[q.topic] || (byTopic[q.topic] = { topic: q.topic, right: 0, total: 0, timeMs: 0 });
+    t.total += 1;
+    t.timeMs += q.timeMs || 0;
+    if (q.correct) t.right += 1;
+  });
+  const best = Object.values(byTopic)
+    .filter((t) => t.right >= 2)
+    .sort((a, b) => (b.right / b.total - a.right / a.total)
+      || (b.right - a.right)
+      || (a.timeMs / a.total - b.timeMs / b.total))[0];
+  if (best) {
+    return `You got ${best.right} out of ${best.total} right in ${TOPIC_LABELS[best.topic] || best.topic}!`;
+  }
+  const { bestStreak, correctCount } = entry.summary;
+  if (bestStreak >= 3) return `You got ${bestStreak} right in a row!`;
+  if (correctCount > 0) {
+    return `You got ${correctCount} question${correctCount === 1 ? '' : 's'} right. Every one counts!`;
+  }
+  return 'You had a go at every question. That\u2019s how you get better.';
+}
+
+// Roadmap #110, line 2: the overall weakest topic — the same one the Home
+// focus card and Next session widget name, from mastery already updated
+// with this session — so all of them agree. No percentages here.
+function practiseNextTime(mastery) {
+  const summary = mastery ? computeStrengthSummary(mastery) : null;
+  if (!summary) return 'A mix of topics. You\u2019re building up your skills.';
+  const topic = summary.weakest[0];
+  return `${TOPIC_LABELS[topic] || topic}. A few more goes will make it click.`;
+}
+
+function renderTakeaways(entry, mastery) {
+  el('summary-takeaways').innerHTML = `
+    <div class="takeaway">
+      <p class="takeaway-title">🌟 Best thing today</p>
+      <p class="takeaway-body">${escapeHtml(bestThingToday(entry))}</p>
+    </div>
+    <div class="takeaway">
+      <p class="takeaway-title">🎯 One thing to practise next time</p>
+      <p class="takeaway-body">${escapeHtml(practiseNextTime(mastery))}</p>
+    </div>`;
 }
 
 // Roadmap #89: the NEW RECORD banner, one line per record beaten.
@@ -1404,8 +1543,29 @@ function renderStrengthOverview(mastery, topics) {
   el('strength-overview').innerHTML = rows;
 }
 
-export function renderProgress(mastery, meta, sessions, badgeDefinitions = [], earnedBadgeIds = []) {
+const MAX_FIXED_ROWS = 10;
+
+// Roadmap #105: the "Mistakes I fixed" card, newest fix first.
+function renderFixedMistakes(fixes) {
+  const target = el('fixed-mistakes');
+  if (fixes.length === 0) {
+    target.innerHTML = '<p class="empty-state">Get one wrong, then right in a later session, and it\u2019ll show up here.</p>';
+    return;
+  }
+  const rows = fixes.slice(0, MAX_FIXED_ROWS).map((f) => `
+    <div class="fixed-row">
+      <span class="fixed-kind">✅ ${escapeHtml(mistakeKindLabel(f))}</span>
+      <span class="fixed-dates">Tricky on ${shortDay(f.wrongDate)}, nailed it ${shortDay(f.fixedDate)}</span>
+    </div>`).join('');
+  const more = fixes.length > MAX_FIXED_ROWS
+    ? `<p class="fixed-more">and ${fixes.length - MAX_FIXED_ROWS} more</p>`
+    : '';
+  target.innerHTML = rows + more;
+}
+
+export function renderProgress(mastery, meta, sessions, badgeDefinitions = [], earnedBadgeIds = [], fixedMistakes = []) {
   renderStrengthOverview(mastery, Object.keys(mastery));
+  renderFixedMistakes(fixedMistakes);
 
   const barsEl = el('mastery-bars');
   barsEl.innerHTML = '';
@@ -1459,11 +1619,33 @@ export function renderProgress(mastery, meta, sessions, badgeDefinitions = [], e
 
 // ---------- Shop screen ----------
 
+// Roadmap #112: the Power-ups section — just the Streak Shield. Held
+// shields are a count on meta, so the card shows that instead of Equip.
+function renderPowerUps(meta) {
+  const held = meta.streakShields || 0;
+  const full = held >= MAX_STREAK_SHIELDS;
+  const canAfford = availableBalance(meta) >= STREAK_SHIELD.cost;
+  return `
+    <div class="shop-category">
+      <h3 class="shop-category-title">Power-ups</h3>
+      <div class="powerup-card">
+        <div class="powerup-icon">${STREAK_SHIELD.emoji}</div>
+        <div class="powerup-body">
+          <div class="powerup-name">${STREAK_SHIELD.label} <span class="powerup-price">⭐ ${STREAK_SHIELD.cost}</span></div>
+          <div class="powerup-desc">${STREAK_SHIELD.description}</div>
+          ${held > 0 ? `<div class="powerup-held">You have ${held} shield${held === 1 ? '' : 's'}</div>` : ''}
+        </div>
+        <button class="powerup-buy-btn" data-powerup="streak-shield" ${full || !canAfford ? 'disabled' : ''}>Buy ⭐${STREAK_SHIELD.cost}</button>
+      </div>
+    </div>
+  `;
+}
+
 export function renderShop(shopState, meta) {
   el('shop-balance').textContent = `⭐ ${availableBalance(meta)} available to spend`;
 
   const container = el('shop-categories');
-  container.innerHTML = SHOP_CATEGORIES.map(({ key, label }) => {
+  container.innerHTML = renderPowerUps(meta) + SHOP_CATEGORIES.map(({ key, label }) => {
     const items = itemsByCategory(key).map((item) => {
       const owned = isOwned(item.id, shopState.ownedItemIds);
       const equipped = shopState.equipped[key] === item.id;
@@ -1504,8 +1686,13 @@ export function renderShop(shopState, meta) {
   }).join('');
 }
 
-export function bindShopHandlers({ onPurchaseOrEquip }) {
+export function bindShopHandlers({ onPurchaseOrEquip, onBuyStreakShield }) {
   el('shop-categories').addEventListener('click', (e) => {
+    const powerUp = e.target.closest('.powerup-buy-btn');
+    if (powerUp) {
+      if (!powerUp.disabled) onBuyStreakShield();
+      return;
+    }
     const btn = e.target.closest('.shop-item-action');
     if (!btn || btn.disabled) return;
     onPurchaseOrEquip(btn.dataset.itemId);

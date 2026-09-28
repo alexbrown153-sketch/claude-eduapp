@@ -88,6 +88,18 @@ export const SHOP_CATEGORIES = [
   { key: 'frame', label: 'Avatar frame' },
 ];
 
+// Roadmap #112: the Streak Shield, the shop's one power-up. It's used up
+// rather than owned, so it's deliberately NOT in SHOP_ITEMS (isOwned would
+// make it permanent): it's a counter on meta, `streakShields`, and at most
+// one can be held at a time. finishSession spends it automatically.
+export const STREAK_SHIELD = {
+  label: 'Streak Shield',
+  emoji: '🛡️',
+  cost: 150,
+  description: 'Saves your streak if you miss one day',
+};
+export const MAX_STREAK_SHIELDS = 1;
+
 export function itemsByCategory(category) {
   return SHOP_ITEMS.filter((i) => i.category === category);
 }

@@ -1,7 +1,8 @@
-// Extracts text from an uploaded PDF (via pdf.js, loaded from a CDN in
-// index.html — an explicit, deliberate exception to this project's usual
-// offline-only rule, made because a real PDF parser can't be hand-rolled)
-// and parses simple "Q: ... A: ..." style question blocks out of it. PDF
+// Extracts text from an uploaded PDF (via pdf.js, loaded from a CDN — an
+// explicit, deliberate exception to this project's usual offline-only rule,
+// made because a real PDF parser can't be hand-rolled; since Roadmap #114 the
+// CDN is only contacted from the Import screen, see loadPdfJs below) and
+// parses simple "Q: ... A: ..." style question blocks out of it. PDF
 // layouts vary enormously, so this is a best-effort parser: it works well
 // for a consistently-formatted study sheet, poorly for scanned or free-form
 // documents — anything it can't confidently parse is reported, not guessed.
@@ -233,6 +234,40 @@ function parseQuestionBlocks(text, validTopics) {
   });
 
   return { valid, errors };
+}
+
+// Roadmap #114: pdf.js is fetched only when the Import screen needs it, so
+// everyday (offline) use never makes a request to the CDN or waits on it.
+// Same pinned version as before. One load at a time is shared; a failed load
+// is forgotten so the next attempt tries again (e.g. once back online).
+const PDFJS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+const PDFJS_WORKER_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+let pdfJsLoading = null;
+
+export function loadPdfJs() {
+  if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+  if (pdfJsLoading) return pdfJsLoading;
+  pdfJsLoading = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = PDFJS_URL;
+    script.onload = () => {
+      if (!window.pdfjsLib) {
+        reject(new Error('pdf.js loaded without defining pdfjsLib'));
+        return;
+      }
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL;
+      resolve(window.pdfjsLib);
+    };
+    script.onerror = () => {
+      script.remove();
+      reject(new Error('pdf.js failed to load'));
+    };
+    document.head.appendChild(script);
+  }).catch((e) => {
+    pdfJsLoading = null;
+    throw e;
+  });
+  return pdfJsLoading;
 }
 
 export async function parsePdfQuestions(arrayBuffer, validTopics) {

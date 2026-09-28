@@ -1,8 +1,7 @@
-// Countdown & pacing plan (SPEC.md §6a). Pure functions of "today" + stored
-// state — no fixed day-by-day table — so a skipped day just shifts
-// daysRemaining and the plan re-adjusts gracefully on the next visit.
-
-const EXAM_DATE = new Date('2026-10-02T00:00:00');
+// Daily focus (SPEC.md §6a). There's no exam date or countdown any more
+// (Roadmap #96): the plan depends only on saved progress, plus how long since
+// each topic was last practised, so it's the same whatever the device clock
+// says apart from that staleness.
 
 function daysBetween(a, b) {
   const msPerDay = 24 * 60 * 60 * 1000;
@@ -40,64 +39,30 @@ function weakAndStaleWeights(topics, mastery, today) {
   return normalize(raw);
 }
 
-// Favor topics already at high mastery, for calm pre-exam review.
-function strongTopicWeights(topics, mastery) {
-  const raw = {};
-  topics.forEach((t) => {
-    raw[t] = 0.2 + mastery[t].masteryScore;
-  });
-  return normalize(raw);
-}
-
+// Two phases: a one-off diagnostic until the first one is finished, then
+// daily practice for good. 'bulk' is the old internal id for daily practice,
+// kept so the `mode` stored on sessions doesn't change. Old sessions logged
+// as 'late-stage' or 'final-review' stay in history untouched; nothing reads
+// them except the diagnostic check.
 export function computeTodaysPlan(today, meta, mastery, topics) {
-  const daysRemaining = daysBetween(today, EXAM_DATE);
-
-  if (daysRemaining <= 1) {
-    return {
-      phase: 'final-review',
-      daysRemaining,
-      sessionLengthSuggestion: { type: 'questions', value: 10 },
-      topicWeighting: strongTopicWeights(topics, mastery),
-      timerVisible: false,
-      framingTone: "You're ready — let's keep today light and calm.",
-    };
-  }
-
   if (!meta.diagnosticCompletedAt) {
     return {
       phase: 'diagnostic',
-      daysRemaining,
       sessionLengthSuggestion: { type: 'questions', value: 12 },
       topicWeighting: equalWeights(topics),
-      timerVisible: false,
       framingTone: "Let's find out where you're strongest to start with.",
-    };
-  }
-
-  if (daysRemaining <= 3) {
-    return {
-      phase: 'late-stage',
-      daysRemaining,
-      sessionLengthSuggestion: { type: 'minutes', value: 5 },
-      topicWeighting: equalWeights(topics),
-      timerVisible: true,
-      framingTone: 'Nearly there — a longer, exam-style practice today.',
     };
   }
 
   return {
     phase: 'bulk',
-    daysRemaining,
     sessionLengthSuggestion: { type: 'questions', value: 15 },
     topicWeighting: weakAndStaleWeights(topics, mastery, today),
-    timerVisible: false,
-    framingTone: "Great work practicing — let's target your weaker spots today.",
+    framingTone: "Great work practising — let's target your weaker spots today.",
   };
 }
 
 export const PHASE_LABELS = {
   diagnostic: 'Diagnostic',
   bulk: 'Daily practice',
-  'late-stage': 'Exam-condition practice',
-  'final-review': 'Final review',
 };

@@ -303,16 +303,18 @@ button {
   color: var(--ink-soft);
 }
 
-/* Sidebar (joke of the day, etc.) stacks above the main content on
-   narrow screens; on wide screens it becomes a real left column using
-   the space that would otherwise sit empty beside a centered layout. */
+/* Roadmap #99: on narrow screens (iPad portrait, phones) the columns stack
+   with what to do first — focus card, session length and topics — then the
+   streak/next-session/personal-bests widgets, then the clock, weather, joke
+   and word of the day. On wide screens they become three real columns (see
+   the 900px rule near the end). */
 .start-layout {
   display: flex;
   flex-direction: column;
 }
-.start-sidebar { order: 1; margin-top: 0; }
-.start-main { order: 2; min-width: 0; margin-top: 28px; }
-.start-side-right { order: 3; margin-top: 28px; }
+.start-main { order: 1; min-width: 0; margin-top: 0; }
+.start-side-right { order: 2; margin-top: 28px; }
+.start-sidebar { order: 3; margin-top: 28px; }
 
 .focus-card {
   background: linear-gradient(135deg, var(--primary), var(--primary-dark));
@@ -322,21 +324,6 @@ button {
 }
 .focus-phase { font-size: 1.1rem; font-weight: 700; margin: 0 0 6px; }
 .focus-tone { margin: 0; opacity: 0.92; font-size: 0.95rem; }
-/* Roadmap #90: the last-week mission title reads like a codename. */
-.focus-card.mission .focus-phase {
-  font-size: 1.2rem;
-  letter-spacing: 0.01em;
-}
-.focus-card.mission .focus-phase::before { content: '\1F575\FE0F  '; }
-.focus-countdown {
-  display: inline-block;
-  margin: 10px 0 0;
-  font-size: 0.85rem;
-  font-weight: 700;
-  background: rgba(255, 255, 255, 0.2);
-  padding: 4px 12px;
-  border-radius: 999px;
-}
 .focus-card .strength-summary {
   color: rgba(255, 255, 255, 0.92);
 }
@@ -597,6 +584,11 @@ button {
 }
 .key:active { background: var(--chip-bg); }
 .key-back { font-size: 1.4rem; }
+/* Roadmap #98: the r and / row under the 12-key pad — two wide keys. */
+.keypad-extra {
+  grid-template-columns: repeat(2, 1fr);
+  margin-top: 8px;
+}
 
 /* After Check, the answer controls stop being controls and become a record
    of what was entered. Collapsing the 12-key pad (roughly 250px of a tablet
@@ -659,6 +651,7 @@ button {
 /* Check-answer/Next-question share one fixed slot (see index.html) so the
    button never moves between answering and advancing. */
 .action-slot { position: relative; }
+.retry-btn { min-height: 56px; }
 
 .feedback-inline {
   margin-top: 18px;
@@ -845,6 +838,20 @@ button {
   .verdict-streak { font-size: 1.1rem; }
 }
 
+/* Roadmap #100: the wrong-answer card is compact — about half the icon and
+   headline — so it covers less of the worked explanation underneath. It
+   still carries the answer, since on a long question the explanation panel
+   can be below the fold when the card appears. Declared after the tablet
+   sizes above so it wins at every width. */
+.verdict-overlay.incorrect .verdict-card {
+  min-width: 0;
+  padding: 12px 22px;
+  border-radius: 18px;
+}
+.verdict-overlay.incorrect .verdict-icon { font-size: 1.9rem; }
+.verdict-overlay.incorrect .verdict-headline { margin-top: 4px; font-size: 1.05rem; }
+.verdict-overlay.incorrect .verdict-detail { margin-top: 4px; font-size: 1rem; }
+
 /* Motion is decoration here; the colour, the icon and the words carry the
    verdict on their own, so drop the movement but keep the card. */
 @media (prefers-reduced-motion: reduce) {
@@ -880,6 +887,9 @@ button {
   font-size: 1.02rem;
 }
 .summary-row:last-child { border-bottom: none; }
+/* Roadmap #111: the parts of the points breakdown sit indented under it. */
+.summary-row-part .label { padding-left: 14px; }
+.summary-row-total .label { color: var(--ink); font-weight: 700; }
 .summary-row .label { color: var(--ink-soft); }
 .summary-row .value { font-weight: 700; }
 
@@ -918,6 +928,7 @@ button {
   line-height: 1.35;
 }
 .streak-widget-chest-done { color: var(--ink-soft); font-weight: 600; }
+.streak-widget-shield { font-size: 0.82rem; font-weight: 700; color: var(--good); margin-top: 6px; }
 
 /* ---------- Personal bests widget (Roadmap #89) ---------- */
 .pb-row {
@@ -1246,6 +1257,60 @@ button {
 }
 
 .session-history { display: flex; flex-direction: column; gap: 8px; }
+/* ---------- Mistakes I fixed (Roadmap #105) ---------- */
+.fixed-mistakes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.fixed-row {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 6px solid var(--good);
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+.fixed-kind { display: block; font-weight: 700; color: var(--ink); }
+.fixed-dates { display: block; color: var(--ink-soft); }
+.fixed-more { margin: 2px 0 0; font-size: 0.95rem; color: var(--ink-soft); }
+
+/* One-line notes under the summary card: fixed mistakes (#105) and the
+   streak shield (#112). */
+.summary-notes {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.summary-note {
+  margin: 0;
+  background: var(--good-bg);
+  color: var(--ink);
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+/* ---------- Best thing today / practise next time (Roadmap #110) ---------- */
+.summary-takeaways {
+  margin-top: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+}
+.takeaway + .takeaway {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.takeaway-title { margin: 0 0 4px; font-size: 1rem; font-weight: 800; color: var(--ink); }
+.takeaway-body { margin: 0; font-size: 1rem; line-height: 1.45; color: var(--ink-soft); }
+
 .session-history-row {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -1794,6 +1859,35 @@ button {
   color: #fff;
 }
 .shop-item-action:disabled { background: var(--disabled-bg); }
+
+/* ---------- Power-ups: the Streak Shield (Roadmap #112) ---------- */
+.powerup-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.powerup-icon { font-size: 2.2rem; line-height: 1; }
+.powerup-body { flex: 1; min-width: 0; }
+.powerup-name { font-weight: 800; font-size: 1rem; color: var(--ink); }
+.powerup-price { font-weight: 700; color: var(--accent-ink); margin-left: 4px; }
+.powerup-desc { font-size: 0.9rem; color: var(--ink-soft); margin-top: 2px; }
+.powerup-held { font-size: 0.9rem; font-weight: 700; color: var(--good); margin-top: 4px; }
+.powerup-buy-btn {
+  min-height: 48px;
+  min-width: 110px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  background: var(--primary);
+  color: #fff;
+}
+.powerup-buy-btn:disabled { background: var(--disabled-bg); }
 .shop-item-action.owned { background: var(--chip-bg); color: var(--accent-ink); }
 
 .footer-link-row {
@@ -1896,6 +1990,11 @@ body[data-font="font-mono"] {
     align-items: start;
     gap: 36px;
   }
+  /* Back to document order: grid auto-placement follows `order`, and the
+     narrow-screen order above would push the left column onto a new row. */
+  .start-sidebar,
+  .start-main,
+  .start-side-right { order: 0; }
   .start-sidebar {
     grid-column: 1;
     margin-top: 0;

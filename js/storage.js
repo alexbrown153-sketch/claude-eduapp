@@ -35,6 +35,7 @@ function defaultMeta() {
     weatherCity: '',
     colourMode: 'light', // 'light' | 'dark' | 'auto' (follow the device) — Roadmap #87
     lastChestDate: null, // local YYYY-MM-DD the daily mystery chest was last opened — Roadmap #91
+    streakShields: 0, // 0 or 1 Streak Shields held, bought in the Shop — Roadmap #112
   };
 }
 

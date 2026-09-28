@@ -14,9 +14,38 @@
 // roadmap file. The Suggestions screen numbers new suggestions from here, so
 // they slot straight onto the end of that file (see suggestions in ui.js).
 // Bump it whenever items are appended to the roadmap file.
-export const ROADMAP_LAST_ITEM_NUMBER = 95;
+export const ROADMAP_LAST_ITEM_NUMBER = 114;
 
 export const CHANGELOG = [
+  {
+    at: '2026-09-28T13:55+01:00',
+    label: 'Roadmap 96\u2013114',
+    changes: [
+      'The big blue box on Home now always shows today\u2019s focus, which is the topic you most need to practise, like \u201cToday\u2019s focus: Algebra\u201d. The day counter and the missions have gone, because the exam is over and Sprint is now for everyday practice. The app is now just called Sprint.',
+      'Timed sprints now show their clock at the top of every question, so you can see how much time is left.',
+      'On an iPad held upright, the big blue box and the topic buttons are now at the top of Home. Your streak comes next, and the clock, weather, joke and word of the day are further down.',
+      'Remainder and fraction questions now have an r key and a / key on the number pad, so the iPad keyboard doesn\u2019t pop up and cover the question.',
+      'The \u201cNot quite\u201d pop-up is smaller and goes away faster, and you can tap anywhere to make it go straight away, so you can read how to do the question.',
+      'Got one wrong? Tap \u201cTry one like it\u201d to have another go at the same kind of question with new numbers. It counts as one of your questions and can win you points.',
+      'The Progress page has a new \u201cMistakes I fixed\u201d list. It shows the kinds of question you used to get wrong and now get right. The end of a session tells you when you\u2019ve fixed one.',
+      'The end of every session now tells you the best thing you did, and one thing to practise next time.',
+      'The end of a session now shows how your points add up: points from questions, the boss bonus and the mystery chest, and how many stars you now have to spend.',
+      'New in the Shop: a Streak Shield for 150 points. If you miss one day, it saves your streak by itself. You can hold one at a time, and Home shows \u201cShield ready\u201d while you have it.',
+      'The app starts faster and works better without the internet, because the PDF reader is now only loaded on the Import screen.',
+    ],
+  },
+  {
+    at: '2026-09-28T13:50+01:00',
+    label: 'Fix',
+    changes: [
+      'Fraction questions whose answer is a whole number now take the whole number. For 3/4 + 1/4 you type 1, and the answer shows as 1 instead of \u201c1/1\u201d.',
+      'Fraction explanations no longer say the same answer twice, like \u201c3/10 = 3/10\u201d.',
+      'Fixed the answers for 1/8 and 3/8 as a percentage. They are 12.5% and 37.5%, not 13% and 38%.',
+      'When a fraction answer is top-heavy, like 17/12, the question now says \u201cas an improper fraction\u201d, so you know not to write it as a mixed number.',
+      'Sharing questions never use a ratio like 3:3 any more, because then there is no smaller or larger share.',
+      'Two-discount price questions always come out in whole pennies now, so there is no rounding to guess.',
+    ],
+  },
   {
     at: '2026-09-25T17:06+01:00',
     label: 'Roadmap 94\u201395',
