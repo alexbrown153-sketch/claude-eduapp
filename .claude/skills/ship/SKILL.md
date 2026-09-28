@@ -1,10 +1,9 @@
 ---
 name: ship
-description: Take a change to Sprint from idea to tested commit by running the product-manager, software-engineer and child-user subagents in order. Use when Alex types /ship followed by roadmap item numbers, a bug report or an idea, or asks to "spec, build and test" a change.
-argument-hint: "<roadmap numbers | bug | idea>  [--no-pause]"
+description: Generate roadmap ideas and then take suggested changes to Sprint from idea to tested commit by running the product-manager, software-engineer and child-user subagents. Use when Alex types /ship. There are no parameters. Simply parse the Roadmap ideas and debug.md backlog and ship any new items that have not yet been processed. The subagents can't call each other, so you pass each agent's output to the next one. You don't write app code yourself, but you do check the diff and commit it if Alex asked.
 ---
 
-# /ship: spec → build → child-test → commit
+# /ship: idea → spec → build → child-test → commit
 
 You are the coordinator. The three subagents can't call each other, so you pass each
 agent's output to the next one. Each agent starts with no memory of this conversation,
@@ -14,7 +13,11 @@ software-engineer's job.
 
 Arguments: `$ARGUMENTS`
 
-## 0. Work out what's being shipped
+## 0. generate new roadmap ideas
+Launch the child-user agent with the prompt "Generate new roadmap ideas for Sprint, the 11+ maths practice app. List them in plain words, one per line, and don't number them." If it returns any ideas, append them to `Roadmap ideas and debug.md` file, and tell Alex what you added. If it returns nothing, skip this step.
+Launch the product-manager agent with the prompt "Generate new roadmap ideas for Sprint, the 11+ maths practice app. List them in plain words, one per line, and don't number them." If it returns any ideas, append them to `Roadmap ideas and debug.md` file in the scratchpad, and tell Alex what you added. If it returns nothing, skip this step.
+
+## 1. Work out what's being shipped
 
 - **Numbers** such as `96` or `96-98` are items in `Roadmap ideas and debug.md`. Read
   them. Anything higher than `ROADMAP_LAST_ITEM_NUMBER` in `js/changelog.js` has not been
@@ -23,14 +26,10 @@ Arguments: `$ARGUMENTS`
 - **No arguments:** run `bash scripts/roadmap-status.sh`. If there are new items, ship
   them. If not, ask Alex what to ship and stop.
 
-Check the exam date in `SPEC.md`. If the exam is still ahead, count the days left and
-pass that number to every agent. In the final week, also tell every agent that only
-small, low-risk changes are in scope.
+## 2. Spec with the product-manager
 
-## 1. Spec with the product-manager
-
-Launch the `product-manager` agent. Give it the item text and the days left (if any), and ask
-for one spec per item, in the format its instructions set out, plus its S/M/L effort and
+Launch the `product-manager` agent. Give it the item text and ask
+for one spec per item in the roadmap, in the format its instructions set out, plus its S/M/L effort and
 risk rating.
 
 If there are several items, run one product-manager agent for each, all at the same
@@ -42,7 +41,7 @@ the product-manager put under "Won't do". Wait for Alex's approval or answers. S
 pause only when `--no-pause` was given **and** there are no open questions. Maths
 questions always need Alex's answer.
 
-## 2. Build with the software-engineer
+## 3. Build with the software-engineer
 
 Launch one `software-engineer` agent for all the approved specs. It works one change at
 a time, so don't run several in parallel on the same checkout. Include:
@@ -59,13 +58,13 @@ When it reports back, run `bash scripts/verify.sh` yourself. If it fails, send t
 back to the same agent with SendMessage and ask it to fix the problem. Don't move on
 until the script passes.
 
-## 3. Test with the child-user
+## 4. Test with the child-user
 
 Launch the `child-user` agent. Tell it exactly which screens changed and how to reach
 them, and which topics or saved-progress setup it needs. Also ask it to play one normal
 session from start to finish, so it catches anything that broke elsewhere.
 
-## 4. Fix loop, at most two rounds
+## 5. Fix loop, at most two rounds
 
 Sort the child-user's findings into two groups:
 
@@ -80,7 +79,7 @@ Run `verify.sh` again, then ask the child-user to recheck only those findings. S
 two rounds. If must-fix findings remain after that, **don't commit**. Report them to Alex
 and stop.
 
-## 5. Commit and report
+## 6. Commit and report
 
 - Look over the full diff yourself. It should change only what the specs cover, and
   `Roadmap ideas and debug.md` must not be modified.
@@ -96,5 +95,4 @@ and stop.
 
 - Correctness of the maths comes before everything else. Any finding tagged Maths blocks
   the commit until it's fixed or Alex accepts it.
-- Only the relay Worker writes to `Roadmap ideas and debug.md`. No agent edits it.
 - Don't change the agents' instructions to get past a problem. Tell Alex instead.
