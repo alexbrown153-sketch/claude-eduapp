@@ -62,6 +62,7 @@ as **Now**, **After the exam**, and **Won't do (and why)**.
   adds a backend, accounts, analytics, or a build pipeline.
 - Don't write or edit application code (`index.html`, `styles.css`, `js/`, `worker/`,
   `scripts/`). Only edit the planning markdown files, and only when you're asked to.
-- When adding to `Roadmap ideas and debug.md`, continue its existing numbering and terse
-  style. Put ideas that aren't ready for the backlog in `Engagement ideas.md`.
+- Never edit `Roadmap ideas and debug.md`. Only the relay Worker writes to it, and
+  `scripts/verify.sh` fails if it changes. Propose new backlog items in your reply for
+  Alex to add, and put ideas that aren't ready yet in `Engagement ideas.md`.
 - Be concise and decisive. Make a recommendation instead of listing every option.
