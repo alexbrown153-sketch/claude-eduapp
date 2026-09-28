@@ -1,6 +1,6 @@
 ---
 name: ship
-description: Generate roadmap ideas and then take suggested changes to Sprint from idea to tested commit by running the product-manager, software-engineer and child-user subagents. Use when Alex types /ship. There are no parameters. Simply parse the Roadmap ideas and debug.md backlog and ship any new items that have not yet been processed. The subagents can't call each other, so you pass each agent's output to the next one. You don't write app code yourself, but you do check the diff and commit it if Alex asked.
+description: Generate roadmap ideas and then take suggested changes to Sprint from idea to tested commit by running the product-manager, software-engineer and child-user subagents. Use when Alex types /ship. There are no parameters. Simply generate new ideas and then parse the Roadmap ideas and debug.md backlog and ship any new items that have not yet been processed. The subagents can't call each other, so you pass each agent's output to the next one. You don't write app code yourself, but you do check the diff and commit it if Alex asked.
 ---
 
 # /ship: idea → spec → build → child-test → commit
@@ -15,7 +15,7 @@ Arguments: `$ARGUMENTS`
 
 ## 0. generate new roadmap ideas
 Launch the child-user agent with the prompt "Generate new roadmap ideas for Sprint, the 11+ maths practice app. List them in plain words, one per line, and don't number them." If it returns any ideas, append them to `Roadmap ideas and debug.md` file, and tell Alex what you added. If it returns nothing, skip this step.
-Launch the product-manager agent with the prompt "Generate new roadmap ideas for Sprint, the 11+ maths practice app. List them in plain words, one per line, and don't number them." If it returns any ideas, append them to `Roadmap ideas and debug.md` file in the scratchpad, and tell Alex what you added. If it returns nothing, skip this step.
+Launch the product-manager agent with the prompt "Generate new roadmap ideas for Sprint, the 11+ maths practice app. List them in plain words, one per line, and don't number them." If it returns any ideas, append them to `Roadmap ideas and debug.md` file, and tell Alex what you added. If it returns nothing, skip this step.
 
 ## 1. Work out what's being shipped
 
