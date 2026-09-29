@@ -130,3 +130,41 @@ Future roadmap ideas
 112. Add a one-use streak shield to the shop, so one missed day doesn't wipe out the practice streak
 113. Dropped: the "Operation …" mission names only appeared in the old countdown, which item 96 removes, so there is nothing left to rename.
 114. Load the pdf.js CDN script only when Import is opened, so everyday offline use doesn't make a failed network request, log a console error or start slowly
+115. Hide the quadrant names on the grid picture when the question asks which quadrant a point is in, because the picture gives the answer away
+116. Keep the question counter on the question I'm answering until I tap "Next question", instead of jumping to the next number as soon as I check
+117. Keep the "Not quite" pop-up from covering the answer buttons, so I can see which one I tapped and which one was right
+118. Rename the "Diagnostic" card on Home to something friendly like "Warm-up quiz: let's see what you know"
+119. Rename "Mastery by topic" on Progress to something like "How I'm doing in each topic"
+120. Don't call any topic my "Strongest" after a first quiz where I got nearly everything wrong; say "We'll find out as you practise" instead
+121. Draw a picture for L-shape and rectangle area questions, like the coordinates questions already have
+122. Add a bar-model picture to the ratio explanations, showing the parts as boxes with the sweets shared between them
+123. Show a tiny example under "simplest form, as an improper fraction" questions, such as "like 7/5", so I know what shape of answer to type
+124. Let explanations for multi-step questions show one step at a time with a "Show next step" button, instead of one long line
+125. Stop generating fraction questions that multiply by a whole one, like 4/5 × 5/5
+126. Use "he" or "she" to match the name in word problems ("Tom buys... how much change does he get?") instead of "they"
+127. Show a "Questions I got wrong today" list at the end of the session, with the right answer and a "Try these again" button
+128. Add a "Fix my mistakes" session on Home that gives new versions of the questions I got wrong this week
+129. Add topic badges at bronze, silver and gold for reaching 50%, 70% and 90% in each topic, so each topic has something to collect
+130. Add a daily goal ring on Home, such as "20 questions today", that fills up as I answer and sparkles when it's full
+131. Add a "This week vs last week" card on Progress with simple arrows showing which topics went up
+132. In landscape, put the question on the left and a smaller keypad on the right, instead of stretching the keypad across the whole screen
+133. Show a one-time tip the first time a remainder question appears, pointing at the "r" key with "type 9 r 1 like this"
+134. Add a trophy cabinet screen with earned badges lit up and locked ones shown as silhouettes with a one-line hint
+135. Add hidden skill badges that show as "???" until earned, such as Perfect Ten, Hot Hand (10 in a row), Speed Demon and Comeback Kid
+136. Add three weekly quests (for example "20 ratio questions", "one perfect session", "practise on 4 days") with a points reward and a badge for finishing all three
+137. Add an adventure map where each finished session moves the avatar one step along a path, with a new area for each topic
+138. Add a Settings option for Alex to set a real-life reward goal (for example "2,000 points = cinema trip") shown as a progress bar on Home
+139. Add a Settings option for Alex to leave a short encouraging note that shows once on Home the next time the child opens the app
+140. Add a streak calendar on the Progress screen that shows each practised day as a tick, so the child can see the habit building
+141. Add a monthly recap card on the first visit of each month: questions answered, most improved topic, best record set
+142. Add optional sound effects (off by default, made in the browser so no audio files are needed): a ding for right answers, a coin sound for points, a fanfare for badges
+143. Add a 60-second Blitz arcade round of arithmetic questions with a top-5 table of his best runs and a "one more go" button
+144. Add a Countdown-style numbers game: reach a target number using six given numbers, with a "show me a way" reveal that the app works out and checks for itself
+145. Add an estimation game where he drags a slider to guess the answer and scores by how close he gets
+146. Add "Spot the mistake" questions that show a worked answer with one wrong step for him to tap
+147. Add a Beat the Grown-Up guest round: Alex answers the same 10 questions, the higher score wins, and his mastery and streak aren't affected
+148. Add a Year 7 topic pack (negative numbers, powers and roots, primes and factor trees, simple probability, equations with brackets), now that the exam has passed
+149. Add a short check-up session every few weeks that retests every topic lightly, so old mastery scores don't drift out of date
+150. Add a "Back up my progress" button that saves all progress to a file, and a matching "Restore from file" in Settings
+151. Show a gentle reminder on Home to back up progress if the last backup was more than 30 days ago
+152. Change the top-bar title and browser tab from "Tiffin 11+ Maths Prep" and "Tiffin Prep" to wording that fits ongoing practice now the exam has passed
