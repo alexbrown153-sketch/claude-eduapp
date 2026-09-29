@@ -2,9 +2,9 @@
 // pacing, session engine, and question bank together with the ui.js
 // rendering layer.
 
-import { Storage, TOPICS, backupProblem } from './storage.js';
+import { Storage, TOPICS, YEAR7_TOPICS, ALL_TOPICS, activeTopics, backupProblem } from './storage.js';
 import { computeTodaysPlan } from './pacing.js';
-import { startSession, pickNextQuestion, recordAnswer, classifyAnswer, isSessionComplete, finishSession, settleBossGate, bossProgress, hasReachedLength, settleDayClock, buildRetryQueue, buildCheckupQueue } from './session.js';
+import { startSession, pickNextQuestion, recordAnswer, classifyAnswer, checkAnswer, isSessionComplete, finishSession, settleBossGate, bossProgress, hasReachedLength, settleDayClock, buildRetryQueue, buildCheckupQueue } from './session.js';
 import { getSimilarQuestion, rightFormHint } from './questionBank.js';
 import { getBadgeDefinitions, evaluateBadges, highestTiersOnly } from './badges.js';
 import {
@@ -24,8 +24,18 @@ import { getItem, isOwned, availableBalance, STREAK_SHIELD, MAX_STREAK_SHIELDS }
 import { ROADMAP_LAST_ITEM_NUMBER } from './changelog.js';
 import { isSyncConfigured, pushSuggestion } from './roadmapSync.js';
 import * as ui from './ui.js';
+import * as games from './gameScreens.js';
+import { pickGuestQuestions, guestOutcome } from './games.js';
+import { WORKER_NAMES } from './spotMistake.js';
 
-const BADGE_DEFINITIONS = getBadgeDefinitions(TOPICS, ui.TOPIC_LABELS);
+// Every topic's badges, Year 7 included (#148), so a Year 7 badge can be
+// earned and is never lost. visibleBadges() hides the locked Year 7 ones
+// while the switch is off.
+const BADGE_DEFINITIONS = getBadgeDefinitions(ALL_TOPICS, ui.TOPIC_LABELS);
+function visibleBadges(meta, earnedIds) {
+  if (meta.year7PackEnabled) return BADGE_DEFINITIONS;
+  return BADGE_DEFINITIONS.filter((b) => !YEAR7_TOPICS.includes(b.topic) || earnedIds.includes(b.id));
+}
 
 const state = {
   meta: null,
@@ -57,6 +67,10 @@ const state = {
   cabinetReturn: 'progress',
   mapReturn: 'start',
   mapFromSteps: null,
+  // Roadmap #147: the Beat the Grown-Up round in progress, or null. Memory
+  // only: leaving part-way (or reloading) throws it away, and nothing about
+  // it is ever saved except the tally at the very end.
+  guest: null,
 };
 
 const DAILY_GOAL = 20; // questions a day — Roadmap #130 (Alex's decision)
@@ -325,6 +339,7 @@ function markParentNoteSeen() {
 
 function goToStart() {
   stopTimer();
+  state.guest = null;
   loadState();
   // Roadmap #137: the map starts fresh from the first load after the update.
   if (!state.meta.mapStartedAt) updateMeta({ mapStartedAt: new Date().toISOString() });
@@ -340,7 +355,7 @@ function goToStart() {
   const sparkle = goalCount >= DAILY_GOAL && state.meta.lastGoalCelebratedDate !== today;
   if (sparkle) updateMeta({ lastGoalCelebratedDate: today });
 
-  const fix = computeMistakesToFix(sessions, today);
+  const fix = mistakesToFix(sessions, today);
   ui.updateHeader(state.plan, state.meta, state.shopState, getEarnedBadgesSorted());
   ui.renderStart(state.plan, state.mastery, state.meta, !!Storage.getInProgress(), {
     personalBests: computePersonalBests(sessions),
@@ -371,7 +386,9 @@ function goToProgress() {
   const today = localDateStr();
   const practice = sessions.filter(countsAsPractice);
   const thisWeek = weekRange(today);
-  ui.renderProgress(mastery, meta, sessions, BADGE_DEFINITIONS, Storage.getBadges(), computeFixedMistakes(sessions), {
+  const earned = Storage.getBadges();
+  ui.renderProgress(mastery, meta, sessions, visibleBadges(meta, earned), earned, computeFixedMistakes(sessions), {
+    topics: activeTopics(meta), // #148
     // Roadmap #140: a session ticks the local day it finished on — the same
     // day the streak counted it for.
     calendar: {
@@ -395,7 +412,8 @@ function goToProgress() {
 function openCabinet() {
   if (ui.currentScreen() !== 'cabinet') state.cabinetReturn = ui.currentScreen();
   const meta = Storage.getMeta();
-  ui.renderCabinet(BADGE_DEFINITIONS, Storage.getBadges(), { meta, mastery: Storage.getMastery(), sessionCount: Storage.getSessions().length });
+  const earned = Storage.getBadges();
+  ui.renderCabinet(visibleBadges(meta, earned), earned, { meta, mastery: Storage.getMastery(), sessionCount: Storage.getSessions().length });
   ui.showScreen('cabinet');
 }
 
@@ -524,6 +542,13 @@ function onRewardRemove() {
   Storage.clearRewardGoal();
   ui.renderRewardGoalSettings(null);
   ui.showRewardGoalStatus('Goal removed.');
+}
+
+// Roadmap #148. Switching off never deletes Year 7 progress; it only hides
+// the chips, bars and locked badges.
+function onYear7Change(on) {
+  updateMeta({ year7PackEnabled: on });
+  ui.renderSettings(state.meta, Storage.getSyncConfig());
 }
 
 function onCityChange(city) {
@@ -725,6 +750,7 @@ function handleBuyStreakShield() {
 function beginSession({ lengthType, lengthValue, topicFocus, mode = state.plan.phase, queue = null, checkupQueue = null }) {
   if (ui.isParentNoteShowing()) markParentNoteSeen(); // #139: it's been seen
   state.retryQueue = null;
+  state.guest = null;
   state.session = startSession({
     topicWeighting: state.plan.topicWeighting,
     topicFocus,
@@ -743,9 +769,21 @@ function startCheckup() {
   beginSession({ mode: 'checkup', checkupQueue: buildCheckupQueue(TOPICS) });
 }
 
+// Roadmap #148: while the Year 7 switch is off, Year 7 mistakes wait (they
+// aren't lost, and come back when it's on), so no session serves a Year 7
+// question with the switch off.
+function mistakesToFix(sessions, today) {
+  const found = computeMistakesToFix(sessions, today);
+  const topics = activeTopics(Storage.getMeta());
+  const toFix = found.toFix.filter((k) => topics.includes(k.topic));
+  // Only hidden ones left: hide the card rather than say "all fixed".
+  const onlyHiddenLeft = toFix.length === 0 && found.toFix.length > 0;
+  return { toFix, hadAny: found.hadAny && !onlyHiddenLeft };
+}
+
 // Roadmap #128: new versions of this week's mistakes, the most recent 10.
 function startFixSession() {
-  const { toFix } = computeMistakesToFix(Storage.getSessions(), localDateStr());
+  const { toFix } = mistakesToFix(Storage.getSessions(), localDateStr());
   const queue = buildRetryQueue(toFix, FIX_CAP);
   if (queue.length === 0) {
     ui.showHomeNotice('Sprint couldn\u2019t make new questions for those just now. Try again later!');
@@ -795,6 +833,9 @@ function resumeSession() {
   if (ui.isParentNoteShowing()) markParentNoteSeen();
   const raw = Storage.getInProgress();
   state.session = { ...raw, usedWordProblemIds: new Set(raw.usedWordProblemIds) };
+  // #148 AC6: a Year 7 chip session resumed after the switch was turned off
+  // carries on with the ordinary mix instead.
+  if (YEAR7_TOPICS.includes(state.session.topicFocus) && !Storage.getMeta().year7PackEnabled) state.session.topicFocus = null;
   ui.showScreen('question');
   startTimerIfNeeded();
   // Through onNext rather than straight to nextQuestion: a session left
@@ -824,7 +865,16 @@ function nextQuestion() {
   showQuestion(pickNextQuestion(state.session, state.mastery));
 }
 
-function showQuestion(question) {
+// Roadmap #146: the made-up pupil in Spot the mistake is never the child.
+function withWorkerName(question) {
+  if (question.format !== 'spotMistake') return question;
+  const child = String(state.meta.childName || '').trim().toLowerCase();
+  const name = WORKER_NAMES.find((n) => n.toLowerCase() !== child);
+  return { ...question, workerName: name };
+}
+
+function showQuestion(rawQuestion) {
+  const question = rawQuestion.blocked ? rawQuestion : withWorkerName(rawQuestion);
   state.followUp = null;
   state.formRetryUsed = false;
   state.currentQuestion = question;
@@ -838,7 +888,13 @@ function showQuestion(question) {
 }
 
 function onCheck() {
+  if (state.guest) { onGuestCheck(); return; }
   const answer = ui.getCurrentAnswer(state.currentQuestion.answerType);
+  // #146 AC4: Check with no line picked records nothing, and says so.
+  if (state.currentQuestion.answerType === 'spot' && !answer) {
+    ui.showSpotHint();
+    return;
+  }
   // Roadmap #97: the right value in the wrong form (0.3 for 3/10) gets one
   // more try, once per question. Nothing is recorded yet — no mastery,
   // points, streak or boss hit — and the question's clock keeps running.
@@ -881,7 +937,8 @@ function onCheck() {
 function offerFollowUp(correct) {
   const q = state.currentQuestion;
   state.followUp = null;
-  if (!correct && !q.isFollowUp && !q.isBoss && state.session.mode !== 'retry' && !hasReachedLength(state.session)) {
+  // Never after Spot the mistake (#146 AC11).
+  if (!correct && !q.isFollowUp && !q.isBoss && q.format !== 'spotMistake' && state.session.mode !== 'retry' && !hasReachedLength(state.session)) {
     const similar = getSimilarQuestion(q);
     if (similar) state.followUp = { ...similar, isFollowUp: true, followUpOf: state.session.questions.length - 1 };
   }
@@ -931,6 +988,7 @@ function openDailyChestIfDue() {
 }
 
 function onNext() {
+  if (state.guest) { onGuestNext(); return; }
   // Roadmap #94: the moment the regular questions run out, decide whether
   // the boss challenge unlocks; if not, the session simply ends here.
   settleBossGate(state.session);
@@ -974,7 +1032,7 @@ function onNext() {
       fixResult = {
         fixed: slots.filter((q) => q.correct).length,
         total: slots.length,
-        left: computeMistakesToFix(sessions, today).toFix.length,
+        left: mistakesToFix(sessions, today).toFix.length,
       };
     }
 
@@ -1010,6 +1068,122 @@ function onNext() {
   }
 }
 
+// ---------- Beat the Grown-Up (Roadmap #147) ----------
+//
+// Both turns run on the ordinary question screen with the ordinary marking
+// (checkAnswer, and classifyAnswer's one "Right number!" retry), but none
+// of the practice save path: no recordAnswer, finishSession, mastery,
+// streak, points, chest, badges or in-progress save. A paused normal
+// session is left exactly as it was. The only write is the tally, once,
+// when the result appears.
+
+function startGuestRound() {
+  stopTimer();
+  const questions = pickGuestQuestions(Storage.getMastery());
+  state.guest = {
+    questions,
+    turn: 'child',
+    index: 0,
+    child: { correct: 0, timeMs: 0 },
+    grownUp: { correct: 0, timeMs: 0 },
+    childName: String(Storage.getMeta().childName || '').trim(),
+  };
+  ui.showScreen('question');
+  showGuestQuestion();
+}
+
+function guestWho() {
+  const g = state.guest;
+  if (g.turn === 'grownUp') return 'Grown-up\u2019s turn';
+  return g.childName ? `${g.childName}\u2019s turn` : 'Your turn';
+}
+
+function showGuestQuestion() {
+  const g = state.guest;
+  state.followUp = null;
+  state.formRetryUsed = false;
+  state.currentQuestion = g.questions[g.index];
+  state.questionStartTime = Date.now();
+  ui.renderGuestHud(guestWho(), g.index + 1, g.questions.length, g[g.turn].correct);
+  // The one-time r-key tip would mark itself seen in meta, so it stays
+  // out of a guest round.
+  ui.renderQuestion(state.currentQuestion, null, { remainderTip: false });
+}
+
+function onGuestCheck() {
+  const g = state.guest;
+  const q = state.currentQuestion;
+  const answer = ui.getCurrentAnswer(q.answerType);
+  if (!state.formRetryUsed) {
+    const { outcome, typed } = classifyAnswer(q, answer);
+    if (outcome === 'rightForm') {
+      state.formRetryUsed = true;
+      ui.showRightFormRetry(rightFormHint(q, typed));
+      return;
+    }
+  }
+  const correct = checkAnswer(q, answer);
+  g[g.turn].timeMs += Date.now() - state.questionStartTime;
+  if (correct) g[g.turn].correct += 1;
+  ui.renderGuestHud(guestWho(), g.index + 1, g.questions.length, g[g.turn].correct);
+  ui.renderFeedback(correct, q);
+  ui.showTryOneLikeIt(false);
+  if (correct && Storage.getMeta().soundOn) playSound('ding');
+}
+
+function onGuestNext() {
+  const g = state.guest;
+  g.index += 1;
+  if (g.index < g.questions.length) {
+    showGuestQuestion();
+  } else if (g.turn === 'child') {
+    g.turn = 'grownUp';
+    g.index = 0;
+    ui.showGuestHandover();
+  } else {
+    finishGuestRound();
+  }
+}
+
+function finishGuestRound() {
+  const g = state.guest;
+  state.guest = null;
+  const outcome = guestOutcome(g.child, g.grownUp);
+  const tally = Storage.getGrownUpTally();
+  if (outcome.winner === 'child') tally.childWins += 1;
+  else if (outcome.winner === 'grownUp') tally.grownUpWins += 1;
+  else tally.draws += 1;
+  Storage.setGrownUpTally(tally);
+  ui.showGuestResult({ childName: g.childName, child: g.child, grownUp: g.grownUp, outcome, tally });
+  if (outcome.winner === 'child' && Storage.getMeta().soundOn) playSound('fanfare');
+}
+
+ui.bindGuestHandlers({
+  onGrownUpStart: () => {
+    if (!state.guest) return;
+    ui.showScreen('question');
+    showGuestQuestion();
+  },
+  onRematch: startGuestRound,
+  onHome: goToStart,
+});
+
+// Leaving a game or the guest round part-way throws it away.
+ui.onScreenChange((name) => {
+  games.onScreenChange(name);
+  if (state.guest && name !== 'question' && name !== 'guest') state.guest = null;
+});
+
+games.bindGames({
+  showScreen: ui.showScreen,
+  goHome: goToStart,
+  startGuest: startGuestRound,
+  refreshHeader: () => {
+    state.meta = Storage.getMeta();
+    ui.updateHeader(state.plan, state.meta, Storage.getShopState(), getEarnedBadgesSorted());
+  },
+});
+
 // Roadmap ideas.md #80: question sourcing no longer depends on imports (see
 // questionBank.js), so Start no longer needs a pre-check for import
 // coverage before every session — it always has something to generate.
@@ -1027,6 +1201,7 @@ ui.bindStartHandlers({
   onNoteThanks: markParentNoteSeen,
   onRecapDismiss: dismissRecap,
   onOpenMap: () => openMap(false),
+  onOpenGames: () => games.openGames(),
 });
 
 ui.bindCabinetAndMapHandlers({ onOpenCabinet: openCabinet, onCabinetBack: closeCabinet, onMapBack: closeMap });
@@ -1045,6 +1220,7 @@ ui.bindSettingsHandlers({
   onNoteDelete,
   onRewardSave,
   onRewardRemove,
+  onYear7Change,
 });
 
 ui.bindQuestionHandlers({ onCheck, onNext, onExit: goToStart, onTryOneLikeIt, onTipSeen: onRemainderTipSeen });

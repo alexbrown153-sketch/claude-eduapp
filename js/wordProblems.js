@@ -95,8 +95,9 @@ const TEMPLATES = {
         const { name, he, He } = pickPerson();
         const item = pick(ITEMS);
         const price = randInt(5, 18);
-        const options = [20, 25, 30].filter((p) => p > price);
-        const payment = options.length ? pick(options) : price + 5;
+        // The smallest real banknote (£5, £10, £20, £50) worth more than the
+        // price. Prices stop at £18, so there is always one (£10 or £20).
+        const payment = [5, 10, 20, 50].find((note) => note > price);
         return {
           prompt: `${name} buys a ${item} for £${price}. ${He} pays with a £${payment} note. How much change does ${he} get?`,
           correctAnswer: payment - price,

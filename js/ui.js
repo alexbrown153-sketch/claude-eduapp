@@ -13,7 +13,7 @@ import { TOPIC_TIERS, MIN_TIER_QUESTIONS, displayedPct } from './badges.js';
 import { mapPosition, MAP_STEPS_PER_AREA } from './records.js';
 import { QUEST_BONUS } from './quests.js';
 import { addDays, weekRange } from './dates.js';
-import { TOPICS } from './storage.js';
+import { TOPICS, YEAR7_TOPICS, ALL_TOPICS } from './storage.js';
 
 export const TOPIC_LABELS = {
   arithmetic: 'Arithmetic',
@@ -24,12 +24,24 @@ export const TOPIC_LABELS = {
   ratio: 'Ratio & proportion',
   algebra: 'Algebra',
   dataHandling: 'Data handling',
+  // Roadmap #148: the same words on chips, Progress, badges and summaries.
+  negatives: 'Negative numbers',
+  powersRoots: 'Powers & roots',
+  primes: 'Primes & factors',
+  probability: 'Probability',
+  bracketEquations: 'Equations with brackets',
 };
 
 const el = (id) => document.getElementById(id);
 
 let numericBuffer = '';
 let mcqSelected = null;
+// Roadmap #146: the working line picked on a "Spot the mistake" question
+// (its line number as a string, like an MCQ value), or null.
+let spotSelected = null;
+// Roadmap #148: the "−" key is on the pad for this question (every Year 7
+// keypad question, whatever its answer's sign).
+let minusAllowed = false;
 
 // Roadmap #98: a typed ('text') answer made only of digits, spaces, '.', '/'
 // and 'r' — a remainder like "12 r 3" or a fraction like "3/4" — is entered
@@ -45,6 +57,11 @@ function usesKeypad(question) {
 // spaces anyway, so this is only for looks.
 function keypadText() {
   return numericBuffer.replace('r', ' r ');
+}
+// What the answer box shows: the typed minus (saved as an ASCII "-" so
+// marking's parseFloat reads it) is drawn as a true minus sign.
+function displayText() {
+  return keypadText().replace('-', '\u2212');
 }
 
 // True between checking an answer and moving to the next question. The
@@ -94,6 +111,15 @@ export function showScreen(name) {
   const navName = name === 'cabinet' ? 'progress' : name;
   document.querySelectorAll('.nav-btn').forEach((b) => b.classList.toggle('active', b.dataset.nav === navName));
   currentScreenName = name;
+  screenListeners.forEach((fn) => fn(name));
+}
+
+// Roadmap #143-#147: games and the guest round listen for screen changes so
+// that leaving part-way (the nav buttons, Home) stops their clocks and
+// throws the unfinished round away.
+const screenListeners = [];
+export function onScreenChange(fn) {
+  screenListeners.push(fn);
 }
 
 let currentScreenName = 'start';
@@ -293,9 +319,10 @@ export function renderStart(plan, mastery, meta, hasInProgress, extras = {}) {
   selectClosestLengthButton(plan.sessionLengthSuggestion);
   el('custom-length-panel').hidden = true;
 
-  document.querySelectorAll('#topic-choices .choice-btn').forEach((btn, i) => {
-    btn.classList.toggle('selected', i === 0);
+  document.querySelectorAll('.topic-grid .choice-btn').forEach((btn) => {
+    btn.classList.toggle('selected', btn.dataset.topic === '');
   });
+  renderYear7Chips(meta, mastery);
   renderTopicWeightingPreview(plan);
   el('topic-weighting-preview').hidden = false;
   hideStartWarning();
@@ -303,6 +330,17 @@ export function renderStart(plan, mastery, meta, hasInProgress, extras = {}) {
   el('resume-btn').hidden = !hasInProgress;
   el('home-notice').hidden = true;
   renderBackupReminder(Boolean(extras.backupReminderDue));
+}
+
+// Roadmap #148: the Year 7 chips appear only while the switch is on. Each
+// carries a "New" tag until its topic has had one question answered.
+function renderYear7Chips(meta, mastery) {
+  el('year7-chips').hidden = !meta.year7PackEnabled;
+  document.querySelectorAll('#year7-choices .choice-btn').forEach((btn) => {
+    const t = btn.dataset.topic;
+    const fresh = !mastery[t] || mastery[t].questionsSeen === 0;
+    btn.innerHTML = `${escapeHtml(TOPIC_LABELS[t])}${fresh ? ' <span class="new-tag">New</span>' : ''}`;
+  });
 }
 
 // ---------- Daily goal ring (Roadmap #130) ----------
@@ -601,8 +639,8 @@ export function getSelectedLength() {
 }
 
 export function getSelectedTopic() {
-  const btn = document.querySelector('#topic-choices .choice-btn.selected');
-  return btn.dataset.topic || null;
+  const btn = document.querySelector('.topic-grid .choice-btn.selected');
+  return btn ? btn.dataset.topic || null : null;
 }
 
 export function showStartWarning(message) {
@@ -623,7 +661,8 @@ function syncCustomLengthButton() {
   btn.dataset.lengthValue = String(value);
 }
 
-export function bindStartHandlers({ onStart, onResume, onBackupReminderSave, onBackupReminderSnooze, onStartCheckup, onStartFix, onNoteThanks, onRecapDismiss, onOpenMap }) {
+export function bindStartHandlers({ onStart, onResume, onBackupReminderSave, onBackupReminderSnooze, onStartCheckup, onStartFix, onNoteThanks, onRecapDismiss, onOpenMap, onOpenGames }) {
+  el('games-btn').addEventListener('click', onOpenGames);
   el('checkup-btn').addEventListener('click', onStartCheckup);
   el('fix-btn').addEventListener('click', onStartFix);
   el('parent-note-thanks').addEventListener('click', onNoteThanks);
@@ -649,9 +688,10 @@ export function bindStartHandlers({ onStart, onResume, onBackupReminderSave, onB
     });
   });
 
-  document.querySelectorAll('#topic-choices .choice-btn').forEach((btn) => {
+  // One selection across the core chips and the Year 7 chips (#148).
+  document.querySelectorAll('.topic-grid .choice-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('#topic-choices .choice-btn').forEach((b) => b.classList.remove('selected'));
+      document.querySelectorAll('.topic-grid .choice-btn').forEach((b) => b.classList.remove('selected'));
       btn.classList.add('selected');
       el('topic-weighting-preview').hidden = btn.dataset.topic !== '';
       hideStartWarning();
@@ -689,6 +729,12 @@ export function renderSettings(meta, syncConfig) {
   // Roadmap #142
   document.querySelectorAll('#sound-choices .choice-btn').forEach((btn) => {
     const on = btn.dataset.sound === (meta.soundOn ? 'on' : 'off');
+    btn.classList.toggle('selected', on);
+    btn.setAttribute('aria-pressed', String(on));
+  });
+  // Roadmap #148
+  document.querySelectorAll('#year7-choices-setting .choice-btn').forEach((btn) => {
+    const on = btn.dataset.year7 === (meta.year7PackEnabled ? 'on' : 'off');
     btn.classList.toggle('selected', on);
     btn.setAttribute('aria-pressed', String(on));
   });
@@ -808,9 +854,12 @@ function renderChangelog() {
   }).join('');
 }
 
-export function bindSettingsHandlers({ onNameChange, onCityChange, onColourModeChange, onClearProgress, onSyncConfigChange, onBackup, onRestoreFile, onSoundChange, onNoteSave, onNoteEdit, onNoteDelete, onRewardSave, onRewardRemove }) {
+export function bindSettingsHandlers({ onNameChange, onCityChange, onColourModeChange, onClearProgress, onSyncConfigChange, onBackup, onRestoreFile, onSoundChange, onNoteSave, onNoteEdit, onNoteDelete, onRewardSave, onRewardRemove, onYear7Change }) {
   document.querySelectorAll('#sound-choices .choice-btn').forEach((btn) => {
     btn.addEventListener('click', () => onSoundChange(btn.dataset.sound === 'on'));
+  });
+  document.querySelectorAll('#year7-choices-setting .choice-btn').forEach((btn) => {
+    btn.addEventListener('click', () => onYear7Change(btn.dataset.year7 === 'on'));
   });
   el('note-input').addEventListener('input', updateNoteCount);
   el('note-save-btn').addEventListener('click', () => {
@@ -1249,6 +1298,12 @@ export function renderQuestion(question, boss = null, options = {}) {
   el('retry-btn').hidden = true;
 
   el('question-prompt').textContent = question.prompt;
+  // Roadmap #146: "Spot the mistake" adds a heading and an instruction.
+  const spot = question.format === 'spotMistake';
+  el('spot-heading').hidden = !spot;
+  el('spot-intro').hidden = !spot;
+  el('spot-intro').textContent = spot ? `${question.workerName} worked it out like this. One line has a mistake. Tap it.` : '';
+  el('spot-hint').hidden = true;
   // Roadmap #123: only improper-fraction questions carry this line.
   el('question-answer-hint').textContent = question.answerHint || '';
   el('question-answer-hint').hidden = !question.answerHint;
@@ -1272,6 +1327,7 @@ export function renderQuestion(question, boss = null, options = {}) {
 
   numericBuffer = '';
   mcqSelected = null;
+  spotSelected = null;
   el('right-form-msg').hidden = true;
   el('numeric-display').innerHTML = '&nbsp;';
   el('text-input').value = '';
@@ -1282,7 +1338,30 @@ export function renderQuestion(question, boss = null, options = {}) {
   el('keypad-extra').hidden = !keypadExtra;
   el('answer-text').hidden = question.answerType !== 'text' || keypad;
   el('answer-mcq').hidden = question.answerType !== 'mcq';
+  el('answer-spot').hidden = question.answerType !== 'spot';
+  minusAllowed = keypad && YEAR7_TOPICS.includes(question.topic);
+  el('keypad-minus').hidden = !minusAllowed;
   renderRemainderTip(question, keypadExtra && Boolean(options.remainderTip));
+
+  if (question.answerType === 'spot') {
+    const spotEl = el('answer-spot');
+    spotEl.innerHTML = question.lines.map((line, i) => `
+      <div class="spot-line">
+        <button type="button" class="choice-btn spot-row" data-line="${i + 1}">
+          <span class="spot-num">${i + 1}</span><span class="spot-text">${escapeHtml(line)}</span>
+        </button>
+        <p class="spot-note" hidden></p>
+      </div>`).join('');
+    spotEl.querySelectorAll('.spot-row').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (answerLocked) return;
+        spotEl.querySelectorAll('.spot-row').forEach((b) => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        spotSelected = btn.dataset.line;
+        el('spot-hint').hidden = true;
+      });
+    });
+  }
 
   if (question.answerType === 'mcq') {
     const mcqEl = el('answer-mcq');
@@ -1473,6 +1552,7 @@ export function renderBlockedQuestion(topic) {
 export function getCurrentAnswer(answerType) {
   if (answerType === 'numeric') return numericBuffer;
   if (answerType === 'mcq') return mcqSelected || '';
+  if (answerType === 'spot') return spotSelected || '';
   if (!el('answer-numeric').hidden) return keypadText();
   return el('text-input').value;
 }
@@ -1488,6 +1568,11 @@ export function showRightFormRetry(hint) {
   msg.hidden = false;
   numericBuffer = '';
   el('numeric-display').innerHTML = '&nbsp;';
+}
+
+// Roadmap #146 AC4: Check with no line picked records nothing.
+export function showSpotHint() {
+  el('spot-hint').hidden = false;
 }
 
 // ---------- One-time r-key tip (Roadmap #133) ----------
@@ -1522,6 +1607,10 @@ function pressNumericKey(k) {
   if (k === 'r' && keypadExtra) dismissRemainderTip();
   if (k === 'back') {
     numericBuffer = numericBuffer.slice(0, -1);
+  } else if (k === '-') {
+    // Roadmap #148: only on Year 7 questions, and only as the first
+    // character; a second tap, or a tap after digits, does nothing.
+    if (minusAllowed && numericBuffer === '') numericBuffer = '-';
   } else if ((k === 'r' || k === '/') && !keypadExtra) {
     // only remainder/fraction questions have these keys
   } else if ((k === '.' || k === 'r' || k === '/') && numericBuffer.includes(k)) {
@@ -1529,7 +1618,7 @@ function pressNumericKey(k) {
   } else {
     numericBuffer += k;
   }
-  el('numeric-display').textContent = keypadText() || ' ';
+  el('numeric-display').textContent = displayText() || ' ';
 }
 
 export function bindQuestionHandlers({ onCheck, onNext, onExit, onTryOneLikeIt, onTipSeen }) {
@@ -1547,6 +1636,7 @@ export function bindQuestionHandlers({ onCheck, onNext, onExit, onTryOneLikeIt, 
     if (el('answer-numeric').hidden) return;
     if (e.key >= '0' && e.key <= '9') pressNumericKey(e.key);
     else if (e.key === '.') pressNumericKey('.');
+    else if (minusAllowed && (e.key === '-' || e.key === '\u2212')) pressNumericKey('-');
     else if (keypadExtra && (e.key === 'r' || e.key === 'R' || e.key === '/')) pressNumericKey(e.key.toLowerCase());
     else if (e.key === 'Backspace') pressNumericKey('back');
     else return;
@@ -1611,6 +1701,10 @@ export function bindQuestionHandlers({ onCheck, onNext, onExit, onTryOneLikeIt, 
 const STEPWISE_SOURCES = ['generated', 'authored'];
 
 export function renderFeedback(correct, question) {
+  if (question.format === 'spotMistake') {
+    renderSpotFeedback(correct, question);
+    return;
+  }
   const { explanation = '', correctAnswer } = question;
   el('check-btn').hidden = true;
   el('next-btn').hidden = false;
@@ -1645,6 +1739,56 @@ export function renderFeedback(correct, question) {
   el('right-form-msg').hidden = true;
   lockAnswerArea(correct, correctAnswer);
   showVerdict(correct, correctAnswer);
+  scrollFeedbackIntoView(correct);
+}
+
+// Roadmap #146: the faulty line turns red with its correction under it, a
+// line picked wrongly says "this line is fine", and the panel shows the
+// whole correct working at once (it's short, and the point is to compare).
+function renderSpotFeedback(correct, question) {
+  el('check-btn').hidden = true;
+  el('next-btn').hidden = false;
+  el('spot-hint').hidden = true;
+  const panel = el('feedback-inline');
+  panel.hidden = false;
+  panel.classList.toggle('correct', correct);
+  panel.classList.toggle('incorrect', !correct);
+  const n = question.wrongLine;
+  el('feedback-result').textContent = correct ? 'Mistake found! 🎉' : `Not quite. The mistake was in line ${n}`;
+  el('feedback-explanation').textContent = 'The right working:';
+  el('feedback-explanation').hidden = false;
+  el('feedback-steps').innerHTML = '';
+  el('feedback-steps').hidden = false;
+  question.correctLines.forEach((line) => appendStep(line));
+  pendingSteps = [];
+  el('next-step-btn').hidden = true;
+  el('feedback-diagram').hidden = true;
+
+  const card = document.querySelector('.question-card');
+  card.classList.toggle('answered-correct', correct);
+  card.classList.toggle('answered-incorrect', !correct);
+
+  answerLocked = true;
+  const spotEl = el('answer-spot');
+  spotEl.classList.add('answer-checked');
+  spotEl.querySelectorAll('.spot-row').forEach((btn) => {
+    btn.disabled = true;
+    const line = Number(btn.dataset.line);
+    const note = btn.parentElement.querySelector('.spot-note');
+    if (line === n) {
+      btn.classList.add('spot-faulty');
+      note.textContent = `Should be: ${question.correction}`;
+      note.classList.add('spot-note-fix');
+      note.hidden = false;
+    } else if (btn.classList.contains('selected')) {
+      btn.classList.add('spot-fine');
+      note.textContent = 'This line is fine.';
+      note.hidden = false;
+    }
+  });
+  showVerdict(correct, '');
+  el('verdict-headline').textContent = correct ? 'Mistake found!' : 'Not quite';
+  el('verdict-detail').textContent = correct ? '' : `The mistake was in line ${n}`;
   scrollFeedbackIntoView(correct);
 }
 
@@ -1724,7 +1868,7 @@ function clearFeedbackState() {
   const card = document.querySelector('.question-card');
   card.classList.remove('answered-correct', 'answered-incorrect');
 
-  ['answer-numeric', 'answer-text', 'answer-mcq'].forEach((id) => {
+  ['answer-numeric', 'answer-text', 'answer-mcq', 'answer-spot'].forEach((id) => {
     el(id).classList.remove('answer-checked', 'answer-checked-correct', 'answer-checked-incorrect');
   });
   el('text-input').readOnly = false;
@@ -1817,7 +1961,7 @@ function scrollFeedbackIntoView(correct = true) {
   const scroller = el('app-scroll');
   const parts = [document.querySelector('.action-slot'), el('feedback-inline')];
   if (!correct) {
-    const record = ['answer-mcq', 'answer-numeric', 'answer-text'].map(el).find((a) => !a.hidden);
+    const record = ['answer-mcq', 'answer-spot', 'answer-numeric', 'answer-text'].map(el).find((a) => !a.hidden);
     if (record) parts.push(record);
   }
 
@@ -2244,13 +2388,16 @@ function topicMedalLine(topic, rec, earnedBadgeIds) {
   };
 }
 
+// extras.topics: the active topics (#148), the core eight plus the Year 7
+// five while that switch is on.
 export function renderProgress(mastery, meta, sessions, badgeDefinitions = [], earnedBadgeIds = [], fixedMistakes = [], extras = {}) {
-  renderStrengthOverview(mastery, Object.keys(mastery));
+  const topics = extras.topics || TOPICS;
+  renderStrengthOverview(mastery, topics);
   renderFixedMistakes(fixedMistakes);
 
   const barsEl = el('mastery-bars');
   barsEl.innerHTML = '';
-  Object.keys(mastery).forEach((topic) => {
+  topics.forEach((topic) => {
     const rec = mastery[topic];
     const pct = Math.round(rec.masteryScore * 100);
     const { medal, target } = topicMedalLine(topic, rec, earnedBadgeIds);
@@ -2342,7 +2489,8 @@ function renderWeekCompare(wc) {
   const target = el('week-compare');
   if (!wc) { target.innerHTML = ''; return; }
   const entries = Object.entries(wc.compare);
-  const order = (t) => TOPICS.indexOf(t);
+  // Core topics first, then Year 7 (#148), then anything else.
+  const order = (t) => (ALL_TOPICS.includes(t) ? ALL_TOPICS.indexOf(t) : ALL_TOPICS.length);
   const rank = { up: 0, steady: 1, down: 2 };
   const compared = entries.filter(([, t]) => t.comparable)
     .sort((a, b) => (rank[a[1].direction] - rank[b[1].direction])
@@ -2444,6 +2592,60 @@ export function bindCabinetAndMapHandlers({ onOpenCabinet, onCabinetBack, onMapB
   el('cabinet-btn').addEventListener('click', onOpenCabinet);
   el('cabinet-back-btn').addEventListener('click', onCabinetBack);
   el('map-back-btn').addEventListener('click', onMapBack);
+}
+
+// ---------- Beat the Grown-Up (Roadmap #147) ----------
+
+// The HUD on a guest turn: whose turn, which question, how many right so
+// far. No points, combo or timer.
+export function renderGuestHud(who, number, total, correct) {
+  el('hud-progress').textContent = `${who} \u00b7 ${number} / ${total}`;
+  el('hud-score').textContent = `\u2713 ${correct} right`;
+  const streak = el('hud-streak');
+  streak.textContent = '';
+  streak.dataset.combo = '1';
+  el('hud-timer').hidden = true;
+}
+
+// The hand-over screen never shows the child's score (AC4).
+export function showGuestHandover() {
+  el('guest-handover').hidden = false;
+  el('guest-result').hidden = true;
+  showScreen('guest');
+  el('app-scroll').scrollTop = 0;
+}
+
+// r: { childName, child: { correct, timeMs }, grownUp: {...}, outcome, tally }
+export function showGuestResult(r) {
+  el('guest-handover').hidden = true;
+  el('guest-result').hidden = false;
+  el('guest-child-score').textContent = `${r.child.correct}`;
+  el('guest-child-label').textContent = r.childName || 'You';
+  el('guest-adult-score').textContent = `${r.grownUp.correct}`;
+  const { winner, byTime } = r.outcome;
+  let banner;
+  if (winner === 'child') banner = `🏆 ${r.childName ? `${r.childName} beat` : 'You beat'} the grown-up!`;
+  else if (winner === 'grownUp') banner = 'The grown-up won this time. Rematch?';
+  else banner = 'It\u2019s a draw!';
+  el('guest-banner').textContent = banner;
+  let how = `${r.child.correct} out of 10 against ${r.grownUp.correct} out of 10.`;
+  if (byTime) {
+    const who = winner === 'child' ? (r.childName ? `${r.childName} was` : 'you were') : 'the grown-up was';
+    how = `Tie on ${r.child.correct}, and ${who} faster!`;
+  } else if (winner === 'draw') {
+    how = `Tie on ${r.child.correct}, in exactly the same time!`;
+  }
+  el('guest-how').textContent = how;
+  const t = r.tally;
+  el('guest-tally').textContent = `${r.childName ? `${r.childName} has` : 'You\u2019ve'} beaten the grown-up ${t.childWins} time${t.childWins === 1 ? '' : 's'}. Grown-up wins: ${t.grownUpWins}${t.draws ? `. Draws: ${t.draws}` : ''}.`;
+  showScreen('guest');
+  el('app-scroll').scrollTop = 0;
+}
+
+export function bindGuestHandlers({ onGrownUpStart, onRematch, onHome }) {
+  el('guest-start-btn').addEventListener('click', onGrownUpStart);
+  el('guest-rematch-btn').addEventListener('click', onRematch);
+  el('guest-home-btn').addEventListener('click', onHome);
 }
 
 // ---------- Shop screen ----------

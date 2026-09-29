@@ -16,6 +16,8 @@
 import { getWordProblem, getWordProblemVersion } from './wordProblems.js';
 import { genCoordinates } from './coordinates.js';
 import { rectangleSvg, lShapeSvg, twoCornersSvg, barModelSvg } from './diagrams.js';
+import { getSpotVersion } from './spotMistake.js';
+import { YEAR7_GENERATORS } from './year7.js';
 
 function randInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -241,6 +243,14 @@ function arithT5() {
 
 function genArithmetic(tier) {
   return { 1: arithT1, 2: arithT2, 3: arithT3, 4: arithT4, 5: arithT5 }[tier]();
+}
+
+// Roadmap #143: the 60-second Blitz asks arithmetic tiers 2 and 3 only
+// (times tables, 2- and 3-digit + and -, exact division). Exported as-is:
+// the questions are exactly the ones a session would ask at that tier.
+export function blitzArithmetic(tier) {
+  if (tier !== 2 && tier !== 3) throw new Error(`Blitz uses tiers 2 and 3, not ${tier}`);
+  return genArithmetic(tier);
 }
 
 // ---------- Fractions / Decimals / Percentages ----------
@@ -864,6 +874,7 @@ const GENERATORS = {
   algebra: genAlgebra,
   dataHandling: genDataHandling,
   coordinates: genCoordinates,
+  ...YEAR7_GENERATORS, // Roadmap #148
 };
 
 export function getQuestion(topic, tier, usedWordProblemIds) {
@@ -898,6 +909,8 @@ export function getSimilarQuestion(question) {
 // template id for a word problem, otherwise null (subtopic and tier say
 // it all).
 export function questionVariant(question) {
+  // #146: a Spot the mistake question is remade from its template.
+  if (question.format === 'spotMistake') return question.templateId;
   if (question.topic === 'arithmetic' && question.source === 'generated') return arithmeticOps(question.prompt);
   if (question.topic === 'wordProblems' && question.source === 'authored' && question.id) return question.id;
   return null;
@@ -911,6 +924,7 @@ export function questionVariant(question) {
 // one given. Null when no version can be made — an arithmetic answer with
 // no known operators, an imported question, or no match in the tries.
 export function getNewVersion(kind) {
+  if (kind.variant && String(kind.variant).startsWith('sm-')) return getSpotVersion(kind.variant, kind.prompt);
   if (kind.topic === 'wordProblems') {
     return getWordProblemVersion({
       templateId: kind.variant || null, tier: kind.difficulty, subtopic: kind.subtopic, notPrompt: kind.prompt,

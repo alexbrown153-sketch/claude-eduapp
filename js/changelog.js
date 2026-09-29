@@ -18,6 +18,20 @@ export const ROADMAP_LAST_ITEM_NUMBER = 153;
 
 export const CHANGELOG = [
   {
+    at: '2026-09-29T18:10+01:00',
+    label: 'Roadmap 143–148, 153',
+    changes: [
+      'There’s a new Games card on Home! Games are just for fun and don’t change your practice or your streak.',
+      '60-second Blitz: answer as many sums as you can in one minute. Try to beat your top 5 scores!',
+      'Numbers Target: use the six numbers with + − × ÷ to make the target number. Get close for stars, or tap “Show me a way” to see one way to do it.',
+      'Close Enough: slide to guess the answer to a big sum. The closer you get, the more stars you win.',
+      'Beat the Grown-Up: you answer 10 questions, then a grown-up answers the same 10. Who will win?',
+      'Sometimes in practice you’ll see “Spot the mistake”. Someone has worked out a question, but one line is wrong. Can you find it?',
+      'A grown-up can switch on “Year 7 topics” in Settings. Then you can pick negative numbers, powers and roots, primes, probability and equations with brackets on Home.',
+      'Sprint’s new look is finished. Every screen now has the same friendly cards and buttons, and some small writing is bigger and easier to read.',
+    ],
+  },
+  {
     at: '2026-09-29T13:37+01:00',
     label: 'Roadmap 153 (part 1)',
     changes: [
