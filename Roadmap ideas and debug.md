@@ -168,3 +168,4 @@ Future roadmap ideas
 150. Add a "Back up my progress" button that saves all progress to a file, and a matching "Restore from file" in Settings
 151. Show a gentle reminder on Home to back up progress if the last backup was more than 30 days ago
 152. Change the top-bar title and browser tab from "Tiffin 11+ Maths Prep" and "Tiffin Prep" to wording that fits ongoing practice now the exam has passed
+153. The app styling is a little bland overall.
