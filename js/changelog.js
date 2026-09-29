@@ -18,6 +18,26 @@ export const ROADMAP_LAST_ITEM_NUMBER = 152;
 
 export const CHANGELOG = [
   {
+    at: '2026-09-29T18:00+01:00',
+    label: 'Roadmap 127\u2013128, 130\u2013131, 134\u2013142, 149',
+    changes: [
+      'At the end of a session you can now see the questions you got wrong, with the right answer and \u201cHow to work it out\u201d. Tap \u201cTry these again\u201d to have another go at up to 5 of them with new numbers.',
+      'Home has a new \u201cFix my mistakes\u201d card. It gives you new versions of the questions you got wrong this week, up to 10 at a time, easiest first.',
+      'The big blue box on Home now has a daily goal ring. Answer 20 questions in a day to fill it up and make it sparkle.',
+      'Progress has a new \u201cThis week vs last week\u201d card. It shows which topics went up this week.',
+      'Badges now live in a Trophy cabinet. Tap Badges at the top, or the Trophy cabinet button on Progress, to see the ones you\u2019ve won and the ones still to win.',
+      'There are 4 secret badges to discover. They show as ??? until you win one!',
+      'Every week there are 3 new quests on Home. Each one you finish gives you 50 stars, and finishing all 3 gives you 100 more and a badge the first time.',
+      'There\u2019s a new adventure map! Every session of 5 or more questions moves you one step along the path, through a new place for each topic. Tap the Adventure card on Home to see it.',
+      'A grown-up can now set a real-life reward goal in Settings, like a cinema trip. Home shows a bar that fills up as you earn stars.',
+      'A grown-up can now leave you a note in Settings. It pops up on Home the next time you open Sprint.',
+      'Progress now shows a calendar of your practice days for the last 5 weeks, with a tick for every day you practised.',
+      'On the first visit of each month, Home shows what you did last month: how many questions you answered, your most improved topic and any new records.',
+      'You can switch on sound effects in Settings: a ding for a right answer, and a little tune when you finish a session.',
+      'Every 4 weeks Home offers a check-up quiz: 2 questions from every topic, to see how you\u2019re doing now.',
+    ],
+  },
+  {
     at: '2026-09-29T09:30+01:00',
     label: 'Roadmap 97, 115\u2013126, 129, 132\u2013133, 150\u2013151',
     changes: [

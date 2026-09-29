@@ -48,6 +48,22 @@ function defaultMeta() {
     lastBackupAt: null,
     // Local YYYY-MM-DD the Home backup reminder is snoozed until — #151.
     backupReminderSnoozedUntil: null,
+    // Local YYYY-MM-DD the daily goal ring last sparkled, so it only
+    // sparkles once a day — Roadmap #130.
+    lastGoalCelebratedDate: null,
+    // ISO time the last check-up quiz was finished, or null — #149.
+    lastCheckupCompletedAt: null,
+    // Local YYYY-MM of the month the monthly recap was last dealt with
+    // (shown and closed, or skipped) — #141. Null until the first Home visit
+    // after the update, which sets it without showing anything.
+    lastRecapMonth: null,
+    // ISO time the adventure map started counting steps — #137. Set on the
+    // first load after the update, so the map starts fresh from there.
+    mapStartedAt: null,
+    // Weeks in which all three weekly quests were finished — #136.
+    questWeeksCompleted: 0,
+    // Optional sound effects, off unless switched on in Settings — #142.
+    soundOn: false,
   };
 }
 
@@ -266,6 +282,47 @@ export const Storage = {
   },
   setWeatherCache(cache) {
     writeJSON(`${NS}:weatherCache`, cache);
+  },
+
+  // Roadmap #136: this week's quests, or null. The shape is checked here so
+  // an odd value (an old or hand-edited backup) just means "no quests yet".
+  getQuests() {
+    const q = readJSON(`${NS}:quests`, null);
+    if (!isObject(q) || typeof q.weekStart !== 'string' || !Array.isArray(q.quests)) return null;
+    return q;
+  },
+  setQuests(quests) {
+    writeJSON(`${NS}:quests`, quests);
+  },
+
+  // Roadmap #138: the grown-up's reward goal, or null. Its own key, not
+  // meta: several Settings handlers write the whole of meta back from a
+  // copy held in memory, and a stale copy could quietly undo a goal saved
+  // or removed in between.
+  getRewardGoal() {
+    const g = readJSON(`${NS}:rewardGoal`, null);
+    if (!isObject(g) || typeof g.label !== 'string' || !isCount(g.targetPoints) || !isCount(g.baselinePoints)) return null;
+    return g;
+  },
+  setRewardGoal(goal) {
+    writeJSON(`${NS}:rewardGoal`, goal);
+  },
+  clearRewardGoal() {
+    localStorage.removeItem(`${NS}:rewardGoal`);
+  },
+
+  // Roadmap #139: the note from a grown-up, { text, savedAt, seenAt }, or
+  // null. Its own key for the same reason as the reward goal.
+  getParentNote() {
+    const n = readJSON(`${NS}:parentNote`, null);
+    if (!isObject(n) || typeof n.text !== 'string' || !n.text.trim()) return null;
+    return n;
+  },
+  setParentNote(note) {
+    writeJSON(`${NS}:parentNote`, note);
+  },
+  clearParentNote() {
+    localStorage.removeItem(`${NS}:parentNote`);
   },
 
   getInProgress() {

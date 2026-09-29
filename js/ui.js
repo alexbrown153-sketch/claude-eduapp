@@ -2,13 +2,18 @@
 // app.js decides what happens; this module only reads/writes the DOM.
 
 import { PHASE_LABELS } from './pacing.js';
-import { comboMultiplier } from './session.js';
+import { comboMultiplier, regularCount } from './session.js';
+import { computeStrengthSummary } from './mastery.js';
 import { SHOP_CATEGORIES, itemsByCategory, getItem, isOwned, availableBalance, STREAK_SHIELD, MAX_STREAK_SHIELDS } from './shop.js';
 import { getJokeOfTheDay, getRandomJoke } from './jokes.js';
 import { getWordOfTheDay, getRandomWordOfDay } from './wordOfDay.js';
 import { CHANGELOG } from './changelog.js';
 import { answerShape, answerShapeExample, splitExplanationSteps } from './questionBank.js';
 import { TOPIC_TIERS, MIN_TIER_QUESTIONS, displayedPct } from './badges.js';
+import { mapPosition, MAP_STEPS_PER_AREA } from './records.js';
+import { QUEST_BONUS } from './quests.js';
+import { addDays, weekRange } from './dates.js';
+import { TOPICS } from './storage.js';
 
 export const TOPIC_LABELS = {
   arithmetic: 'Arithmetic',
@@ -85,7 +90,15 @@ export function showScreen(name) {
   el('app-footer').hidden = !footerGroup;
   if (footerGroup) footerGroup.classList.add('active');
 
-  document.querySelectorAll('.nav-btn').forEach((b) => b.classList.toggle('active', b.dataset.nav === name));
+  // The Trophy cabinet (#134) belongs to Progress, so Progress stays lit.
+  const navName = name === 'cabinet' ? 'progress' : name;
+  document.querySelectorAll('.nav-btn').forEach((b) => b.classList.toggle('active', b.dataset.nav === navName));
+  currentScreenName = name;
+}
+
+let currentScreenName = 'start';
+export function currentScreen() {
+  return currentScreenName;
 }
 
 export function bindGlobalHandlers({ onHome, onGotoProgress, onGotoShop, onGotoSettings, onGotoImport, onGotoSuggestions }) {
@@ -189,30 +202,6 @@ function selectClosestLengthButton(suggestion) {
   buttons.forEach((b) => b.classList.toggle('selected', b === best));
 }
 
-// Only shown once there's enough real practice data to be meaningful —
-// before that, every topic sits at the same default mastery score and
-// "strongest/weakest" would just be noise.
-//
-// Roadmap #120: every topic starts at 50%, so after a mostly-wrong first
-// quiz the "strongest" topic was just the one with the fewest wrong answers
-// (e.g. 43% after 0 out of 1). A topic is only called strongest once the
-// child's answers have pushed it above that 50% start; until then
-// `strongest` is null and Home says "We'll find out as you practise".
-// `weakest`, which the focus card, Next session widget and summary all use,
-// is unchanged.
-const STARTING_SCORE = 0.5;
-function computeStrengthSummary(mastery) {
-  const entries = Object.entries(mastery).filter(([, rec]) => rec.questionsSeen > 0);
-  const totalSeen = entries.reduce((sum, [, rec]) => sum + rec.questionsSeen, 0);
-  if (totalSeen < 5) return null;
-  const sorted = [...entries].sort((a, b) => b[1].masteryScore - a[1].masteryScore);
-  const top = sorted[0];
-  const weakest = sorted[sorted.length - 1];
-  if (top[0] === weakest[0]) return null;
-  const strongest = top[1].masteryScore > STARTING_SCORE ? top : null;
-  return { strongest, weakest };
-}
-
 // The joke/word panels share the sidebar's card shell (see styles.css): a
 // small labelled heading row (with a refresh button, roadmap #86), then the
 // content itself, rather than one run-on line with the label buried in it.
@@ -249,8 +238,9 @@ function renderTopicWeightingPreview(plan) {
 // summary's "practise next time" line, so all of them always agree. Until
 // there's enough data for that it falls back to the phase's own label, and
 // during the diagnostic it shows the warm-up quiz title (#118).
-function focusTitle(plan, mastery) {
+function focusTitle(plan, mastery, checkupDue = false) {
   if (plan.phase === 'diagnostic') return PHASE_LABELS.diagnostic;
+  if (checkupDue) return 'Check-up time!'; // Roadmap #149
   const summary = computeStrengthSummary(mastery);
   if (!summary) return PHASE_LABELS[plan.phase] || 'Daily practice';
   const topic = summary.weakest[0];
@@ -258,10 +248,20 @@ function focusTitle(plan, mastery) {
 }
 
 export function renderStart(plan, mastery, meta, hasInProgress, extras = {}) {
-  el('focus-phase').textContent = focusTitle(plan, mastery);
-  el('focus-tone').textContent = meta.childName
-    ? `Hi ${meta.childName}! ${plan.framingTone}`
+  const checkupDue = Boolean(extras.checkup && extras.checkup.due);
+  const tone = checkupDue
+    ? `A quick ${extras.checkup.length}-question quiz across every topic, to see how you\u2019re doing now.`
     : plan.framingTone;
+  el('focus-phase').textContent = focusTitle(plan, mastery, checkupDue);
+  el('focus-tone').textContent = meta.childName ? `Hi ${meta.childName}! ${tone}` : tone;
+  el('checkup-btn').hidden = !checkupDue;
+  renderGoalRing(extras.goal);
+  renderParentNote(extras.parentNote);
+  renderRecap(extras.recap);
+  renderRewardGoalCard(extras.rewardGoal, meta);
+  renderFixCard(extras.fix);
+  renderQuests(extras.quests);
+  renderAdventureCard(extras.map, extras.shopState);
 
   const summary = computeStrengthSummary(mastery);
   const summaryEl = el('strength-summary');
@@ -304,6 +304,281 @@ export function renderStart(plan, mastery, meta, hasInProgress, extras = {}) {
   el('home-notice').hidden = true;
   renderBackupReminder(Boolean(extras.backupReminderDue));
 }
+
+// ---------- Daily goal ring (Roadmap #130) ----------
+
+// goal: { count, target, sparkle } — sparkle is true the first time Home
+// is shown after the goal was reached today (app.js remembers that). The
+// ring is a picture, not a button, and never overflows past full.
+const RING_R = 18;
+const RING_C = 2 * Math.PI * RING_R;
+function renderGoalRing(goal) {
+  const target = el('goal-ring');
+  if (!goal) { target.hidden = true; return; }
+  target.hidden = false;
+  const done = goal.count >= goal.target;
+  const filled = Math.min(1, goal.count / goal.target) * RING_C;
+  target.className = `goal-ring${done ? ' goal-done' : ''}${done && goal.sparkle ? ' goal-sparkle' : ''}`;
+  target.innerHTML = `
+    <span class="goal-ring-pic" aria-hidden="true">
+      <svg viewBox="0 0 44 44" class="goal-ring-svg">
+        <circle class="goal-ring-track" cx="22" cy="22" r="${RING_R}" />
+        ${filled > 0 ? `<circle class="goal-ring-fill" cx="22" cy="22" r="${RING_R}" stroke-dasharray="${filled.toFixed(2)} ${RING_C.toFixed(2)}" transform="rotate(-90 22 22)" />` : ''}
+      </svg>
+      <span class="goal-ring-star">${done ? '⭐' : ''}</span>
+    </span>
+    <span class="goal-ring-text"><span class="goal-ring-label">Today\u2019s goal</span>
+      ${done ? `Goal done! ${goal.count} today` : `${goal.count} / ${goal.target} questions today`}</span>`;
+}
+
+// ---------- Note from a grown-up (Roadmap #139) ----------
+
+// note: { text } or null. Plain text, line breaks kept (CSS pre-line).
+export function renderParentNote(note) {
+  el('parent-note-card').hidden = !note;
+  el('parent-note-text').textContent = note ? note.text : '';
+}
+
+export function isParentNoteShowing() {
+  return !el('parent-note-card').hidden;
+}
+
+// ---------- Monthly recap (Roadmap #141) ----------
+
+function monthName(monthStr) {
+  const [y, m] = monthStr.split('-').map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString('en-GB', { month: 'long' });
+}
+
+// recap: computeMonthlyRecap() for last month, or null. Only ever good news:
+// nothing here says anything went down.
+export function renderRecap(recap) {
+  const card = el('recap-card');
+  card.hidden = !recap;
+  if (!recap) return;
+  const month = monthName(recap.month);
+  el('recap-title').textContent = `🗓️ Your ${month} in Sprint`;
+  const lines = [`You answered <strong>${recap.questions}</strong> question${recap.questions === 1 ? '' : 's'} in ${month}!`];
+  if (recap.improved) {
+    const { topic, fromPct, toPct } = recap.improved;
+    lines.push(`📈 Most improved: <strong>${escapeHtml(TOPIC_LABELS[topic] || topic)}</strong>, ${fromPct}% \u2192 ${toPct}%`);
+  } else if (recap.mostPractised) {
+    const { topic, count } = recap.mostPractised;
+    lines.push(`💪 Most practised: <strong>${escapeHtml(TOPIC_LABELS[topic] || topic)}</strong> (${count} question${count === 1 ? '' : 's'})`);
+  }
+  const broken = RECORD_ROWS.filter((r) => recap.records.includes(r.key) && recap.recordValues[r.key] !== null);
+  if (broken.length) {
+    broken.forEach((r) => lines.push(`${r.icon} New record: ${escapeHtml(r.label)}, ${escapeHtml(r.format(recap.recordValues[r.key]))}`));
+  } else if (recap.bestCombo > 0) {
+    lines.push(`🔥 Best combo in ${month}: ${recap.bestCombo} in a row`);
+  }
+  el('recap-lines').innerHTML = lines.map((l) => `<li>${l}</li>`).join('');
+}
+
+// ---------- Reward goal (Roadmap #138) ----------
+
+const fmtPoints = (n) => Number(n).toLocaleString('en-GB');
+// The celebration plays once per app load, not on every Home visit.
+let rewardCelebrated = false;
+
+// goal: { label, targetPoints, baselinePoints } or null. Progress is points
+// earned since the goal was saved (lifetime total minus the total then), so
+// spending in the Shop never moves it back; clamped to 0..target.
+function renderRewardGoalCard(goal, meta) {
+  const card = el('reward-goal-card');
+  card.hidden = !goal;
+  if (!goal) return;
+  const progress = Math.max(0, Math.min(goal.targetPoints, (meta.totalPoints || 0) - goal.baselinePoints));
+  const pct = goal.targetPoints > 0 ? (progress / goal.targetPoints) * 100 : 0;
+  const reached = progress >= goal.targetPoints;
+  const celebrate = reached && !rewardCelebrated;
+  if (reached) rewardCelebrated = true;
+  card.classList.toggle('reward-reached', reached);
+  card.classList.toggle('reward-celebrate', celebrate);
+  const text = reached
+    ? `Goal reached! Show a grown-up to claim your ${escapeHtml(goal.label)} 🎉`
+    : `${fmtPoints(progress)} / ${fmtPoints(goal.targetPoints)} points \u00b7 ${fmtPoints(goal.targetPoints - progress)} to go`;
+  card.innerHTML = `
+    <p class="home-card-title">🎯 ${escapeHtml(goal.label)}</p>
+    <div class="reward-track" aria-hidden="true"><div class="reward-fill" style="width:${pct.toFixed(1)}%"></div></div>
+    <p class="reward-text">${text}</p>`;
+}
+
+// ---------- Fix my mistakes card (Roadmap #128) ----------
+
+// fix: { count, hadAny }. Hidden with no mistakes in the last 7 days; "all
+// fixed" (no button) when there were some and every one is fixed.
+function renderFixCard(fix) {
+  const card = el('fix-card');
+  if (!fix || (!fix.count && !fix.hadAny)) { card.hidden = true; return; }
+  card.hidden = false;
+  el('fix-btn').hidden = !fix.count;
+  el('fix-card-detail').textContent = fix.count
+    ? `${fix.count} to fix from this week${fix.count > 10 ? ' (10 at a time)' : ''}. New numbers, same kind of question.`
+    : 'All this week\u2019s mistakes fixed ✅';
+}
+
+// ---------- Weekly quests (Roadmap #136) ----------
+
+// quests: { state, progress, firstBadge } or null (before the warm-up quiz).
+function questLabel(q, topic) {
+  if (q.id === 'topic') return `Answer ${q.target} ${TOPIC_LABELS[topic] || topic} questions`;
+  if (q.id === 'perfect') return 'Have one perfect session (10 or more questions, all right)';
+  return q.target === 1 ? 'Practise on 1 day' : `Practise on ${q.target} different days`;
+}
+const QUEST_ICONS = { topic: '🎯', perfect: '💯', days: '📅' };
+
+function renderQuests(quests) {
+  const target = el('quests-widget');
+  if (!quests) { target.hidden = true; return; }
+  target.hidden = false;
+  const { state, progress } = quests;
+  const rows = state.quests.map((q) => {
+    const done = Boolean(q.completedAt) || (progress[q.id] || 0) >= q.target;
+    const shown = Math.min(progress[q.id] || 0, q.target);
+    return `
+      <div class="quest-row${done ? ' quest-done' : ''}">
+        <span class="quest-icon" aria-hidden="true">${QUEST_ICONS[q.id] || '⭐'}</span>
+        <div class="quest-body">
+          <div class="quest-label">${escapeHtml(questLabel(q, state.topic))}</div>
+          <div class="quest-bar-row">
+            <div class="quest-track" aria-hidden="true"><div class="quest-fill" style="width:${((shown / q.target) * 100).toFixed(1)}%"></div></div>
+            <span class="quest-count">${done ? '✅' : `${shown} / ${q.target}`}</span>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+  const allDone = state.quests.every((q) => q.completedAt);
+  const footer = allDone
+    ? 'All done this week! 🎉'
+    : `Finish all 3 for +${QUEST_BONUS} ⭐${quests.firstBadge ? ' and a badge' : ''}`;
+  target.innerHTML = `<div class="next-session-title">🗺️ This week\u2019s quests</div>${rows}<p class="quest-footer">${footer}</p>`;
+}
+
+// ---------- Adventure map (Roadmap #137) ----------
+
+// One area per topic, in TOPICS order. Decoration only: being in an area
+// never changes which questions are asked.
+export const MAP_AREAS = {
+  arithmetic: { name: 'Number Peaks', icon: '⛰️' },
+  fdp: { name: 'Fraction Forest', icon: '🌲' },
+  geometry: { name: 'Shape Canyon', icon: '🔺' },
+  coordinates: { name: 'Grid Islands', icon: '🏝️' },
+  wordProblems: { name: 'Story Village', icon: '🏘️' },
+  ratio: { name: 'Ratio River', icon: '🌊' },
+  algebra: { name: 'Algebra Caves', icon: '🕳️' },
+  dataHandling: { name: 'Data Desert', icon: '🏜️' },
+};
+const areaOf = (i) => MAP_AREAS[TOPICS[i]] || { name: TOPIC_LABELS[TOPICS[i]] || TOPICS[i], icon: '📍' };
+
+function renderAdventureCard(map, shopState) {
+  const card = el('adventure-card');
+  if (!map) { card.hidden = true; return; }
+  card.hidden = false;
+  const pos = mapPosition(map.steps);
+  const here = areaOf(pos.area);
+  const next = areaOf((pos.area + 1) % TOPICS.length);
+  const left = MAP_STEPS_PER_AREA - pos.step;
+  card.innerHTML = `
+    <span class="adventure-avatar header-avatar" aria-hidden="true"></span>
+    <span class="adventure-body">
+      <span class="adventure-title">🗺️ Adventure${pos.lap > 1 ? ` \u00b7 Lap ${pos.lap}` : ''}</span>
+      <span class="adventure-where">${here.icon} ${here.name}</span>
+      <span class="adventure-next">${left} step${left === 1 ? '' : 's'} to ${next.name}</span>
+    </span>`;
+  card.setAttribute('aria-label', `Adventure map: you're in ${here.name}, ${left} step${left === 1 ? '' : 's'} to ${next.name}`);
+  renderAvatar(card.querySelector('.adventure-avatar'), shopState);
+}
+
+// The map itself: every area of the current lap, top to bottom, with its
+// five steps winding left and right. `fromSteps` (opened from the summary)
+// starts the avatar on its old step and moves it to the new one, unless
+// the child has asked the iPad to reduce motion.
+export function renderMap(steps, shopState, fromSteps = null) {
+  const pos = mapPosition(steps);
+  const here = pos.area * MAP_STEPS_PER_AREA + pos.step;
+  el('map-lap').textContent = pos.lap > 1 ? `Lap ${pos.lap}` : 'Every session of 5 or more questions moves you one step.';
+  let n = 0;
+  const areas = TOPICS.map((t, a) => {
+    const area = areaOf(a);
+    const dots = Array.from({ length: MAP_STEPS_PER_AREA }, (_, i) => {
+      const idx = a * MAP_STEPS_PER_AREA + i;
+      // A gentle zig-zag: x from 15% to 85% of the width.
+      const x = 50 + 35 * Math.sin((n += 1) * 0.9);
+      const cls = idx < here ? 'visited' : (idx === here ? 'current' : 'future');
+      return `<span class="map-step map-step-${cls}" data-step="${idx}" style="left:${x.toFixed(1)}%"></span>`;
+    }).join('');
+    return `
+      <div class="map-area map-area-${a % 4}">
+        <p class="map-area-name"><span aria-hidden="true">${area.icon}</span> ${area.name}</p>
+        <div class="map-steps">${dots}</div>
+      </div>`;
+  }).join('');
+  const path = el('map-path');
+  path.innerHTML = `<svg class="map-line" aria-hidden="true"></svg>${areas}<span class="map-avatar header-avatar" aria-label="You are here"></span>`;
+  renderAvatar(path.querySelector('.map-avatar'), shopState);
+  requestAnimationFrame(() => placeMapAvatar(here, fromSteps));
+}
+
+// Centre of step `idx`, in the path's own coordinates.
+function stepCentre(idx) {
+  const path = el('map-path');
+  const dot = path.querySelector(`.map-step[data-step="${idx}"]`);
+  if (!dot) return null;
+  const p = path.getBoundingClientRect();
+  const r = dot.getBoundingClientRect();
+  return { x: r.left - p.left + r.width / 2, y: r.top - p.top + r.height / 2 };
+}
+
+function drawMapLine() {
+  const path = el('map-path');
+  const svg = path.querySelector('.map-line');
+  if (!svg) return;
+  const pts = [...path.querySelectorAll('.map-step')].map((d) => stepCentre(Number(d.dataset.step)));
+  svg.setAttribute('width', path.clientWidth);
+  svg.setAttribute('height', path.clientHeight);
+  svg.innerHTML = `<polyline points="${pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')}" />`;
+}
+
+function placeMapAvatar(here, fromSteps) {
+  if (!el('screen-map').classList.contains('active')) return;
+  drawMapLine();
+  const avatar = el('map-path').querySelector('.map-avatar');
+  const put = (idx) => {
+    const c = stepCentre(idx);
+    if (c) avatar.style.transform = `translate(${c.x.toFixed(1)}px, ${c.y.toFixed(1)}px) translate(-50%, -50%)`;
+  };
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let from = null;
+  if (fromSteps !== null && !reduce) {
+    const before = mapPosition(fromSteps);
+    const idx = before.area * MAP_STEPS_PER_AREA + before.step;
+    // Only animate along this lap's path; a new lap simply starts at the top.
+    if (idx < here) from = idx;
+  }
+  avatar.classList.remove('map-avatar-moving');
+  put(from ?? here);
+  const scroller = el('app-scroll');
+  const c = stepCentre(here);
+  if (c) {
+    const p = el('map-path').getBoundingClientRect();
+    const view = scroller.getBoundingClientRect();
+    scroller.scrollBy({ top: p.top + c.y - (view.top + view.height / 2) });
+  }
+  if (from !== null) {
+    void avatar.offsetWidth;
+    avatar.classList.add('map-avatar-moving');
+    setTimeout(() => put(here), 300);
+  }
+}
+
+// The path is drawn from measured positions, so redraw it when the iPad is
+// turned round.
+window.addEventListener('resize', () => {
+  if (!el('screen-map').classList.contains('active')) return;
+  const cur = el('map-path').querySelector('.map-step-current');
+  if (cur) placeMapAvatar(Number(cur.dataset.step), null);
+});
 
 // A one-off message under the focus card, e.g. "Progress restored" (#150).
 // Cleared by the next renderStart.
@@ -348,7 +623,12 @@ function syncCustomLengthButton() {
   btn.dataset.lengthValue = String(value);
 }
 
-export function bindStartHandlers({ onStart, onResume, onBackupReminderSave, onBackupReminderSnooze }) {
+export function bindStartHandlers({ onStart, onResume, onBackupReminderSave, onBackupReminderSnooze, onStartCheckup, onStartFix, onNoteThanks, onRecapDismiss, onOpenMap }) {
+  el('checkup-btn').addEventListener('click', onStartCheckup);
+  el('fix-btn').addEventListener('click', onStartFix);
+  el('parent-note-thanks').addEventListener('click', onNoteThanks);
+  el('recap-dismiss').addEventListener('click', onRecapDismiss);
+  el('adventure-card').addEventListener('click', onOpenMap);
   el('backup-reminder-save').addEventListener('click', onBackupReminderSave);
   el('backup-reminder-snooze').addEventListener('click', onBackupReminderSnooze);
   document.querySelectorAll('#length-choices .choice-btn').forEach((btn) => {
@@ -406,12 +686,66 @@ export function renderSettings(meta, syncConfig) {
     btn.classList.toggle('selected', on);
     btn.setAttribute('aria-pressed', String(on));
   });
+  // Roadmap #142
+  document.querySelectorAll('#sound-choices .choice-btn').forEach((btn) => {
+    const on = btn.dataset.sound === (meta.soundOn ? 'on' : 'off');
+    btn.classList.toggle('selected', on);
+    btn.setAttribute('aria-pressed', String(on));
+  });
+  el('note-heading').textContent = `Note for ${meta.childName || 'your child'}`;
   renderSyncSettings(syncConfig);
   renderChangelog();
   const last = meta.lastBackupAt ? new Date(meta.lastBackupAt) : null;
   el('backup-last').textContent = last && !Number.isNaN(last.getTime())
     ? `Last backup: ${last.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}`
     : 'Never backed up';
+}
+
+// ---------- For grown-ups: note (#139) and reward goal (#138) ----------
+
+// Once saved, the note's text isn't left on screen (so the child can't
+// spoil it by opening Settings): just whether it's been seen, plus Edit and
+// Delete. `editing` reopens the box with the text filled in. Kept apart
+// from renderSettings so changing the name or colour mode never wipes a
+// half-written note.
+export function renderNoteSettings(note, childName, editing = false) {
+  const showEditor = !note || editing;
+  el('note-editor').hidden = !showEditor;
+  el('note-saved').hidden = showEditor;
+  if (showEditor) {
+    el('note-input').value = note && editing ? note.text : '';
+    updateNoteCount();
+    return;
+  }
+  const who = childName || 'your child';
+  if (note.seenAt) {
+    const when = new Date(note.seenAt);
+    const time = when.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    el('note-status').textContent = `Seen ${shortDay(note.seenAt)}, ${time}`;
+  } else {
+    el('note-status').textContent = `Waiting for ${who} to see it`;
+  }
+}
+
+function updateNoteCount() {
+  const text = el('note-input').value;
+  el('note-count').textContent = `${text.length} / 200`;
+  el('note-save-btn').disabled = text.trim() === '';
+}
+
+// Fills the reward goal fields from the saved goal (or empties them).
+export function renderRewardGoalSettings(goal) {
+  el('reward-label-input').value = goal ? goal.label : '';
+  el('reward-target-input').value = goal ? String(goal.targetPoints) : '';
+  el('reward-remove-btn').hidden = !goal;
+  el('reward-save-btn').textContent = goal ? 'Save changes' : 'Save goal';
+}
+
+export function showRewardGoalStatus(message, tone = 'ok') {
+  const target = el('reward-goal-status');
+  target.textContent = message;
+  target.hidden = !message;
+  target.classList.toggle('backup-status-warn', tone === 'warn');
 }
 
 // ---------- Backup and restore (Roadmap #150) ----------
@@ -474,7 +808,22 @@ function renderChangelog() {
   }).join('');
 }
 
-export function bindSettingsHandlers({ onNameChange, onCityChange, onColourModeChange, onClearProgress, onSyncConfigChange, onBackup, onRestoreFile }) {
+export function bindSettingsHandlers({ onNameChange, onCityChange, onColourModeChange, onClearProgress, onSyncConfigChange, onBackup, onRestoreFile, onSoundChange, onNoteSave, onNoteEdit, onNoteDelete, onRewardSave, onRewardRemove }) {
+  document.querySelectorAll('#sound-choices .choice-btn').forEach((btn) => {
+    btn.addEventListener('click', () => onSoundChange(btn.dataset.sound === 'on'));
+  });
+  el('note-input').addEventListener('input', updateNoteCount);
+  el('note-save-btn').addEventListener('click', () => {
+    const text = el('note-input').value.slice(0, 200);
+    if (text.trim()) onNoteSave(text);
+  });
+  el('note-edit-btn').addEventListener('click', onNoteEdit);
+  el('note-delete-btn').addEventListener('click', onNoteDelete);
+  el('reward-save-btn').addEventListener('click', () => onRewardSave({
+    label: el('reward-label-input').value,
+    target: el('reward-target-input').value,
+  }));
+  el('reward-remove-btn').addEventListener('click', onRewardRemove);
   el('backup-btn').addEventListener('click', onBackup);
   // Cancelling the picker fires no change event, so it does nothing.
   el('restore-file').addEventListener('change', (e) => {
@@ -822,7 +1171,7 @@ export function renderWeather(state) {
 // on show is the count answered (not + 1) until the next question appears.
 // The score and combo still update straight away.
 export function renderHud(session, boss = false, checked = false) {
-  const regular = session.questions.filter((q) => !q.boss).length;
+  const regular = regularCount(session);
   const onScreen = checked ? regular : regular + 1;
   let count;
   if (boss) count = '👹 Boss challenge';
@@ -1509,6 +1858,7 @@ function scrollFeedbackIntoView(correct = true) {
 // ---------- Summary screen ----------
 
 export function renderSummary(entry, newlyEarnedBadges = [], meta = {}, shopState = null, extras = {}) {
+  const questPoints = extras.quests ? extras.quests.points : 0;
   const { summary } = entry;
   const accuracyPct = Math.round(summary.accuracy * 100);
   const avgSec = Math.round(summary.avgTimeMs / 1000);
@@ -1522,13 +1872,15 @@ export function renderSummary(entry, newlyEarnedBadges = [], meta = {}, shopStat
     <div class="summary-row"><span class="label">Accuracy</span><span class="value">${accuracyPct}%</span></div>
     <div class="summary-row"><span class="label">Avg. time / question</span><span class="value">${avgSec}s</span></div>
     <div class="summary-row"><span class="label">Topics practiced</span><span class="value">${topics || '—'}</span></div>
-    ${pointsRows(summary, meta, extras.chestReward)}
+    ${pointsRows(summary, meta, extras.chestReward, questPoints)}
     <div class="summary-row"><span class="label">Best combo</span><span class="value">🔥 ${summary.bestStreak}</span></div>
     ${bossRow(entry)}
   `;
 
-  renderSummaryNotes(extras.fixedToday || [], extras.shieldUsed ? meta.currentStreakDays : 0);
+  renderSummaryNotes(extras.fixedToday || [], extras.shieldUsed ? meta.currentStreakDays : 0, extras.fixResult);
   renderTakeaways(entry, extras.mastery);
+  renderWrongList(extras.wrongList || [], Boolean(extras.canRetry));
+  renderSummaryMore(extras);
   renderNewRecords(extras.newRecords || [], extras.personalBests);
   renderChestReward(extras.chestReward);
 
@@ -1537,14 +1889,20 @@ export function renderSummary(entry, newlyEarnedBadges = [], meta = {}, shopStat
     badgeEl.hidden = true;
   } else {
     badgeEl.hidden = false;
+    // Roadmap #135: a secret badge gets its own title (and its real name).
+    // Only when every new badge is secret; otherwise the normal title,
+    // with a small "Secret" tag on the secret ones.
+    const title = newlyEarnedBadges.every((b) => b.hidden)
+      ? 'Secret badge unlocked!'
+      : `New badge${newlyEarnedBadges.length > 1 ? 's' : ''} unlocked!`;
     badgeEl.innerHTML = `
-      <p class="new-badges-title">New badge${newlyEarnedBadges.length > 1 ? 's' : ''} unlocked!</p>
+      <p class="new-badges-title">${title}</p>
       <div class="new-badges-row">
         ${newlyEarnedBadges.map((b, i) => `
           <div class="badge-card earned badge-card-reveal" style="animation-delay:${i * 150}ms">
             <span class="badge-sparkle">✨</span>
             <div class="badge-icon">${b.icon}</div>
-            <div class="badge-label">${b.label}</div>
+            <div class="badge-label">${b.label}${b.hidden ? ' <span class="trophy-tag">Secret</span>' : ''}</div>
           </div>
         `).join('')}
       </div>
@@ -1558,20 +1916,22 @@ export function renderSummary(entry, newlyEarnedBadges = [], meta = {}, shopStat
 // above 0; with nothing but question points there's no sum to show, so it
 // stays the one "Points earned" row. "You now have" is the spendable
 // balance — the same number as the top bar — not the lifetime total.
-function pointsRows(summary, meta, chestReward) {
+// Weekly quest rewards (#136) are one more part.
+function pointsRows(summary, meta, chestReward, questPts = 0) {
   const row = (label, value, cls = '') => `<div class="summary-row${cls}"><span class="label">${label}</span><span class="value">⭐ ${value}</span></div>`;
   const bossBonus = summary.bossBonus || 0;
   const questionPts = summary.pointsEarned - bossBonus;
   const chestPts = chestReward && chestReward.type === 'points' ? chestReward.points : 0;
   const balance = row('You now have', availableBalance(meta), ' summary-row-total');
-  if (bossBonus === 0 && chestPts === 0) {
+  if (bossBonus === 0 && chestPts === 0 && questPts === 0) {
     return row('Points earned', summary.pointsEarned) + balance;
   }
   return [
     questionPts > 0 ? row('Questions', questionPts, ' summary-row-part') : '',
     bossBonus > 0 ? row('Boss bonus', bossBonus, ' summary-row-part') : '',
     chestPts > 0 ? row('Mystery chest', chestPts, ' summary-row-part') : '',
-    row('Added today', questionPts + bossBonus + chestPts, ' summary-row-total'),
+    questPts > 0 ? row('Weekly quests', questPts, ' summary-row-part') : '',
+    row('Added today', questionPts + bossBonus + chestPts + questPts, ' summary-row-total'),
     balance,
   ].join('');
 }
@@ -1613,10 +1973,22 @@ function shortDay(iso) {
 
 // The one-line notes under the summary card. Nothing to say, no box.
 // shieldStreak is the streak a Streak Shield (#112) just saved, or 0.
-function renderSummaryNotes(fixedToday, shieldStreak = 0) {
+// fixResult: { fixed, total, left } after a Fix my mistakes session (#128).
+function renderSummaryNotes(fixedToday, shieldStreak = 0, fixResult = null) {
   const lines = [];
   if (shieldStreak > 0) lines.push(`🛡️ Your shield saved your ${shieldStreak}-day streak!`);
-  if (fixedToday.length > 0) {
+  if (fixResult) {
+    // "You fixed 0 of 6" would read as a telling-off (SPEC §8), so a
+    // session that fixed none just says they'll be there next time.
+    const left = fixResult.left > 0 ? `${fixResult.left} still to fix` : '';
+    lines.push(fixResult.fixed > 0
+      ? `🔧 You fixed ${fixResult.fixed} of ${fixResult.total}!${left ? ` ${left}.` : ''}`
+      : `🔧 ${left || 'Nothing left to fix'}. They\u2019ll be on Home for another go.`);
+  }
+  // After a Fix session the "fixed X of Y" line above says it, counted
+  // per queued question; this line groups kinds differently (topic and
+  // subtopic only), so showing both would disagree.
+  if (fixedToday.length > 0 && !fixResult) {
     const n = fixedToday.length;
     const kinds = [...new Set(fixedToday.map(mistakeKindLabel))].join(', ');
     lines.push(`✅ You fixed ${n} old mistake${n === 1 ? '' : 's'} today: ${kinds}`);
@@ -1718,8 +2090,76 @@ function renderChestReward(reward) {
   `;
 }
 
-export function bindSummaryHandlers({ onRestart }) {
+// ---------- Questions I got wrong (Roadmap #127) ----------
+
+// rows: [{ prompt, correctAnswer, explanation, diagramSvg }] in the order
+// they were asked. The answer is shown exactly as "Not quite" showed it.
+// Prompts and explanations are escaped (text, never HTML); the diagram is
+// SVG drawn by our own generators, as on the question screen. canRetry
+// shows "Try these again" (never after a retry round, and only when
+// something can be re-asked).
+function renderWrongList(rows, canRetry) {
+  const target = el('summary-wrong');
+  target.hidden = rows.length === 0;
+  if (rows.length === 0) { target.innerHTML = ''; return; }
+  const items = rows.map((r) => `
+    <li class="wrong-row">
+      <p class="wrong-prompt">${escapeHtml(r.prompt)}</p>
+      ${r.diagramSvg ? `<div class="wrong-diagram">${r.diagramSvg}</div>` : ''}
+      <p class="wrong-answer">Answer: <strong>${escapeHtml(r.correctAnswer)}</strong></p>
+      ${r.explanation ? `<details class="wrong-how"><summary>How to work it out</summary><p>${escapeHtml(r.explanation)}</p></details>` : ''}
+    </li>`).join('');
+  target.innerHTML = `
+    <p class="summary-wrong-title">Questions I got wrong</p>
+    <ol class="wrong-list">${items}</ol>
+    ${canRetry ? '<button id="retry-round-btn" type="button" class="secondary-btn retry-round-btn">Try these again</button>' : ''}`;
+}
+
+export function hideRetryButton() {
+  const btn = el('retry-round-btn');
+  if (btn) btn.remove();
+}
+
+// Quests finished (#136), the map step (#137), the daily goal (#130) and
+// the check-up line (#149), one line each, in that order.
+function renderSummaryMore(extras) {
+  const lines = [];
+  const q = extras.quests;
+  if (q) {
+    q.completed.forEach((quest) => {
+      lines.push(`<p class="summary-line">🗺️ Quest complete: ${escapeHtml(questLabel(quest, q.topic))} (+${quest.reward} ⭐)</p>`);
+    });
+    if (q.bonus) lines.push(`<p class="summary-line">🏆 All three quests done! +${QUEST_BONUS} ⭐ bonus</p>`);
+  }
+  const m = extras.mapStep;
+  if (m && m.after > m.before) {
+    const pos = mapPosition(m.after);
+    let text;
+    if (pos.step === 0 && pos.area === 0) text = `🎉 Lap ${pos.lap} begins!`;
+    else if (pos.step === 0) text = `🎉 You\u2019ve reached ${areaOf(pos.area).name}!`;
+    else {
+      const left = MAP_STEPS_PER_AREA - pos.step;
+      text = `👣 You moved 1 step! ${left} more to reach ${areaOf((pos.area + 1) % TOPICS.length).name}.`;
+    }
+    lines.push(`<button type="button" id="summary-map-btn" class="summary-line summary-map-btn${pos.step === 0 ? ' summary-map-arrive' : ''}">${text} <span class="summary-map-go">See the map \u203a</span></button>`);
+  }
+  const g = extras.goal;
+  if (g) {
+    lines.push(`<p class="summary-line">${g.count >= g.target ? `⭐ Daily goal done! 🎉 ${g.count} today` : `⭐ Daily goal: ${g.count} / ${g.target}`}</p>`);
+  }
+  if (extras.checkupDone) lines.push('<p class="summary-line">🩺 Check-up done! Next check-up in 4 weeks.</p>');
+  const target = el('summary-more');
+  target.hidden = lines.length === 0;
+  target.innerHTML = lines.join('');
+}
+
+export function bindSummaryHandlers({ onRestart, onTryAgain, onOpenMap }) {
   el('summary-restart-btn').addEventListener('click', onRestart);
+  // Delegated: both buttons are redrawn with every summary.
+  el('screen-summary').addEventListener('click', (e) => {
+    if (e.target.closest('#retry-round-btn')) onTryAgain();
+    else if (e.target.closest('#summary-map-btn')) onOpenMap();
+  });
 }
 
 // ---------- Progress screen ----------
@@ -1804,7 +2244,7 @@ function topicMedalLine(topic, rec, earnedBadgeIds) {
   };
 }
 
-export function renderProgress(mastery, meta, sessions, badgeDefinitions = [], earnedBadgeIds = [], fixedMistakes = []) {
+export function renderProgress(mastery, meta, sessions, badgeDefinitions = [], earnedBadgeIds = [], fixedMistakes = [], extras = {}) {
   renderStrengthOverview(mastery, Object.keys(mastery));
   renderFixedMistakes(fixedMistakes);
 
@@ -1827,20 +2267,12 @@ export function renderProgress(mastery, meta, sessions, badgeDefinitions = [], e
     barsEl.appendChild(row);
   });
 
-  const badgesEl = el('badges-grid');
-  badgesEl.innerHTML = '';
-  // Topic medals (#129) live on the rows above, not as 24 more cards here.
-  badgeDefinitions.filter((b) => !b.topicTier).forEach((b) => {
-    const earned = earnedBadgeIds.includes(b.id);
-    const card = document.createElement('div');
-    card.className = `badge-card ${earned ? 'earned' : 'locked'}`;
-    card.innerHTML = `
-      <div class="badge-icon">${earned ? b.icon : '🔒'}</div>
-      <div class="badge-label">${b.label}</div>
-      <div class="badge-desc">${b.description}</div>
-    `;
-    badgesEl.appendChild(card);
-  });
+  // Roadmap #134: the badge grid moved to the Trophy cabinet.
+  const earnedCount = badgeDefinitions.filter((b) => earnedBadgeIds.includes(b.id)).length;
+  el('cabinet-btn').textContent = `🏆 Trophy cabinet: ${earnedCount} of ${badgeDefinitions.length} collected`;
+
+  renderPracticeCalendar(extras.calendar);
+  renderWeekCompare(extras.weekCompare);
 
   const historyEl = el('session-history');
   historyEl.innerHTML = '';
@@ -1859,6 +2291,159 @@ export function renderProgress(mastery, meta, sessions, badgeDefinitions = [], e
       historyEl.appendChild(row);
     });
   }
+}
+
+// ---------- My practice days (Roadmap #140) ----------
+
+// cal: { today, practised: Set, shielded: Set, streak } — local days. Five
+// Monday-to-Sunday rows ending with this week. A practised day gets a tick,
+// a day a Streak Shield covered gets 🛡️, any other day is a plain cell:
+// never a cross or "missed" (SPEC §8). Days after today are dimmed.
+const WEEKDAY_LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+function renderPracticeCalendar(cal) {
+  const target = el('practice-calendar');
+  if (!cal) { target.innerHTML = ''; return; }
+  const first = addDays(weekRange(cal.today).start, -28);
+  let practisedInWindow = 0;
+  const cells = Array.from({ length: 35 }, (_, i) => {
+    const day = addDays(first, i);
+    const future = day > cal.today;
+    const ticked = !future && cal.practised.has(day);
+    const shield = !future && !ticked && cal.shielded.has(day);
+    if (ticked) practisedInWindow += 1;
+    const cls = ['cal-cell', ticked ? 'cal-ticked' : '', shield ? 'cal-shield' : '', future ? 'cal-future' : '', day === cal.today ? 'cal-today' : '']
+      .filter(Boolean).join(' ');
+    const label = `${shortDay(`${day}T12:00:00`)}${ticked ? ': practised' : ''}${shield ? ': shield used' : ''}${day === cal.today ? ' (today)' : ''}`;
+    return `<span class="${cls}" role="img" aria-label="${label}">${ticked ? '✓' : (shield ? '🛡️' : '')}</span>`;
+  }).join('');
+  const days = `${practisedInWindow} practice day${practisedInWindow === 1 ? '' : 's'} in the last 5 weeks`;
+  const caption = cal.streak > 0 ? `🔥 ${cal.streak}-day streak \u00b7 ${days}` : days;
+  target.innerHTML = `
+    <p class="cal-caption">${caption}</p>
+    <div class="cal-grid">
+      ${WEEKDAY_LETTERS.map((d) => `<span class="cal-head" aria-hidden="true">${d}</span>`).join('')}
+      ${cells}
+    </div>
+    ${practisedInWindow === 0 ? '<p class="empty-state">Finish a session and today gets its first tick.</p>' : ''}`;
+}
+
+// ---------- This week vs last week (Roadmap #131) ----------
+
+// wc: { compare (compareTopicAccuracy: A = last week, B = this week),
+// isMonday, thisWeekCount }. Only good-news colour: up is green, a drop is
+// grey and worded gently.
+const ARROWS = {
+  up: { icon: '▲', label: 'Up', cls: 'wc-up' },
+  steady: { icon: '▬', label: 'Steady', cls: 'wc-steady' },
+  down: { icon: '▼', label: 'A bit lower', cls: 'wc-down' },
+};
+const pct = (side) => Math.round((side.right / side.total) * 100);
+function renderWeekCompare(wc) {
+  const target = el('week-compare');
+  if (!wc) { target.innerHTML = ''; return; }
+  const entries = Object.entries(wc.compare);
+  const order = (t) => TOPICS.indexOf(t);
+  const rank = { up: 0, steady: 1, down: 2 };
+  const compared = entries.filter(([, t]) => t.comparable)
+    .sort((a, b) => (rank[a[1].direction] - rank[b[1].direction])
+      || (a[1].direction === 'up' ? b[1].rise - a[1].rise : 0)
+      || (order(a[0]) - order(b[0])));
+  const partial = entries.filter(([, t]) => !t.comparable).map(([topic]) => topic)
+    .sort((a, b) => order(a) - order(b));
+  const parts = [];
+  if (compared.length === 0) {
+    const empty = wc.isMonday && wc.thisWeekCount === 0
+      ? 'New week! Practise to start your arrows.'
+      : 'Practise a topic this week and last week to see your arrows here.';
+    parts.push(`<p class="empty-state">${empty}</p>`);
+  } else {
+    const ups = compared.filter(([, t]) => t.direction === 'up').length;
+    parts.push(`<p class="wc-headline">${ups > 0
+      ? `${ups} topic${ups === 1 ? '' : 's'} went up this week!`
+      : 'Holding steady \u2014 keep practising to push a topic up.'}</p>`);
+    parts.push(compared.map(([topic, t]) => {
+      const a = ARROWS[t.direction];
+      return `
+        <div class="wc-row">
+          <span class="wc-topic">${escapeHtml(TOPIC_LABELS[topic] || topic)}</span>
+          <span class="wc-pcts">${pct(t.a)}% \u2192 ${pct(t.b)}%</span>
+          <span class="wc-arrow ${a.cls}"><span aria-hidden="true">${a.icon}</span> ${a.label}</span>
+        </div>`;
+    }).join(''));
+  }
+  if (partial.length) {
+    parts.push(`<p class="wc-partial">Practise these in both weeks to get an arrow: ${partial.map((t) => escapeHtml(TOPIC_LABELS[t] || t)).join(', ')}</p>`);
+  }
+  target.innerHTML = parts.join('');
+}
+
+// ---------- Trophy cabinet (Roadmap #134) ----------
+
+const SHELVES = [
+  { key: 'start', label: 'Getting started' },
+  { key: 'streaks', label: 'Streaks' },
+  { key: 'points', label: 'Points' },
+  { key: 'topics', label: 'Topics' },
+  { key: 'challenges', label: 'Challenges' },
+  { key: 'secret', label: 'Secret badges' },
+];
+
+// Earned badges are lit; locked ones are a grey silhouette of their own
+// emoji with the hint (and progress, where the badge has one). A locked
+// secret badge (#135) is "???" with no icon, name or hint anywhere, not
+// even in an attribute.
+function cabinetCard(b, earned, ctx) {
+  if (!earned && b.hidden) {
+    return `
+      <div class="trophy trophy-locked trophy-secret">
+        <div class="trophy-icon" aria-hidden="true">❓</div>
+        <div class="trophy-name">???</div>
+        <div class="trophy-hint">Secret badge. Keep practising to find it.</div>
+      </div>`;
+  }
+  const hint = earned ? b.description : `${b.description}${b.progressHint ? ` ${b.progressHint(ctx)}` : ''}`;
+  return `
+    <div class="trophy ${earned ? 'trophy-earned' : 'trophy-locked'}">
+      <div class="trophy-icon" aria-hidden="true">${b.icon}</div>
+      <div class="trophy-name">${escapeHtml(b.label)}${earned && b.hidden ? ' <span class="trophy-tag">Secret</span>' : ''}</div>
+      <div class="trophy-hint">${escapeHtml(hint)}</div>
+    </div>`;
+}
+
+export function renderCabinet(definitions, earnedIds, ctx) {
+  el('app-scroll').scrollTop = 0;
+  const isEarned = (b) => earnedIds.includes(b.id);
+  const earnedCount = definitions.filter(isEarned).length;
+  el('cabinet-count').textContent = `${earnedCount} of ${definitions.length} collected`;
+  const byDifficulty = (a, b) => a.difficulty - b.difficulty;
+  const shelfKeys = SHELVES.map((sh) => sh.key);
+  const shelves = [...SHELVES];
+  // Any shelf a later badge names but this list doesn't, at the end.
+  definitions.forEach((b) => {
+    if (!shelfKeys.includes(b.shelf)) { shelfKeys.push(b.shelf); shelves.push({ key: b.shelf, label: 'More badges' }); }
+  });
+  el('cabinet-shelves').innerHTML = shelves.map((shelf) => {
+    const badges = definitions.filter((b) => b.shelf === shelf.key);
+    if (badges.length === 0) return '';
+    let body;
+    if (shelf.key === 'topics') {
+      // One row per topic: its medals (#129) and Master badge, easiest first.
+      const topics = [...new Set(badges.map((b) => b.topic))];
+      body = topics.map((t) => `
+        <p class="shelf-topic">${escapeHtml(TOPIC_LABELS[t] || t)}</p>
+        <div class="shelf-row">${badges.filter((b) => b.topic === t).sort(byDifficulty).map((b) => cabinetCard(b, isEarned(b), ctx)).join('')}</div>`).join('');
+    } else {
+      body = `<div class="shelf-row">${badges.sort(byDifficulty).map((b) => cabinetCard(b, isEarned(b), ctx)).join('')}</div>`;
+    }
+    return `<section class="shelf"><h3 class="section-subheading shelf-title">${shelf.label}</h3>${body}</section>`;
+  }).join('');
+}
+
+export function bindCabinetAndMapHandlers({ onOpenCabinet, onCabinetBack, onMapBack }) {
+  el('header-badges-group').addEventListener('click', onOpenCabinet);
+  el('cabinet-btn').addEventListener('click', onOpenCabinet);
+  el('cabinet-back-btn').addEventListener('click', onCabinetBack);
+  el('map-back-btn').addEventListener('click', onMapBack);
 }
 
 // ---------- Shop screen ----------

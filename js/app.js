@@ -4,12 +4,20 @@
 
 import { Storage, TOPICS, backupProblem } from './storage.js';
 import { computeTodaysPlan } from './pacing.js';
-import { startSession, pickNextQuestion, recordAnswer, classifyAnswer, isSessionComplete, finishSession, settleBossGate, bossProgress, hasReachedLength, settleDayClock } from './session.js';
+import { startSession, pickNextQuestion, recordAnswer, classifyAnswer, isSessionComplete, finishSession, settleBossGate, bossProgress, hasReachedLength, settleDayClock, buildRetryQueue, buildCheckupQueue } from './session.js';
 import { getSimilarQuestion, rightFormHint } from './questionBank.js';
 import { getBadgeDefinitions, evaluateBadges, highestTiersOnly } from './badges.js';
-import { computePersonalBests, findNewRecords, computeFixedMistakes } from './records.js';
+import {
+  computePersonalBests, findNewRecords, computeFixedMistakes, computeMistakesToFix, questionsOnDay,
+  compareTopicAccuracy, computeMonthlyRecap, countMapSteps, countsAsPractice,
+} from './records.js';
+import { createWeekQuests, questProgress, settleQuests } from './quests.js';
 import { isChestAvailable, rollChest } from './chest.js';
-import { localDateStr, daysBetweenLocalDates } from './dates.js';
+import {
+  localDateStr, daysBetweenLocalDates, sessionLocalDay, weekRange, previousWeekRange, weekdayIndex, inRange,
+  localMonthStr, previousMonthStr,
+} from './dates.js';
+import { playSound } from './sound.js';
 import { parsePdfQuestions, loadPdfJs } from './pdfQuestions.js';
 import { fetchWeatherForCity } from './weather.js';
 import { getItem, isOwned, availableBalance, STREAK_SHIELD, MAX_STREAK_SHIELDS } from './shop.js';
@@ -35,7 +43,34 @@ const state = {
   // Roadmap #97: true once this question has had its one "Right number!"
   // retry. Lives only in memory, like the question itself.
   formRetryUsed: false,
+  // Roadmap #127: the "Try these again" round on offer on the summary
+  // screen, ready-made, or null. Memory only: closing the app on the
+  // summary simply drops it.
+  retryQueue: null,
+  // Roadmap #139: when this visit began — the page loading, or the app
+  // coming back to the foreground. A note saved before then is shown.
+  visitStartedAt: Date.now(),
+  // Roadmap #141: the month whose recap card is on Home right now, or null.
+  recapShownFor: null,
+  // Where Back goes from the Trophy cabinet (#134) and the map (#137), and
+  // the step count to animate the map from when opened from the summary.
+  cabinetReturn: 'progress',
+  mapReturn: 'start',
+  mapFromSteps: null,
 };
+
+const DAILY_GOAL = 20; // questions a day — Roadmap #130 (Alex's decision)
+const RETRY_CAP = 5; // "Try these again" round — #127
+const FIX_CAP = 10; // one Fix my mistakes session — #128
+const CHECKUP_INTERVAL_DAYS = 28; // #149
+const IMPORTED_SUBTOPICS = ['examberry', 'custom-pdf'];
+
+// Reads meta fresh, applies `changes`, saves it and keeps state.meta in
+// step, so a stale copy in memory can't undo a change made elsewhere.
+function updateMeta(changes) {
+  state.meta = { ...Storage.getMeta(), ...changes };
+  Storage.setMeta(state.meta);
+}
 
 function loadState() {
   state.meta = Storage.getMeta();
@@ -207,14 +242,123 @@ function handleRestoreFile(file) {
   reader.readAsText(file);
 }
 
+// ---------- Build 2 Home helpers ----------
+
+// Roadmap #149: a check-up is due once the warm-up quiz is done and at
+// least 28 whole local days have passed since the later of that and the
+// last finished check-up. Only saved progress decides it.
+function isCheckupDue(meta, today = localDateStr()) {
+  if (!meta.diagnosticCompletedAt) return false;
+  const times = [meta.diagnosticCompletedAt, meta.lastCheckupCompletedAt]
+    .map((iso) => (iso ? new Date(iso).getTime() : NaN))
+    .filter((t) => !Number.isNaN(t));
+  if (times.length === 0) return false;
+  return daysBetweenLocalDates(localDateStr(new Date(Math.max(...times))), today) >= CHECKUP_INTERVAL_DAYS;
+}
+
+// Roadmap #136: this week's quests, made the first time they're needed in
+// a new week (only once the warm-up quiz is done), or null.
+function ensureWeekQuests(today = localDateStr()) {
+  if (!state.meta.diagnosticCompletedAt) return null;
+  let quests = Storage.getQuests();
+  if (!quests || quests.weekStart !== weekRange(today).start) {
+    quests = createWeekQuests(today, state.mastery, quests);
+    Storage.setQuests(quests);
+  }
+  return quests;
+}
+
+// Pays any quest finished by the session just saved (once each, plus the
+// all-three bonus once a week) into the lifetime total. Returns what to
+// show on the summary, or null.
+function settleWeekQuests(sessions) {
+  const quests = ensureWeekQuests();
+  if (!quests) return null;
+  const result = settleQuests(quests, sessions);
+  Storage.setQuests(result.state);
+  if (result.points > 0 || result.bonus) {
+    state.meta = {
+      ...state.meta,
+      totalPoints: (state.meta.totalPoints || 0) + result.points,
+      questWeeksCompleted: (state.meta.questWeeksCompleted || 0) + (result.bonus ? 1 : 0),
+    };
+    Storage.setMeta(state.meta);
+  }
+  return { ...result, topic: quests.topic };
+}
+
+// Roadmap #141: last month's recap if it's due, else null. The first visit
+// after the update (no marker yet), or a month after one with no sessions,
+// just moves the marker on without showing anything.
+function monthlyRecapDue(sessions) {
+  const month = localMonthStr();
+  const last = state.meta.lastRecapMonth;
+  if (!last) {
+    updateMeta({ lastRecapMonth: month });
+    return null;
+  }
+  if (month <= last) return null;
+  const recap = computeMonthlyRecap(sessions, previousMonthStr(month));
+  if (!recap) updateMeta({ lastRecapMonth: month });
+  return recap;
+}
+
+function dismissRecap() {
+  updateMeta({ lastRecapMonth: localMonthStr() });
+  state.recapShownFor = null;
+  ui.renderRecap(null);
+}
+
+// Roadmap #139: the note, if it's unseen and was saved before this visit
+// began (so a grown-up who saves it and taps Home doesn't use it up).
+function parentNoteToShow() {
+  const note = Storage.getParentNote();
+  if (!note || note.seenAt) return null;
+  return new Date(note.savedAt).getTime() < state.visitStartedAt ? note : null;
+}
+
+function markParentNoteSeen() {
+  const note = Storage.getParentNote();
+  if (note && !note.seenAt) Storage.setParentNote({ ...note, seenAt: new Date().toISOString() });
+  ui.renderParentNote(null);
+}
+
 function goToStart() {
   stopTimer();
   loadState();
+  // Roadmap #137: the map starts fresh from the first load after the update.
+  if (!state.meta.mapStartedAt) updateMeta({ mapStartedAt: new Date().toISOString() });
+  const sessions = Storage.getSessions();
+  const today = localDateStr();
+
+  const recap = monthlyRecapDue(sessions);
+  state.recapShownFor = recap ? recap.month : null;
+  const quests = ensureWeekQuests(today);
+
+  // Roadmap #130: sparkle once, the first Home visit after the goal is met.
+  const goalCount = questionsOnDay(sessions, today);
+  const sparkle = goalCount >= DAILY_GOAL && state.meta.lastGoalCelebratedDate !== today;
+  if (sparkle) updateMeta({ lastGoalCelebratedDate: today });
+
+  const fix = computeMistakesToFix(sessions, today);
   ui.updateHeader(state.plan, state.meta, state.shopState, getEarnedBadgesSorted());
   ui.renderStart(state.plan, state.mastery, state.meta, !!Storage.getInProgress(), {
-    personalBests: computePersonalBests(Storage.getSessions()),
+    personalBests: computePersonalBests(sessions),
     chestAvailable: isChestAvailable(state.meta),
-    backupReminderDue: isBackupReminderDue(state.meta, Storage.getSessions()),
+    backupReminderDue: isBackupReminderDue(state.meta, sessions),
+    checkup: { due: isCheckupDue(state.meta, today), length: buildCheckupQueue(TOPICS).length },
+    goal: { count: goalCount, target: DAILY_GOAL, sparkle },
+    parentNote: parentNoteToShow(),
+    recap,
+    rewardGoal: Storage.getRewardGoal(),
+    fix: { count: fix.toFix.length, hadAny: fix.hadAny },
+    quests: quests ? {
+      state: quests,
+      progress: questProgress(quests, sessions),
+      firstBadge: !(state.meta.questWeeksCompleted > 0),
+    } : null,
+    map: { steps: countMapSteps(sessions, state.meta.mapStartedAt) },
+    shopState: state.shopState,
   });
   ui.showScreen('start');
   refreshWeather();
@@ -224,8 +368,57 @@ function goToProgress() {
   const mastery = Storage.getMastery();
   const meta = Storage.getMeta();
   const sessions = Storage.getSessions();
-  ui.renderProgress(mastery, meta, sessions, BADGE_DEFINITIONS, Storage.getBadges(), computeFixedMistakes(sessions));
+  const today = localDateStr();
+  const practice = sessions.filter(countsAsPractice);
+  const thisWeek = weekRange(today);
+  ui.renderProgress(mastery, meta, sessions, BADGE_DEFINITIONS, Storage.getBadges(), computeFixedMistakes(sessions), {
+    // Roadmap #140: a session ticks the local day it finished on — the same
+    // day the streak counted it for.
+    calendar: {
+      today,
+      practised: new Set(practice.map(sessionLocalDay)),
+      shielded: new Set(practice.map((s) => s.shieldCoveredDate).filter(Boolean)),
+      streak: meta.currentStreakDays || 0,
+    },
+    // Roadmap #131: last week (A) against this week so far (B).
+    weekCompare: {
+      compare: compareTopicAccuracy(sessions, previousWeekRange(today), thisWeek),
+      isMonday: weekdayIndex(today) === 0,
+      thisWeekCount: practice.filter((s) => inRange(sessionLocalDay(s), thisWeek)).length,
+    },
+  });
   ui.showScreen('progress');
+}
+
+// Roadmap #134: from the Progress button or the header badges, from any
+// screen; Back returns to wherever it was opened from.
+function openCabinet() {
+  if (ui.currentScreen() !== 'cabinet') state.cabinetReturn = ui.currentScreen();
+  const meta = Storage.getMeta();
+  ui.renderCabinet(BADGE_DEFINITIONS, Storage.getBadges(), { meta, mastery: Storage.getMastery(), sessionCount: Storage.getSessions().length });
+  ui.showScreen('cabinet');
+}
+
+function closeCabinet() {
+  const back = state.cabinetReturn;
+  if (back === 'start') goToStart();
+  else if (back === 'progress') goToProgress();
+  else ui.showScreen(back);
+}
+
+// Roadmap #137. From the summary, the avatar walks from its old step.
+function openMap(fromSummary = false) {
+  state.mapReturn = fromSummary ? 'summary' : 'start';
+  const meta = Storage.getMeta();
+  const steps = countMapSteps(Storage.getSessions(), meta.mapStartedAt);
+  ui.renderMap(steps, Storage.getShopState(), fromSummary ? state.mapFromSteps : null);
+  if (fromSummary) state.mapFromSteps = null; // the walk plays once
+  ui.showScreen('map');
+}
+
+function closeMap() {
+  if (state.mapReturn === 'summary') ui.showScreen('summary');
+  else goToStart();
 }
 
 function goToShop() {
@@ -234,7 +427,11 @@ function goToShop() {
 }
 
 function goToSettings() {
-  ui.renderSettings(Storage.getMeta(), Storage.getSyncConfig());
+  const meta = Storage.getMeta();
+  ui.renderSettings(meta, Storage.getSyncConfig());
+  ui.renderNoteSettings(Storage.getParentNote(), meta.childName);
+  ui.renderRewardGoalSettings(Storage.getRewardGoal());
+  ui.showRewardGoalStatus('');
   ui.showBackupStatus('');
   ui.showScreen('settings');
 }
@@ -271,6 +468,62 @@ function onColourModeChange(mode) {
   Storage.setMeta(state.meta);
   applyColourMode(mode);
   ui.renderSettings(state.meta, Storage.getSyncConfig());
+}
+
+// Roadmap #142. Tapping On plays the ding straight away, as a preview —
+// that tap is also what lets iPad Safari play sound at all.
+function onSoundChange(on) {
+  updateMeta({ soundOn: on });
+  ui.renderSettings(state.meta, Storage.getSyncConfig());
+  if (on) playSound('ding');
+}
+
+// Roadmap #139: one note at a time; saving replaces it and makes it unseen.
+function onNoteSave(text) {
+  const note = { text: text.slice(0, 200), savedAt: new Date().toISOString(), seenAt: null };
+  Storage.setParentNote(note);
+  ui.renderNoteSettings(note, Storage.getMeta().childName);
+}
+
+function onNoteEdit() {
+  ui.renderNoteSettings(Storage.getParentNote(), Storage.getMeta().childName, true);
+}
+
+function onNoteDelete() {
+  if (!window.confirm('Delete this note?')) return;
+  Storage.clearParentNote();
+  ui.renderNoteSettings(null, Storage.getMeta().childName);
+}
+
+// Roadmap #138. A new goal starts from 0: progress is lifetime points
+// earned since it was saved. Changing an existing goal's name or target
+// keeps that starting point, so progress isn't lost.
+function onRewardSave({ label, target }) {
+  const name = String(label).trim().slice(0, 40);
+  const text = String(target).trim();
+  if (!name) {
+    ui.showRewardGoalStatus('Type the reward first, like \u201cCinema trip\u201d.', 'warn');
+    return;
+  }
+  const points = /^\d+$/.test(text) ? Number(text) : NaN;
+  if (!(points >= 100 && points <= 100000)) {
+    ui.showRewardGoalStatus('Points needed must be a whole number from 100 to 100,000.', 'warn');
+    return;
+  }
+  const existing = Storage.getRewardGoal();
+  const goal = existing
+    ? { ...existing, label: name, targetPoints: points }
+    : { label: name, targetPoints: points, baselinePoints: Storage.getMeta().totalPoints || 0, setAt: new Date().toISOString() };
+  Storage.setRewardGoal(goal);
+  ui.renderRewardGoalSettings(goal);
+  ui.showRewardGoalStatus('Saved. It shows on Home.');
+}
+
+function onRewardRemove() {
+  if (!window.confirm('Remove the reward goal? Its progress bar will go from Home.')) return;
+  Storage.clearRewardGoal();
+  ui.renderRewardGoalSettings(null);
+  ui.showRewardGoalStatus('Goal removed.');
 }
 
 function onCityChange(city) {
@@ -467,20 +720,79 @@ function handleBuyStreakShield() {
   ui.renderShop(Storage.getShopState(), state.meta);
 }
 
-function beginSession({ lengthType, lengthValue, topicFocus }) {
+// mode defaults to today's plan (warm-up quiz or daily practice). A check-up
+// (#149), Fix (#128) or retry round (#127) passes its own mode and list.
+function beginSession({ lengthType, lengthValue, topicFocus, mode = state.plan.phase, queue = null, checkupQueue = null }) {
+  if (ui.isParentNoteShowing()) markParentNoteSeen(); // #139: it's been seen
+  state.retryQueue = null;
   state.session = startSession({
     topicWeighting: state.plan.topicWeighting,
     topicFocus,
     lengthType,
     lengthValue,
-    mode: state.plan.phase,
+    mode,
+    queue,
+    checkupQueue,
   });
   ui.showScreen('question');
   startTimerIfNeeded();
   nextQuestion();
 }
 
+function startCheckup() {
+  beginSession({ mode: 'checkup', checkupQueue: buildCheckupQueue(TOPICS) });
+}
+
+// Roadmap #128: new versions of this week's mistakes, the most recent 10.
+function startFixSession() {
+  const { toFix } = computeMistakesToFix(Storage.getSessions(), localDateStr());
+  const queue = buildRetryQueue(toFix, FIX_CAP);
+  if (queue.length === 0) {
+    ui.showHomeNotice('Sprint couldn\u2019t make new questions for those just now. Try again later!');
+    return;
+  }
+  beginSession({ mode: 'fix', queue });
+}
+
+// Roadmap #127: "Try these again" on the summary.
+function startRetryRound() {
+  const queue = state.retryQueue;
+  state.retryQueue = null;
+  ui.hideRetryButton();
+  if (!queue || queue.length === 0) return; // a second quick tap
+  beginSession({ mode: 'retry', queue });
+}
+
+// This session's misses that can be asked again with new numbers, lowest
+// tier first (in the order asked within a tier). Word problems (no new
+// numbers to give without the answer being on screen) and imported
+// questions are listed but not re-asked, and neither is a miss the child
+// already put right with "Try one like it".
+function retryKinds(entry) {
+  const qs = entry.questions;
+  const putRight = new Set(qs.filter((q) => q.correct && Number.isInteger(q.followUpOf)).map((q) => q.followUpOf));
+  return qs
+    .map((q, i) => ({ q, i }))
+    .filter(({ q, i }) => !q.correct && q.prompt && !putRight.has(i)
+      && q.topic !== 'wordProblems' && !IMPORTED_SUBTOPICS.includes(q.subtopic))
+    .map(({ q }) => ({ topic: q.topic, subtopic: q.subtopic, difficulty: q.difficulty, variant: q.variant, prompt: q.prompt }))
+    .sort((a, b) => a.difficulty - b.difficulty);
+}
+
+// The summary's "Questions I got wrong" rows, in the order asked. Answers
+// saved before this list existed have no prompt and are left out.
+function wrongList(entry, session) {
+  const extras = session.reviewExtras || {};
+  return entry.questions
+    .map((q, i) => ({ q, x: extras[i] || {} }))
+    .filter(({ q }) => !q.correct && q.prompt)
+    .map(({ q, x }) => ({
+      prompt: q.prompt, correctAnswer: q.correctAnswer, explanation: x.explanation || '', diagramSvg: x.diagramSvg || '',
+    }));
+}
+
 function resumeSession() {
+  if (ui.isParentNoteShowing()) markParentNoteSeen();
   const raw = Storage.getInProgress();
   state.session = { ...raw, usedWordProblemIds: new Set(raw.usedWordProblemIds) };
   ui.showScreen('question');
@@ -544,6 +856,7 @@ function onCheck() {
   );
   ui.renderHud(state.session, Boolean(state.currentQuestion.isBoss), true);
   ui.renderFeedback(correct, state.currentQuestion);
+  if (correct && state.meta.soundOn) playSound('ding'); // #142: never on a wrong answer
   offerFollowUp(correct);
   if (state.currentQuestion.isBoss) {
     ui.renderBossResult(correct, pointsEarned, bossProgress(state.session), bossBonus);
@@ -561,12 +874,16 @@ function onCheck() {
 // boss, word problems or imported questions (getSimilarQuestion only works
 // for generated ones), and only while the session still has room: the
 // follow-up counts towards the chosen length like any other question.
+//
+// Not in a "Try these again" round (#127): it's already a second go. The
+// follow-up remembers which answer it followed (followUpOf), so the summary
+// knows that miss was put right.
 function offerFollowUp(correct) {
   const q = state.currentQuestion;
   state.followUp = null;
-  if (!correct && !q.isFollowUp && !q.isBoss && !hasReachedLength(state.session)) {
+  if (!correct && !q.isFollowUp && !q.isBoss && state.session.mode !== 'retry' && !hasReachedLength(state.session)) {
     const similar = getSimilarQuestion(q);
-    if (similar) state.followUp = { ...similar, isFollowUp: true };
+    if (similar) state.followUp = { ...similar, isFollowUp: true, followUpOf: state.session.questions.length - 1 };
   }
   ui.showTryOneLikeIt(Boolean(state.followUp));
 }
@@ -619,30 +936,75 @@ function onNext() {
   settleBossGate(state.session);
   if (isSessionComplete(state.session)) {
     stopTimer();
-    const recordsBefore = computePersonalBests(Storage.getSessions());
-    const { entry, meta, shieldUsed } = finishSession(state.session, state.meta);
+    const session = state.session;
+    const sessionsBefore = Storage.getSessions();
+    const recordsBefore = computePersonalBests(sessionsBefore);
+    const stepsBefore = countMapSteps(sessionsBefore, state.meta.mapStartedAt);
+    const { entry, meta, shieldUsed } = finishSession(session, state.meta);
     state.meta = meta;
-    const newRecords = findNewRecords(recordsBefore, computePersonalBests(Storage.getSessions()));
-    // Before badges, so chest points count towards the points badges.
+    const sessions = Storage.getSessions();
+    const today = localDateStr();
+    const newRecords = findNewRecords(recordsBefore, computePersonalBests(sessions));
+    // Before badges, so chest and quest points count towards the points badges.
     const chestReward = openDailyChestIfDue();
+    const quests = settleWeekQuests(sessions);
+    // #141: a recap left on Home is done with once a session is finished.
+    if (state.recapShownFor) {
+      state.meta = { ...state.meta, lastRecapMonth: localMonthStr() };
+      Storage.setMeta(state.meta);
+      state.recapShownFor = null;
+    }
 
-    const badgeCtx = { meta: state.meta, mastery: state.mastery, sessionCount: Storage.getSessions().length };
+    const fixedToday = computeFixedMistakes(sessions).filter((f) => f.sessionId === entry.sessionId);
+    const badgeCtx = {
+      meta: state.meta, mastery: state.mastery, sessionCount: sessions.length, entry, fixedThisSession: fixedToday,
+    };
     const { earnedIds, newlyEarnedIds } = evaluateBadges(BADGE_DEFINITIONS, badgeCtx, Storage.getBadges());
     Storage.setBadges(earnedIds);
     // Both ids are saved, but a session that crosses two medals in one
     // topic shows only the higher one (#129).
     const newlyEarnedBadges = highestTiersOnly(BADGE_DEFINITIONS.filter((b) => newlyEarnedIds.includes(b.id)));
 
+    // #127: a retry round never offers another (no loop, SPEC §6).
+    state.retryQueue = entry.mode === 'retry' ? null : buildRetryQueue(retryKinds(entry), RETRY_CAP);
+    state.mapFromSteps = stepsBefore;
+    let fixResult = null;
+    if (entry.mode === 'fix') {
+      const slots = entry.questions.filter((q) => !q.boss && !Number.isInteger(q.followUpOf));
+      fixResult = {
+        fixed: slots.filter((q) => q.correct).length,
+        total: slots.length,
+        left: computeMistakesToFix(sessions, today).toFix.length,
+      };
+    }
+
     ui.updateHeader(state.plan, state.meta, state.shopState, getEarnedBadgesSorted());
     ui.renderSummary(entry, newlyEarnedBadges, state.meta, state.shopState, {
       newRecords,
-      personalBests: computePersonalBests(Storage.getSessions()),
+      personalBests: computePersonalBests(sessions),
       chestReward,
-      fixedToday: computeFixedMistakes(Storage.getSessions()).filter((f) => f.sessionId === entry.sessionId),
+      fixedToday,
       mastery: state.mastery,
       shieldUsed,
+      wrongList: wrongList(entry, session),
+      canRetry: Boolean(state.retryQueue && state.retryQueue.length),
+      fixResult,
+      quests,
+      mapStep: { before: stepsBefore, after: countMapSteps(sessions, state.meta.mapStartedAt) },
+      goal: { count: questionsOnDay(sessions, today), target: DAILY_GOAL },
+      checkupDone: entry.mode === 'checkup',
     });
     ui.showScreen('summary');
+
+    // #142: one sound per summary — the fanfare for a new badge, otherwise
+    // the coin if anything was earned.
+    if (state.meta.soundOn) {
+      const earned = entry.summary.pointsEarned
+        + (chestReward && chestReward.type === 'points' ? chestReward.points : 0)
+        + (quests ? quests.points : 0);
+      if (newlyEarnedBadges.length > 0) playSound('fanfare');
+      else if (earned > 0) playSound('coin');
+    }
   } else {
     nextQuestion();
   }
@@ -660,7 +1022,14 @@ ui.bindStartHandlers({
   onResume: resumeSession,
   onBackupReminderSave: handleBackupReminderSave,
   onBackupReminderSnooze: handleBackupReminderSnooze,
+  onStartCheckup: startCheckup,
+  onStartFix: startFixSession,
+  onNoteThanks: markParentNoteSeen,
+  onRecapDismiss: dismissRecap,
+  onOpenMap: () => openMap(false),
 });
+
+ui.bindCabinetAndMapHandlers({ onOpenCabinet: openCabinet, onCabinetBack: closeCabinet, onMapBack: closeMap });
 
 ui.bindSettingsHandlers({
   onNameChange,
@@ -670,11 +1039,17 @@ ui.bindSettingsHandlers({
   onSyncConfigChange,
   onBackup: handleBackup,
   onRestoreFile: handleRestoreFile,
+  onSoundChange,
+  onNoteSave,
+  onNoteEdit,
+  onNoteDelete,
+  onRewardSave,
+  onRewardRemove,
 });
 
 ui.bindQuestionHandlers({ onCheck, onNext, onExit: goToStart, onTryOneLikeIt, onTipSeen: onRemainderTipSeen });
 
-ui.bindSummaryHandlers({ onRestart: goToStart });
+ui.bindSummaryHandlers({ onRestart: goToStart, onTryAgain: startRetryRound, onOpenMap: () => openMap(true) });
 
 ui.bindImportHandlers({
   onPdfFileSelected: handleImportPdfFile,
@@ -710,6 +1085,14 @@ applyCosmetics(Storage.getShopState());
 applyColourMode(Storage.getMeta().colourMode);
 ui.initScrollIndicators();
 goToStart();
+
+// Roadmap #139: coming back to the app (the iPad unlocked, or back from
+// another app) starts a new visit, so a note saved before then can show.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  state.visitStartedAt = Date.now();
+  if (ui.currentScreen() === 'start') ui.renderParentNote(parentNoteToShow());
+});
 
 // Keeps the home-screen clock ticking while the app is left open — updating
 // even while another screen is active is harmless (the element just sits
