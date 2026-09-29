@@ -3,6 +3,8 @@
 // Words are picked for the kind of vocabulary that comes up in 11+ verbal
 // reasoning / comprehension papers.
 
+import { localDateStr, daysBetweenLocalDates } from './dates.js';
+
 const WORDS = [
   { word: 'Abundant', meaning: 'Existing in large quantities; plentiful.' },
   { word: 'Adjacent', meaning: 'Next to or adjoining something else.' },
@@ -36,9 +38,11 @@ const WORDS = [
   { word: 'Hesitant', meaning: 'Slow to act because of uncertainty.' },
 ];
 
+// Day of the year in local calendar days, so it changes at the child's
+// midnight (a millisecond count floored was an hour late in summer time).
 export function getWordOfTheDay(date = new Date()) {
   const startOfYear = new Date(date.getFullYear(), 0, 0);
-  const dayOfYear = Math.floor((date - startOfYear) / 86400000);
+  const dayOfYear = daysBetweenLocalDates(localDateStr(startOfYear), localDateStr(date));
   return WORDS[dayOfYear % WORDS.length];
 }
 

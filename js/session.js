@@ -6,6 +6,7 @@
 import { Storage } from './storage.js';
 import { selectDifficultyTier, updateMastery, weightedRandomPick, EXPECTED_TIME_MS } from './mastery.js';
 import { getQuestion } from './questionBank.js';
+import { localDateStr, daysBetweenLocalDates, sessionLocalDay } from './dates.js';
 
 export function startSession({ topicWeighting, topicFocus, lengthType, lengthValue, mode }) {
   return {
@@ -154,25 +155,105 @@ export function checkAnswer(question, userInput) {
   if (question.answerType === 'mcq') {
     return trimmed === question.correctAnswer;
   }
-  const normalize = (s) => s.toLowerCase().replace(/\s+/g, '').replace('remainder', 'r');
-  return normalize(trimmed) === normalize(question.correctAnswer);
+  return normalizeText(trimmed) === normalizeText(question.correctAnswer);
 }
 
-function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+function normalizeText(s) {
+  return String(s).toLowerCase().replace(/\s+/g, '').replace('remainder', 'r');
+}
+
+// ---------- Right value, wrong form (Roadmap #97) ----------
+
+// Is the decimal typed (digits, at most one point) the exact value
+// num/den? Done in whole numbers (BigInt), so no floating-point slips.
+//  - A value that terminates as a decimal (3/10, 133/8) must be typed
+//    exactly: 0.3, 16.625.
+//  - A recurring one (5/6, 17/3) must be correctly rounded to 2 or more
+//    decimal places: 0.83 or 0.833, 5.67. Rounded to 1 place (5.7) or cut
+//    short (5.66) doesn't count (Alex's decision).
+function decimalMatches(typed, num, den) {
+  const [whole, frac = ''] = typed.split('.');
+  const places = frac.length;
+  const scaled = BigInt(`${whole || '0'}${frac}`); // the typed value × 10^places
+  const n = BigInt(num);
+  const d = BigInt(den);
+  const pow = 10n ** BigInt(places);
+  if ((n * pow) % d === 0n) return scaled * d === n * pow;
+  let reduced = d / gcdBig(n, d);
+  while (reduced % 2n === 0n) reduced /= 2n;
+  while (reduced % 5n === 0n) reduced /= 5n;
+  if (reduced === 1n) return false; // terminates, but needs more places than typed
+  if (places < 2) return false;
+  // Rounded to `places` decimal places, half up. A recurring decimal is
+  // never exactly on a half, so the direction of a tie doesn't matter.
+  const rounded = (2n * n * pow + d) / (2n * d);
+  return scaled === rounded;
+}
+function gcdBig(a, b) {
+  return b === 0n ? a : gcdBig(b, a % b);
+}
+
+// Marks an answer three ways: 'correct' (exactly as checkAnswer), 'wrong',
+// or 'rightForm': the right value in the wrong form, which earns one more
+// try instead of "Not quite". Only questions that carry `answerForm` (the
+// generated fraction and remainder questions) can be 'rightForm'; every
+// other question is correct or wrong exactly as before. `typed` says what
+// kind of answer it was, for the message.
+//
+// Counted as the right value (Alex's decisions): an equal decimal (see
+// decimalMatches), an equivalent fraction (6/10 for 3/5, 133/8 for 16 r 5,
+// 4/4 for 1), or a whole number written with a point (1.0 for 1). Not
+// counted, so still wrong: anything with an r on a fraction question
+// (1 r 2/5), any other r answer on a remainder question (15 r 13 for
+// 16 r 5), and a mixed number with its digits run together (12/5 meant as
+// 1 2/5, which is simply a different value).
+export function classifyAnswer(question, userInput) {
+  if (checkAnswer(question, userInput)) return { outcome: 'correct' };
+  const wrong = { outcome: 'wrong' };
+  const af = question.answerForm;
+  if (!af) return wrong;
+  const typed = normalizeText(userInput);
+  if (typed.includes('r')) return wrong;
+
+  const frac = typed.match(/^(\d+)\/(\d+)$/);
+  if (frac) {
+    const n = Number(frac[1]);
+    const d = Number(frac[2]);
+    if (d === 0 || n * af.den !== af.num * d) return wrong;
+    // Equal to the answer and already in lowest terms can only mean it was
+    // typed with a leading zero (07/5): not a form mistake, so leave it.
+    const lowest = gcdNum(n, d) === 1;
+    if ((af.form === 'fraction' || af.form === 'improper-fraction') && lowest) return wrong;
+    return { outcome: 'rightForm', typed: 'fraction' };
+  }
+  if (/^(\d+(\.\d+)?|\.\d+)$/.test(typed)) {
+    // A plain whole number can only equal a whole answer, and that's
+    // already correct, so this is the decimal case (1.0, 0.3, 16.625).
+    if (!typed.includes('.')) return wrong;
+    return decimalMatches(typed, af.num, af.den) ? { outcome: 'rightForm', typed: 'decimal' } : wrong;
+  }
+  return wrong;
+}
+function gcdNum(a, b) {
+  return b === 0 ? a : gcdNum(b, a % b);
 }
 
 // Scores one answered question, updates the topic's mastery record, appends
 // to the session log, and writes mastery + in-progress state to storage
 // immediately (not just at session end).
-export function recordAnswer(session, mastery, question, userInput, timeMs) {
+//
+// formRetry (#97): this is the second try after a "Right number!". It's
+// marked like any answer (right counts fully, for mastery, streak, combo and
+// the boss), timeMs is the total over both tries, there's no speed bonus,
+// and the log entry says formRetry: true.
+export function recordAnswer(session, mastery, question, userInput, timeMs, { formRetry = false } = {}) {
   const correct = checkAnswer(question, userInput);
   const tier = question.difficulty;
 
-  updateMastery(mastery[question.topic], correct, tier, timeMs, todayStr());
+  updateMastery(mastery[question.topic], correct, tier, timeMs, localDateStr());
   Storage.markQuestionResult(question.id, correct);
 
-  const speedBonus = correct && timeMs < EXPECTED_TIME_MS[tier] ? 5 : 0;
+  const speedBonus = correct && !formRetry && timeMs < EXPECTED_TIME_MS[tier] ? 5 : 0;
   const streakBonus = correct ? Math.min(session.streak + 1, 5) : 0;
 
   session.streak = correct ? session.streak + 1 : 0;
@@ -205,6 +286,7 @@ export function recordAnswer(session, mastery, question, userInput, timeMs) {
     timeMs,
     pointsEarned,
     ...(question.isBoss ? { boss: true } : {}),
+    ...(formRetry ? { formRetry: true } : {}),
   });
   session.bossBonus = (session.bossBonus || 0) + bossBonus;
 
@@ -233,18 +315,25 @@ export function isSessionComplete(session) {
   return hasReachedLength(session) && session.bossDone !== false;
 }
 
-function isYesterday(lastDateStr, todayDateStr) {
-  return daysBetweenDateStrs(lastDateStr, todayDateStr) === 1;
-}
-
-// Whole calendar days between two YYYY-MM-DD strings (rounded, so a clock
-// change in between doesn't matter). NaN — never an error — if either is
-// missing or unreadable, which no streak rule matches.
-function daysBetweenDateStrs(lastDateStr, todayDateStr) {
-  if (!lastDateStr) return NaN;
-  const last = new Date(`${lastDateStr}T00:00:00`);
-  const today = new Date(`${todayDateStr}T00:00:00`);
-  return Math.round((today - last) / 86400000);
+// One-off changeover to local days (UTC→local date fix). Before it,
+// lastPracticeDate was the UTC date, which in the UK is the local date or
+// one day behind it (a session finished between 00:00 and 00:59 BST). So if
+// the latest logged session's local day is later, raise lastPracticeDate to
+// it — never lower it — or a second session that same day would count as
+// "yesterday" and add a day twice. Raising can only turn a gap into "same
+// day" or "yesterday", so it can never reset a streak or spend a shield.
+// Runs once: meta.dayClock records that it's done. Returns the new meta, or
+// null if nothing needs saving.
+export function settleDayClock(meta, sessions) {
+  if (meta.dayClock === 'local') return null;
+  const next = { ...meta, dayClock: 'local' };
+  const latest = sessions.length ? sessions[sessions.length - 1] : null;
+  if (latest && meta.lastPracticeDate) {
+    const latestDay = sessionLocalDay(latest);
+    // Zero-padded YYYY-MM-DD strings compare correctly as text.
+    if (latestDay > meta.lastPracticeDate) next.lastPracticeDate = latestDay;
+  }
+  return next;
 }
 
 // Writes the full session log entry and updates streak/points meta. Returns
@@ -272,6 +361,9 @@ export function finishSession(session, meta) {
     profileId: 'default',
     sessionId: session.sessionId,
     date: session.date,
+    // The session counts for the local day it finished on (the streak and
+    // chest use that day too), so log-based features can agree with them.
+    finishedAt: new Date().toISOString(),
     mode: session.mode,
     lengthType: session.lengthType,
     lengthValue: session.lengthValue,
@@ -281,14 +373,17 @@ export function finishSession(session, meta) {
   };
   Storage.addSession(entry);
 
-  const today = todayStr();
+  const today = localDateStr();
+  const gap = daysBetweenLocalDates(meta.lastPracticeDate, today);
   const newMeta = { ...meta };
   let shieldUsed = false;
-  if (meta.lastPracticeDate === today) {
-    // already practiced today; streak unchanged
-  } else if (isYesterday(meta.lastPracticeDate, today)) {
+  if (gap <= 0) {
+    // Already practised today; streak unchanged. A negative gap means the
+    // last practice day is later than today (clock set back, or travel
+    // west): treat that as today too, rather than resetting the streak.
+  } else if (gap === 1) {
     newMeta.currentStreakDays = (meta.currentStreakDays || 0) + 1;
-  } else if (daysBetweenDateStrs(meta.lastPracticeDate, today) === 2 && (meta.streakShields || 0) > 0) {
+  } else if (gap === 2 && (meta.streakShields || 0) > 0) {
     // Roadmap #112: exactly one missed day, and a Streak Shield to cover it.
     // The missed day is bridged, not counted (6 on Thu, nothing on Fri,
     // practice on Sat makes 7), and the shield is used up. A longer gap

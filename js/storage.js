@@ -36,6 +36,18 @@ function defaultMeta() {
     colourMode: 'light', // 'light' | 'dark' | 'auto' (follow the device) — Roadmap #87
     lastChestDate: null, // local YYYY-MM-DD the daily mystery chest was last opened — Roadmap #91
     streakShields: 0, // 0 or 1 Streak Shields held, bought in the Shop — Roadmap #112
+    // 'local' once saved streak dates have been moved onto the child's local
+    // calendar (UTC→local date fix, settleDayClock in session.js). Absent or
+    // null on older data, so that one-off fix-up runs exactly once.
+    dayClock: null,
+    // True once the one-time "r key" tip on remainder questions has been
+    // dismissed — Roadmap #133.
+    remainderTipSeen: false,
+    // ISO time of the last "Back up my progress" (or restore), or null —
+    // Roadmap #150. Only means a file was handed to the browser.
+    lastBackupAt: null,
+    // Local YYYY-MM-DD the Home backup reminder is snoozed until — #151.
+    backupReminderSnoozedUntil: null,
   };
 }
 
@@ -67,6 +79,54 @@ function readJSON(key, fallback) {
 
 function writeJSON(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
+}
+
+// ---------- Backup and restore (Roadmap #150) ----------
+
+// Keys that belong to this device, not to the child's progress: never put in
+// a backup file and never touched by a restore. `sync` holds the relay's app
+// key (a secret that mustn't end up in iCloud), `weatherCache` is throwaway,
+// `inprogress` is a half-finished session, and `suggestions` are feedback,
+// not progress. Everything else under NS is backed up, so keys added later
+// are included automatically — add a new key here if it's device-only.
+const DEVICE_ONLY_KEYS = ['sync', 'weatherCache', 'inprogress', 'suggestions'];
+
+export const BACKUP_FORMAT_VERSION = 1;
+const CURRENT_SCHEMA_VERSION = 1; // defaultMeta().schemaVersion
+
+// This profile's keys that a backup carries (short names, e.g. 'meta').
+function backedUpKeyNames() {
+  return Object.keys(localStorage)
+    .filter((k) => k.startsWith(`${NS}:`))
+    .map((k) => k.slice(NS.length + 1))
+    .filter((name) => !DEVICE_ONLY_KEYS.includes(name));
+}
+
+const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+const isCount = (v) => typeof v === 'number' && Number.isFinite(v) && v >= 0;
+
+// Checks a parsed backup file before anything is written. Returns null if
+// it's fine, or a friendly message saying why not.
+export function backupProblem(file) {
+  const notOurs = 'That file isn\u2019t a Sprint backup, so nothing was changed.';
+  const damaged = 'That backup file looks damaged, so nothing was changed.';
+  if (!isObject(file) || file.app !== 'sprint' || file.profileId !== 'default') return notOurs;
+  if (typeof file.formatVersion !== 'number' || typeof file.schemaVersion !== 'number') return damaged;
+  if (file.formatVersion > BACKUP_FORMAT_VERSION || file.schemaVersion > CURRENT_SCHEMA_VERSION) {
+    return 'That backup was made by a newer version of Sprint, so it can\u2019t be loaded here. Nothing was changed.';
+  }
+  const d = file.data;
+  if (!isObject(d) || !isObject(d.meta) || !isObject(d.mastery) || !Array.isArray(d.sessions)) return damaged;
+  if (d.badges !== undefined && !Array.isArray(d.badges)) return damaged;
+  if (d.customQuestions !== undefined && !Array.isArray(d.customQuestions)) return damaged;
+  if (d.shop !== undefined && (!isObject(d.shop) || (d.shop.ownedItemIds !== undefined && !Array.isArray(d.shop.ownedItemIds)))) return damaged;
+  if (d.meta.totalPoints !== undefined && !isCount(d.meta.totalPoints)) return damaged;
+  if (d.meta.spentPoints !== undefined && !isCount(d.meta.spentPoints)) return damaged;
+  const badRecord = Object.values(d.mastery).some((rec) => !isObject(rec)
+    || typeof rec.masteryScore !== 'number' || !(rec.masteryScore >= 0 && rec.masteryScore <= 1)
+    || !Number.isInteger(rec.difficultyLevel) || rec.difficultyLevel < 1 || rec.difficultyLevel > 5);
+  if (badRecord) return damaged;
+  return null;
 }
 
 let localIdCounter = 0;
@@ -216,6 +276,60 @@ export const Storage = {
   },
   clearInProgress() {
     localStorage.removeItem(`${NS}:inprogress`);
+  },
+
+  // The backup file for "Back up my progress" (#150): every non-device key
+  // of this profile, parsed, under `data`. "app": "sprint" is a fixed format
+  // marker, whatever the app's display name.
+  buildBackup() {
+    const data = {};
+    backedUpKeyNames().forEach((name) => {
+      data[name] = readJSON(`${NS}:${name}`, null);
+    });
+    // The three a restore requires are always written, with their defaults
+    // filled in, even on a profile that has never saved one of them yet.
+    data.meta = Storage.getMeta();
+    data.mastery = Storage.getMastery();
+    data.sessions = Storage.getSessions();
+    return {
+      app: 'sprint',
+      formatVersion: BACKUP_FORMAT_VERSION,
+      profileId: 'default',
+      exportedAt: new Date().toISOString(),
+      schemaVersion: Storage.getMeta().schemaVersion,
+      data,
+    };
+  },
+
+  // Replaces this profile's progress with a backup that has already passed
+  // backupProblem(). Device-only keys (relay settings, weather, suggestions)
+  // are left alone, and any half-finished session is dropped. If any write
+  // fails (e.g. storage is full), everything is put back exactly as it was
+  // and the error is re-thrown, so a failed restore never loses progress.
+  //
+  // Per #151, lastBackupAt becomes the time of the restore (the device now
+  // matches a file exactly) and any reminder snooze is cleared.
+  restoreBackup(file) {
+    const snapshot = {};
+    backedUpKeyNames().forEach((name) => {
+      snapshot[name] = localStorage.getItem(`${NS}:${name}`);
+    });
+    const names = Object.keys(file.data)
+      .filter((name) => /^[A-Za-z0-9_]+$/.test(name) && !DEVICE_ONLY_KEYS.includes(name));
+    try {
+      Object.keys(snapshot).forEach((name) => localStorage.removeItem(`${NS}:${name}`));
+      names.forEach((name) => {
+        if (file.data[name] !== null && file.data[name] !== undefined) writeJSON(`${NS}:${name}`, file.data[name]);
+      });
+      writeJSON(`${NS}:meta`, { ...file.data.meta, lastBackupAt: new Date().toISOString(), backupReminderSnoozedUntil: null });
+      localStorage.removeItem(`${NS}:inprogress`);
+    } catch (e) {
+      backedUpKeyNames().forEach((name) => localStorage.removeItem(`${NS}:${name}`));
+      Object.entries(snapshot).forEach(([name, raw]) => {
+        if (raw !== null) localStorage.setItem(`${NS}:${name}`, raw);
+      });
+      throw e;
+    }
   },
 
   // Permanently erases every piece of this app's data (Settings > Clear all

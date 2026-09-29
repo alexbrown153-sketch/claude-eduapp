@@ -11,18 +11,13 @@
 //     likely.
 
 import { SHOP_ITEMS } from './shop.js';
+import { localDateStr } from './dates.js';
 
 export const CHEST_ITEM_CHANCE = 0.2;
 const POINT_AMOUNTS = [20, 30, 40, 50, 60, 70, 80, 90, 100];
 
-// The child's own calendar day (not UTC), so the chest resets at their
-// midnight rather than at 1am in summer time.
-export function localDateStr(date = new Date()) {
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${date.getFullYear()}-${m}-${d}`;
-}
-
+// `today` is the child's own calendar day (not UTC, see dates.js), so the
+// chest resets at their midnight rather than at 1am in summer time.
 export function isChestAvailable(meta, today = localDateStr()) {
   return meta.lastChestDate !== today;
 }

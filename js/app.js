@@ -2,13 +2,14 @@
 // pacing, session engine, and question bank together with the ui.js
 // rendering layer.
 
-import { Storage, TOPICS } from './storage.js';
+import { Storage, TOPICS, backupProblem } from './storage.js';
 import { computeTodaysPlan } from './pacing.js';
-import { startSession, pickNextQuestion, recordAnswer, isSessionComplete, finishSession, settleBossGate, bossProgress, hasReachedLength } from './session.js';
-import { getSimilarQuestion } from './questionBank.js';
-import { getBadgeDefinitions, evaluateBadges } from './badges.js';
+import { startSession, pickNextQuestion, recordAnswer, classifyAnswer, isSessionComplete, finishSession, settleBossGate, bossProgress, hasReachedLength, settleDayClock } from './session.js';
+import { getSimilarQuestion, rightFormHint } from './questionBank.js';
+import { getBadgeDefinitions, evaluateBadges, highestTiersOnly } from './badges.js';
 import { computePersonalBests, findNewRecords, computeFixedMistakes } from './records.js';
-import { isChestAvailable, rollChest, localDateStr } from './chest.js';
+import { isChestAvailable, rollChest } from './chest.js';
+import { localDateStr, daysBetweenLocalDates } from './dates.js';
 import { parsePdfQuestions, loadPdfJs } from './pdfQuestions.js';
 import { fetchWeatherForCity } from './weather.js';
 import { getItem, isOwned, availableBalance, STREAK_SHIELD, MAX_STREAK_SHIELDS } from './shop.js';
@@ -31,6 +32,9 @@ const state = {
   // answer, or null. Only lives while that answer is on screen, so it isn't
   // saved with the in-progress session.
   followUp: null,
+  // Roadmap #97: true once this question has had its one "Right number!"
+  // retry. Lives only in memory, like the question itself.
+  formRetryUsed: false,
 };
 
 function loadState() {
@@ -40,11 +44,11 @@ function loadState() {
   state.shopState = Storage.getShopState();
 }
 
-// Earned badges, hardest-first, for the always-visible header strip.
+// Earned badges, hardest-first, for the always-visible header strip. Only
+// the best medal per topic shows there (#129).
 function getEarnedBadgesSorted() {
   const earnedIds = Storage.getBadges();
-  return BADGE_DEFINITIONS
-    .filter((b) => earnedIds.includes(b.id))
+  return highestTiersOnly(BADGE_DEFINITIONS.filter((b) => earnedIds.includes(b.id)))
     .sort((a, b) => b.difficulty - a.difficulty);
 }
 
@@ -67,10 +71,6 @@ if (darkQuery && darkQuery.addEventListener) {
   darkQuery.addEventListener('change', () => applyColourMode(Storage.getMeta().colourMode));
 }
 
-function todayStr() {
-  return new Date().toISOString().slice(0, 10);
-}
-
 // Fetches today's weather for the child's chosen city (see weather.js),
 // cached per city per day so revisiting Home repeatedly doesn't re-fetch.
 // Runs in the background — the Start screen renders immediately either way.
@@ -81,18 +81,130 @@ async function refreshWeather() {
     return;
   }
   const cache = Storage.getWeatherCache();
-  if (cache && cache.city === city && cache.date === todayStr()) {
+  if (cache && cache.city === city && cache.date === localDateStr()) {
     ui.renderWeather(cache.data);
     return;
   }
   ui.renderWeather('loading');
   try {
     const data = await fetchWeatherForCity(city);
-    Storage.setWeatherCache({ city, date: todayStr(), data });
+    Storage.setWeatherCache({ city, date: localDateStr(), data });
     ui.renderWeather(data);
   } catch (e) {
     ui.renderWeather({ error: e.message });
   }
+}
+
+// ---------- Backups (Roadmap #150) and the reminder on Home (#151) ----------
+
+const BACKUP_DUE_AFTER_DAYS = 30;
+const BACKUP_SNOOZE_DAYS = 7;
+const MAX_BACKUP_BYTES = 5 * 1024 * 1024;
+
+// A backup is overdue once more than 30 whole local days have passed since
+// the last one, or, if there's never been one, since the first session. No
+// sessions means nothing to lose, so never. A date in the future (a wrong
+// clock) isn't overdue. "Not now" hides it until the snooze date.
+function isBackupReminderDue(meta, sessions, today = localDateStr()) {
+  if (sessions.length === 0) return false;
+  if (meta.backupReminderSnoozedUntil && today < meta.backupReminderSnoozedUntil) return false;
+  const last = meta.lastBackupAt ? new Date(meta.lastBackupAt) : null;
+  let anchor;
+  if (last && !Number.isNaN(last.getTime())) {
+    anchor = localDateStr(last);
+  } else {
+    const firstMs = Math.min(...sessions.map((s) => new Date(s.date).getTime()).filter((t) => !Number.isNaN(t)));
+    if (!Number.isFinite(firstMs)) return false;
+    anchor = localDateStr(new Date(firstMs));
+  }
+  return daysBetweenLocalDates(anchor, today) > BACKUP_DUE_AFTER_DAYS;
+}
+
+// The one backup routine, used by Settings and by the Home reminder.
+// Returns '' when the file was handed to the browser (and records that), or
+// a message saying it couldn't be made.
+function backUpProgress() {
+  try {
+    ui.downloadJson(`sprint-backup-${localDateStr()}.json`, Storage.buildBackup());
+  } catch (e) {
+    return 'Sorry, the backup file couldn\u2019t be made. Please try again.';
+  }
+  state.meta = { ...Storage.getMeta(), lastBackupAt: new Date().toISOString() };
+  Storage.setMeta(state.meta);
+  return '';
+}
+
+function handleBackup() {
+  const error = backUpProgress();
+  ui.renderSettings(Storage.getMeta(), Storage.getSyncConfig());
+  ui.showBackupStatus(error || 'Your backup file is ready. Keep it somewhere safe, like iCloud Drive.', error ? 'warn' : 'ok');
+}
+
+function handleBackupReminderSave() {
+  const error = backUpProgress();
+  ui.renderBackupReminder(Boolean(error), error);
+}
+
+function handleBackupReminderSnooze() {
+  const now = new Date();
+  const until = new Date(now.getFullYear(), now.getMonth(), now.getDate() + BACKUP_SNOOZE_DAYS);
+  state.meta = { ...Storage.getMeta(), backupReminderSnoozedUntil: localDateStr(until) };
+  Storage.setMeta(state.meta);
+  ui.renderBackupReminder(false);
+}
+
+// "5 sessions, 120 stars to spend and a 3-day streak", for the restore
+// confirmation.
+function describeProgress(meta, sessionCount) {
+  const m = { totalPoints: 0, spentPoints: 0, currentStreakDays: 0, ...meta };
+  return `${sessionCount} session${sessionCount === 1 ? '' : 's'}, ${availableBalance(m)} stars to spend and a ${m.currentStreakDays || 0}-day streak`;
+}
+
+function handleRestoreFile(file) {
+  ui.showBackupStatus('');
+  const notOurs = 'That file isn\u2019t a Sprint backup, so nothing was changed.';
+  if (file.size > MAX_BACKUP_BYTES) {
+    ui.showBackupStatus('That file is too big to be a Sprint backup, so nothing was changed.', 'warn');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onerror = () => ui.showBackupStatus('That file couldn\u2019t be read, so nothing was changed.', 'warn');
+  reader.onload = () => {
+    let backup;
+    try {
+      backup = JSON.parse(reader.result);
+    } catch (e) {
+      ui.showBackupStatus(notOurs, 'warn');
+      return;
+    }
+    const problem = backupProblem(backup);
+    if (problem) {
+      ui.showBackupStatus(problem, 'warn');
+      return;
+    }
+    const when = new Date(backup.exportedAt);
+    const whenText = Number.isNaN(when.getTime())
+      ? 'an unknown date'
+      : when.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' });
+    const sure = window.confirm(
+      `Restore the backup from ${whenText}? It has ${describeProgress(backup.data.meta, backup.data.sessions.length)}. `
+      + `This iPad has ${describeProgress(Storage.getMeta(), Storage.getSessions().length)} now. `
+      + 'Your progress here will be replaced by the backup.',
+    );
+    if (!sure) return;
+    try {
+      Storage.restoreBackup(backup);
+    } catch (e) {
+      ui.showBackupStatus('Something went wrong while restoring, so your progress has been left just as it was.', 'warn');
+      return;
+    }
+    settleDayClockIfNeeded(); // an older backup may predate the local-day switch
+    applyCosmetics(Storage.getShopState());
+    applyColourMode(Storage.getMeta().colourMode);
+    goToStart();
+    ui.showHomeNotice('Progress restored');
+  };
+  reader.readAsText(file);
 }
 
 function goToStart() {
@@ -102,6 +214,7 @@ function goToStart() {
   ui.renderStart(state.plan, state.mastery, state.meta, !!Storage.getInProgress(), {
     personalBests: computePersonalBests(Storage.getSessions()),
     chestAvailable: isChestAvailable(state.meta),
+    backupReminderDue: isBackupReminderDue(state.meta, Storage.getSessions()),
   });
   ui.showScreen('start');
   refreshWeather();
@@ -122,6 +235,7 @@ function goToShop() {
 
 function goToSettings() {
   ui.renderSettings(Storage.getMeta(), Storage.getSyncConfig());
+  ui.showBackupStatus('');
   ui.showScreen('settings');
 }
 
@@ -281,7 +395,7 @@ function handleClearProgress() {
     ? ' The GitHub connection will need setting up again.'
     : '';
   const sure = window.confirm(
-    `This will permanently erase all progress, points, badges, purchases, and settings.${connected} This cannot be undone. Are you sure?`,
+    `This will permanently erase all progress, points, badges, purchases, and settings.${connected} This cannot be undone. Tip: back up your progress first if you might want it back. Are you sure?`,
   );
   if (!sure) return;
   Storage.resetAll();
@@ -400,22 +514,36 @@ function nextQuestion() {
 
 function showQuestion(question) {
   state.followUp = null;
+  state.formRetryUsed = false;
   state.currentQuestion = question;
   state.questionStartTime = Date.now();
   ui.renderHud(state.session, Boolean(state.currentQuestion.isBoss));
   if (state.currentQuestion.blocked) {
     ui.renderBlockedQuestion(state.currentQuestion.topic);
   } else {
-    ui.renderQuestion(state.currentQuestion, bossProgress(state.session));
+    ui.renderQuestion(state.currentQuestion, bossProgress(state.session), { remainderTip: !state.meta.remainderTipSeen });
   }
 }
 
 function onCheck() {
   const answer = ui.getCurrentAnswer(state.currentQuestion.answerType);
+  // Roadmap #97: the right value in the wrong form (0.3 for 3/10) gets one
+  // more try, once per question. Nothing is recorded yet — no mastery,
+  // points, streak or boss hit — and the question's clock keeps running.
+  if (!state.formRetryUsed) {
+    const { outcome, typed } = classifyAnswer(state.currentQuestion, answer);
+    if (outcome === 'rightForm') {
+      state.formRetryUsed = true;
+      ui.showRightFormRetry(rightFormHint(state.currentQuestion, typed));
+      return;
+    }
+  }
   const timeMs = Date.now() - state.questionStartTime;
-  const { correct, streak, pointsEarned, bossBonus } = recordAnswer(state.session, state.mastery, state.currentQuestion, answer, timeMs);
-  ui.renderHud(state.session, Boolean(state.currentQuestion.isBoss));
-  ui.renderFeedback(correct, state.currentQuestion.explanation, state.currentQuestion.correctAnswer);
+  const { correct, streak, pointsEarned, bossBonus } = recordAnswer(
+    state.session, state.mastery, state.currentQuestion, answer, timeMs, { formRetry: state.formRetryUsed },
+  );
+  ui.renderHud(state.session, Boolean(state.currentQuestion.isBoss), true);
+  ui.renderFeedback(correct, state.currentQuestion);
   offerFollowUp(correct);
   if (state.currentQuestion.isBoss) {
     ui.renderBossResult(correct, pointsEarned, bossProgress(state.session), bossBonus);
@@ -441,6 +569,14 @@ function offerFollowUp(correct) {
     if (similar) state.followUp = { ...similar, isFollowUp: true };
   }
   ui.showTryOneLikeIt(Boolean(state.followUp));
+}
+
+// Roadmap #133: the r-key tip has been dismissed, so it never shows again.
+// state.meta is updated too: finishSession saves from it at the end of the
+// session, and a stale copy would put the flag back to false.
+function onRemainderTipSeen() {
+  state.meta = { ...Storage.getMeta(), remainderTipSeen: true };
+  Storage.setMeta(state.meta);
 }
 
 function onTryOneLikeIt() {
@@ -493,7 +629,9 @@ function onNext() {
     const badgeCtx = { meta: state.meta, mastery: state.mastery, sessionCount: Storage.getSessions().length };
     const { earnedIds, newlyEarnedIds } = evaluateBadges(BADGE_DEFINITIONS, badgeCtx, Storage.getBadges());
     Storage.setBadges(earnedIds);
-    const newlyEarnedBadges = BADGE_DEFINITIONS.filter((b) => newlyEarnedIds.includes(b.id));
+    // Both ids are saved, but a session that crosses two medals in one
+    // topic shows only the higher one (#129).
+    const newlyEarnedBadges = highestTiersOnly(BADGE_DEFINITIONS.filter((b) => newlyEarnedIds.includes(b.id)));
 
     ui.updateHeader(state.plan, state.meta, state.shopState, getEarnedBadgesSorted());
     ui.renderSummary(entry, newlyEarnedBadges, state.meta, state.shopState, {
@@ -520,6 +658,8 @@ ui.bindStartHandlers({
     beginSession({ lengthType: length.type, lengthValue: length.value, topicFocus });
   },
   onResume: resumeSession,
+  onBackupReminderSave: handleBackupReminderSave,
+  onBackupReminderSnooze: handleBackupReminderSnooze,
 });
 
 ui.bindSettingsHandlers({
@@ -528,9 +668,11 @@ ui.bindSettingsHandlers({
   onColourModeChange,
   onClearProgress: handleClearProgress,
   onSyncConfigChange,
+  onBackup: handleBackup,
+  onRestoreFile: handleRestoreFile,
 });
 
-ui.bindQuestionHandlers({ onCheck, onNext, onExit: goToStart, onTryOneLikeIt });
+ui.bindQuestionHandlers({ onCheck, onNext, onExit: goToStart, onTryOneLikeIt, onTipSeen: onRemainderTipSeen });
 
 ui.bindSummaryHandlers({ onRestart: goToStart });
 
@@ -556,6 +698,14 @@ ui.bindGlobalHandlers({
   onGotoSuggestions: goToSuggestions,
 });
 
+// UTC→local date fix: the one-off changeover of saved streak data to local
+// days (see settleDayClock). A no-op once done, and on a fresh install.
+function settleDayClockIfNeeded() {
+  const settled = settleDayClock(Storage.getMeta(), Storage.getSessions());
+  if (settled) Storage.setMeta(settled);
+}
+
+settleDayClockIfNeeded();
 applyCosmetics(Storage.getShopState());
 applyColourMode(Storage.getMeta().colourMode);
 ui.initScrollIndicators();

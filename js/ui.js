@@ -7,6 +7,8 @@ import { SHOP_CATEGORIES, itemsByCategory, getItem, isOwned, availableBalance, S
 import { getJokeOfTheDay, getRandomJoke } from './jokes.js';
 import { getWordOfTheDay, getRandomWordOfDay } from './wordOfDay.js';
 import { CHANGELOG } from './changelog.js';
+import { answerShape, answerShapeExample, splitExplanationSteps } from './questionBank.js';
+import { TOPIC_TIERS, MIN_TIER_QUESTIONS, displayedPct } from './badges.js';
 
 export const TOPIC_LABELS = {
   arithmetic: 'Arithmetic',
@@ -49,6 +51,16 @@ let answerLocked = false;
 // Handle for the timer that retires the centred verdict overlay, kept so a
 // second verdict (or a streak banner extending the first) can reset it.
 let verdictTimer = null;
+
+// Roadmap #124: the explanation steps not yet revealed after a wrong answer.
+let pendingSteps = [];
+// True when the latest touch was the one that dismissed the "Not quite"
+// banner, so that same touch can't also reveal a step (#124 AC10).
+let tapDismissedVerdict = false;
+
+// Roadmap #133: called once the r-key tip has been dismissed, so app.js can
+// remember it's been seen (set in bindQuestionHandlers).
+let onRemainderTipSeen = () => {};
 
 // Currently displayed joke/word, tracked so the refresh button (roadmap #86)
 // can avoid repeating the one already on screen.
@@ -180,14 +192,24 @@ function selectClosestLengthButton(suggestion) {
 // Only shown once there's enough real practice data to be meaningful —
 // before that, every topic sits at the same default mastery score and
 // "strongest/weakest" would just be noise.
+//
+// Roadmap #120: every topic starts at 50%, so after a mostly-wrong first
+// quiz the "strongest" topic was just the one with the fewest wrong answers
+// (e.g. 43% after 0 out of 1). A topic is only called strongest once the
+// child's answers have pushed it above that 50% start; until then
+// `strongest` is null and Home says "We'll find out as you practise".
+// `weakest`, which the focus card, Next session widget and summary all use,
+// is unchanged.
+const STARTING_SCORE = 0.5;
 function computeStrengthSummary(mastery) {
   const entries = Object.entries(mastery).filter(([, rec]) => rec.questionsSeen > 0);
   const totalSeen = entries.reduce((sum, [, rec]) => sum + rec.questionsSeen, 0);
   if (totalSeen < 5) return null;
   const sorted = [...entries].sort((a, b) => b[1].masteryScore - a[1].masteryScore);
-  const strongest = sorted[0];
+  const top = sorted[0];
   const weakest = sorted[sorted.length - 1];
-  if (strongest[0] === weakest[0]) return null;
+  if (top[0] === weakest[0]) return null;
+  const strongest = top[1].masteryScore > STARTING_SCORE ? top : null;
   return { strongest, weakest };
 }
 
@@ -226,7 +248,7 @@ function renderTopicWeightingPreview(plan) {
 // weakest topic as the "Focus area" line, the Next session widget and the
 // summary's "practise next time" line, so all of them always agree. Until
 // there's enough data for that it falls back to the phase's own label, and
-// during the diagnostic it just says "Diagnostic".
+// during the diagnostic it shows the warm-up quiz title (#118).
 function focusTitle(plan, mastery) {
   if (plan.phase === 'diagnostic') return PHASE_LABELS.diagnostic;
   const summary = computeStrengthSummary(mastery);
@@ -247,9 +269,13 @@ export function renderStart(plan, mastery, meta, hasInProgress, extras = {}) {
     summaryEl.hidden = true;
   } else {
     summaryEl.hidden = false;
-    const [strongTopic, strongRec] = summary.strongest;
     const [weakTopic, weakRec] = summary.weakest;
-    summaryEl.innerHTML = `💪 Strongest: <strong>${TOPIC_LABELS[strongTopic] || strongTopic}</strong> (${Math.round(strongRec.masteryScore * 100)}%)`
+    let strongText = 'We\u2019ll find out as you practise';
+    if (summary.strongest) {
+      const [strongTopic, strongRec] = summary.strongest;
+      strongText = `<strong>${TOPIC_LABELS[strongTopic] || strongTopic}</strong> (${Math.round(strongRec.masteryScore * 100)}%)`;
+    }
+    summaryEl.innerHTML = `💪 Strongest: ${strongText}`
       + ` &nbsp;·&nbsp; 🎯 Focus area: <strong>${TOPIC_LABELS[weakTopic] || weakTopic}</strong> (${Math.round(weakRec.masteryScore * 100)}%)`;
   }
 
@@ -275,6 +301,23 @@ export function renderStart(plan, mastery, meta, hasInProgress, extras = {}) {
   hideStartWarning();
 
   el('resume-btn').hidden = !hasInProgress;
+  el('home-notice').hidden = true;
+  renderBackupReminder(Boolean(extras.backupReminderDue));
+}
+
+// A one-off message under the focus card, e.g. "Progress restored" (#150).
+// Cleared by the next renderStart.
+export function showHomeNotice(message) {
+  el('home-notice').textContent = message;
+  el('home-notice').hidden = false;
+}
+
+// Roadmap #151: app.js decides whether a backup is due; this only shows the
+// card, plus #150's error message if a save from it failed.
+export function renderBackupReminder(show, error = '') {
+  el('backup-reminder').hidden = !show;
+  el('backup-reminder-error').textContent = error;
+  el('backup-reminder-error').hidden = !error;
 }
 
 export function getSelectedLength() {
@@ -305,7 +348,9 @@ function syncCustomLengthButton() {
   btn.dataset.lengthValue = String(value);
 }
 
-export function bindStartHandlers({ onStart, onResume }) {
+export function bindStartHandlers({ onStart, onResume, onBackupReminderSave, onBackupReminderSnooze }) {
+  el('backup-reminder-save').addEventListener('click', onBackupReminderSave);
+  el('backup-reminder-snooze').addEventListener('click', onBackupReminderSnooze);
   document.querySelectorAll('#length-choices .choice-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('#length-choices .choice-btn').forEach((b) => b.classList.remove('selected'));
@@ -363,6 +408,36 @@ export function renderSettings(meta, syncConfig) {
   });
   renderSyncSettings(syncConfig);
   renderChangelog();
+  const last = meta.lastBackupAt ? new Date(meta.lastBackupAt) : null;
+  el('backup-last').textContent = last && !Number.isNaN(last.getTime())
+    ? `Last backup: ${last.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}`
+    : 'Never backed up';
+}
+
+// ---------- Backup and restore (Roadmap #150) ----------
+
+// Hands a JSON file to the browser as a download. On iPad Safari that's the
+// "Do you want to download…?" prompt, saving to Files > Downloads. Throws if
+// the browser can't build the file; there's no way to know whether the
+// person then kept it.
+export function downloadJson(filename, data) {
+  const blob = new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  // Revoked later, not straight away: Safari may still be reading it.
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+export function showBackupStatus(message, tone = 'ok') {
+  const target = el('backup-status');
+  target.textContent = message;
+  target.hidden = !message;
+  target.classList.toggle('backup-status-warn', tone === 'warn');
 }
 
 // The app key is write-only in the UI: it round-trips so it can be edited,
@@ -399,7 +474,14 @@ function renderChangelog() {
   }).join('');
 }
 
-export function bindSettingsHandlers({ onNameChange, onCityChange, onColourModeChange, onClearProgress, onSyncConfigChange }) {
+export function bindSettingsHandlers({ onNameChange, onCityChange, onColourModeChange, onClearProgress, onSyncConfigChange, onBackup, onRestoreFile }) {
+  el('backup-btn').addEventListener('click', onBackup);
+  // Cancelling the picker fires no change event, so it does nothing.
+  el('restore-file').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (file) onRestoreFile(file);
+  });
   document.querySelectorAll('#colour-mode-choices .choice-btn').forEach((btn) => {
     btn.addEventListener('click', () => onColourModeChange(btn.dataset.colourMode));
   });
@@ -735,12 +817,17 @@ export function renderWeather(state) {
 // `boss` is true while the boss challenge (Roadmap #92/#95) is on screen —
 // it sits on top of the chosen length, so "Q11 / 10" would look like a bug.
 // Roadmap #96: a timed session always shows its clock.
-export function renderHud(session, boss = false) {
+// Roadmap #116: `checked` is true while a question's feedback is on screen.
+// That question has already been added to session.questions, so the number
+// on show is the count answered (not + 1) until the next question appears.
+// The score and combo still update straight away.
+export function renderHud(session, boss = false, checked = false) {
   const regular = session.questions.filter((q) => !q.boss).length;
+  const onScreen = checked ? regular : regular + 1;
   let count;
   if (boss) count = '👹 Boss challenge';
-  else if (session.lengthType === 'questions') count = `Q${Math.min(regular + 1, session.lengthValue)} / ${session.lengthValue}`;
-  else count = `Q${regular + 1}`;
+  else if (session.lengthType === 'questions') count = `Q${Math.min(onScreen, session.lengthValue)} / ${session.lengthValue}`;
+  else count = `Q${onScreen}`;
   el('hud-progress').textContent = count;
   el('hud-score').textContent = `⭐ ${session.score}`;
   renderComboMeter(session.streak);
@@ -797,8 +884,11 @@ export function updateTimer(remainingMs) {
   timerEl.textContent = `⏱ ${m}:${String(s).padStart(2, '0')}`;
 }
 
-export function renderQuestion(question, boss = null) {
+// options.remainderTip: the one-time r-key tip (#133) hasn't been dismissed
+// yet, so show it if this is a remainder question.
+export function renderQuestion(question, boss = null, options = {}) {
   el('question-blocked').hidden = true;
+  document.querySelector('.question-card').classList.remove('is-blocked');
   el('question-prompt').hidden = false;
   document.querySelector('.action-slot').hidden = false;
 
@@ -810,6 +900,9 @@ export function renderQuestion(question, boss = null) {
   el('retry-btn').hidden = true;
 
   el('question-prompt').textContent = question.prompt;
+  // Roadmap #123: only improper-fraction questions carry this line.
+  el('question-answer-hint').textContent = question.answerHint || '';
+  el('question-answer-hint').hidden = !question.answerHint;
   renderBossBanner(question.isBoss ? boss : null);
 
   // Two kinds of diagram: an image captured from an imported PDF, or SVG
@@ -830,6 +923,7 @@ export function renderQuestion(question, boss = null) {
 
   numericBuffer = '';
   mcqSelected = null;
+  el('right-form-msg').hidden = true;
   el('numeric-display').innerHTML = '&nbsp;';
   el('text-input').value = '';
 
@@ -839,6 +933,7 @@ export function renderQuestion(question, boss = null) {
   el('keypad-extra').hidden = !keypadExtra;
   el('answer-text').hidden = question.answerType !== 'text' || keypad;
   el('answer-mcq').hidden = question.answerType !== 'mcq';
+  renderRemainderTip(question, keypadExtra && Boolean(options.remainderTip));
 
   if (question.answerType === 'mcq') {
     const mcqEl = el('answer-mcq');
@@ -1008,7 +1103,11 @@ export function renderBossResult(correct, pointsEarned, boss, bonus = 0) {
 export function renderBlockedQuestion(topic) {
   clearFeedbackState();
   renderBossBanner(null);
+  // One centred column, even where the landscape layout (#132) splits.
+  document.querySelector('.question-card').classList.add('is-blocked');
   el('question-prompt').hidden = true;
+  el('question-answer-hint').hidden = true;
+  el('remainder-tip').hidden = true;
   el('question-diagram').hidden = true;
   el('answer-numeric').hidden = true;
   el('answer-text').hidden = true;
@@ -1029,10 +1128,49 @@ export function getCurrentAnswer(answerType) {
   return el('text-input').value;
 }
 
+// Roadmap #97: the answer had the right value in the wrong form. Not a
+// verdict: no overlay, no colours, no lock. Say which form is wanted, clear
+// the display, and leave the keypad and Check live for the one more try.
+// It doesn't repeat what was typed (Alex's call).
+export function showRightFormRetry(hint) {
+  dismissRemainderTip(); // Check was tapped (#133)
+  const msg = el('right-form-msg');
+  msg.innerHTML = `<strong>Right number!</strong> ${escapeHtml(hint)}`;
+  msg.hidden = false;
+  numericBuffer = '';
+  el('numeric-display').innerHTML = '&nbsp;';
+}
+
+// ---------- One-time r-key tip (Roadmap #133) ----------
+
+// Shown under the pad, pointing up at the r key, on a remainder question
+// ("9 r 1" shape; never a fraction) until the child dismisses it once. The
+// example never equals this question's own answer.
+function renderRemainderTip(question, allowed) {
+  const tip = el('remainder-tip');
+  const show = allowed && answerShape(question.correctAnswer) === 'remainder';
+  tip.hidden = !show;
+  if (!show) return;
+  const example = answerShapeExample('remainder', question.correctAnswer);
+  const [whole, rem] = example.split(' r ');
+  el('remainder-tip-text').textContent = `Type ${example} like this: ${whole}, then r, then ${rem}.`;
+}
+
+// Dismissing marks the tip as seen for good: "Got it", the r key itself, or
+// checking the answer. Just showing it doesn't, so a tip that was never
+// dismissed comes back next time.
+function dismissRemainderTip() {
+  const tip = el('remainder-tip');
+  if (tip.hidden) return;
+  tip.hidden = true;
+  onRemainderTipSeen();
+}
+
 function pressNumericKey(k) {
   // The answer has been marked and the keypad is folded away; a physical
   // keypress must not quietly rewrite the number now on show.
   if (answerLocked) return;
+  if (k === 'r' && keypadExtra) dismissRemainderTip();
   if (k === 'back') {
     numericBuffer = numericBuffer.slice(0, -1);
   } else if ((k === 'r' || k === '/') && !keypadExtra) {
@@ -1045,7 +1183,10 @@ function pressNumericKey(k) {
   el('numeric-display').textContent = keypadText() || ' ';
 }
 
-export function bindQuestionHandlers({ onCheck, onNext, onExit, onTryOneLikeIt }) {
+export function bindQuestionHandlers({ onCheck, onNext, onExit, onTryOneLikeIt, onTipSeen }) {
+  if (onTipSeen) onRemainderTipSeen = onTipSeen;
+  el('remainder-tip-btn').addEventListener('click', dismissRemainderTip);
+  el('next-step-btn').addEventListener('click', revealNextStep);
   document.querySelectorAll('.key').forEach((key) => {
     key.addEventListener('click', () => pressNumericKey(key.dataset.key));
   });
@@ -1089,8 +1230,8 @@ export function bindQuestionHandlers({ onCheck, onNext, onExit, onTryOneLikeIt }
   // Correct answers keep their full celebration.
   document.addEventListener('pointerdown', () => {
     const overlay = el('verdict-overlay');
-    if (overlay.hidden || !overlay.classList.contains('incorrect') || overlay.classList.contains('leaving')) return;
-    hideVerdict(false);
+    tapDismissedVerdict = !overlay.hidden && overlay.classList.contains('incorrect') && !overlay.classList.contains('leaving');
+    if (tapDismissedVerdict) hideVerdict(false);
   }, { passive: true });
 
   el('check-btn').addEventListener('click', onCheck);
@@ -1114,7 +1255,14 @@ export function bindQuestionHandlers({ onCheck, onNext, onExit, onTryOneLikeIt }
 //      entered, which shortens the card by roughly a keypad;
 //   4. what's left is scrolled so the verdict and the Next button are
 //      actually in view.
-export function renderFeedback(correct, explanation, correctAnswer) {
+// Roadmap #124: explanations from our own generators and word-problem bank
+// are written one sentence per step, so they can be revealed a step at a
+// time. Imported (PDF) explanations aren't: their line breaks are just where
+// the PDF wrapped, so they're always shown in full.
+const STEPWISE_SOURCES = ['generated', 'authored'];
+
+export function renderFeedback(correct, question) {
+  const { explanation = '', correctAnswer } = question;
   el('check-btn').hidden = true;
   el('next-btn').hidden = false;
   const panel = el('feedback-inline');
@@ -1122,15 +1270,62 @@ export function renderFeedback(correct, explanation, correctAnswer) {
   panel.classList.toggle('correct', correct);
   panel.classList.toggle('incorrect', !correct);
   el('feedback-result').textContent = correct ? 'Correct! 🎉' : `Not quite — the answer was ${correctAnswer}`;
-  el('feedback-explanation').textContent = explanation;
+
+  // A wrong answer with 2+ steps shows step 1 and a "Show next step"
+  // button; anything else (a right answer, a one-line explanation) shows in
+  // full, as before.
+  const steps = !correct && STEPWISE_SOURCES.includes(question.source) ? splitExplanationSteps(explanation) : [];
+  const stepwise = steps.length >= 2;
+  el('feedback-explanation').textContent = stepwise ? '' : explanation;
+  el('feedback-explanation').hidden = stepwise;
+  el('feedback-steps').innerHTML = '';
+  el('feedback-steps').hidden = !stepwise;
+  pendingSteps = stepwise ? steps.slice(1) : [];
+  if (stepwise) appendStep(steps[0]);
+  el('next-step-btn').hidden = pendingSteps.length === 0;
+
+  // Roadmap #122: a picture that belongs with the explanation (bar model).
+  el('feedback-diagram').innerHTML = question.explanationSvg || '';
+  el('feedback-diagram').hidden = !question.explanationSvg;
 
   const card = document.querySelector('.question-card');
   card.classList.toggle('answered-correct', correct);
   card.classList.toggle('answered-incorrect', !correct);
 
+  dismissRemainderTip();
+  el('right-form-msg').hidden = true;
   lockAnswerArea(correct, correctAnswer);
   showVerdict(correct, correctAnswer);
-  scrollFeedbackIntoView();
+  scrollFeedbackIntoView(correct);
+}
+
+function appendStep(textContent) {
+  const li = document.createElement('li');
+  li.textContent = textContent;
+  el('feedback-steps').appendChild(li);
+  return li;
+}
+
+// "Show next step": adds the next step under the ones already shown, and
+// brings it (and the button, while there is one) into view if it's fallen
+// below the fold. Next stays where it is, above the panel.
+function revealNextStep() {
+  // The touch that dismissed the "Not quite" banner doesn't also count.
+  if (tapDismissedVerdict) {
+    tapDismissedVerdict = false;
+    return;
+  }
+  if (pendingSteps.length === 0) return;
+  const li = appendStep(pendingSteps.shift());
+  const btn = el('next-step-btn');
+  btn.hidden = pendingSteps.length === 0;
+  const scroller = el('app-scroll');
+  const view = scroller.getBoundingClientRect();
+  const bottom = (btn.hidden ? li : btn).getBoundingClientRect().bottom;
+  if (bottom > view.bottom - 16) {
+    const smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    scroller.scrollBy({ top: bottom - (view.bottom - 16), behavior: smooth ? 'smooth' : 'auto' });
+  }
 }
 
 // Roadmap #101: app.js decides whether a follow-up is on offer; this only
@@ -1169,6 +1364,13 @@ function lockAnswerArea(correct, correctAnswer) {
 function clearFeedbackState() {
   answerLocked = false;
   hideVerdict(true);
+  pendingSteps = [];
+  el('feedback-steps').innerHTML = '';
+  el('feedback-steps').hidden = true;
+  el('next-step-btn').hidden = true;
+  el('feedback-explanation').hidden = false;
+  el('feedback-diagram').innerHTML = '';
+  el('feedback-diagram').hidden = true;
 
   const card = document.querySelector('.question-card');
   card.classList.remove('answered-correct', 'answered-incorrect');
@@ -1255,29 +1457,47 @@ function triggerCorrectBurst() {
 // (not the window) is the scroll container here, and scrollIntoView on a
 // nested scroller is inconsistent across browsers, so measure and scroll it
 // directly.
-function scrollFeedbackIntoView() {
+//
+// Roadmap #117: after a wrong answer the block kept in view also starts at
+// the answer record (the marked multiple-choice buttons, or the collapsed
+// answer box), and the "Not quite" banner pinned to the top of the screen
+// counts as part of the top margin, so the banner never sits on top of what
+// the child picked. Roadmap #132: in the landscape layout Next and the panel
+// sit side by side, so the block is measured as the box round all of them.
+function scrollFeedbackIntoView(correct = true) {
   const scroller = el('app-scroll');
-  const slot = document.querySelector('.action-slot');
-  const panel = el('feedback-inline');
+  const parts = [document.querySelector('.action-slot'), el('feedback-inline')];
+  if (!correct) {
+    const record = ['answer-mcq', 'answer-numeric', 'answer-text'].map(el).find((a) => !a.hidden);
+    if (record) parts.push(record);
+  }
 
   // Wait a frame so the collapsed keypad has been laid out before measuring.
   requestAnimationFrame(() => {
     const view = scroller.getBoundingClientRect();
-    const top = slot.getBoundingClientRect().top;
-    const bottom = panel.getBoundingClientRect().bottom;
+    const rects = parts.map((p) => p.getBoundingClientRect());
+    const top = Math.min(...rects.map((r) => r.top));
+    const bottom = Math.max(...rects.map((r) => r.bottom));
     const blockHeight = bottom - top;
     const margin = 16;
+    // The banner's own height, untransformed (offsetTop/offsetHeight ignore
+    // its slide-in animation). The overlay and the scroller both fill #app,
+    // so the numbers line up.
+    const card = el('verdict-card');
+    const topMargin = correct ? margin : card.offsetTop + card.offsetHeight + margin;
 
     // A short question needs no help — leave the view alone rather than
     // scrolling the question itself off the top to centre something that's
     // already on screen.
-    if (top >= view.top + margin && bottom <= view.bottom - margin) return;
+    if (top >= view.top + topMargin && bottom <= view.bottom - margin) return;
 
-    // Centre the button-plus-feedback block when it fits; otherwise pin its
-    // top near the top of the view so the verdict line is the part on screen.
-    const target = blockHeight <= view.height - margin * 2
-      ? view.top + (view.height - blockHeight) / 2
-      : view.top + margin;
+    // Centre the block (below the banner) when it fits; otherwise pin its
+    // top just below the banner so the answer record and verdict are on
+    // screen and the explanation carries on below.
+    const room = view.height - topMargin - margin;
+    const target = blockHeight <= room
+      ? view.top + topMargin + (room - blockHeight) / 2
+      : view.top + topMargin;
 
     const delta = top - target;
     if (Math.abs(delta) < 4) return;
@@ -1563,6 +1783,27 @@ function renderFixedMistakes(fixes) {
   target.innerHTML = rows + more;
 }
 
+// Roadmap #129: the medal a topic has earned (kept even if the score later
+// drops) and a plain-words next target, shown on its row.
+function topicMedalLine(topic, rec, earnedBadgeIds) {
+  const earned = TOPIC_TIERS.filter((t) => earnedBadgeIds.includes(`topic-${topic}-${t.tier}`));
+  const best = earned[earned.length - 1] || null;
+  const next = TOPIC_TIERS.find((t) => !earned.includes(t));
+  let target;
+  if (!next) target = 'Gold!';
+  else if (rec.questionsSeen < MIN_TIER_QUESTIONS) {
+    const left = MIN_TIER_QUESTIONS - rec.questionsSeen;
+    target = `Answer ${left} more question${left === 1 ? '' : 's'} to start winning medals`;
+  } else {
+    const gap = next.pct - displayedPct(rec);
+    target = gap > 0 ? `${gap}% to ${next.name}` : `${next.name} when you finish your next session`;
+  }
+  return {
+    medal: best ? `<span class="mastery-medal" role="img" aria-label="${best.name} medal">${best.icon}</span>` : '',
+    target,
+  };
+}
+
 export function renderProgress(mastery, meta, sessions, badgeDefinitions = [], earnedBadgeIds = [], fixedMistakes = []) {
   renderStrengthOverview(mastery, Object.keys(mastery));
   renderFixedMistakes(fixedMistakes);
@@ -1572,21 +1813,24 @@ export function renderProgress(mastery, meta, sessions, badgeDefinitions = [], e
   Object.keys(mastery).forEach((topic) => {
     const rec = mastery[topic];
     const pct = Math.round(rec.masteryScore * 100);
+    const { medal, target } = topicMedalLine(topic, rec, earnedBadgeIds);
     const row = document.createElement('div');
     row.className = 'mastery-row';
     row.innerHTML = `
-      <div class="mastery-label"><span>${TOPIC_LABELS[topic] || topic}</span><span>${pct}%</span></div>
+      <div class="mastery-label"><span>${TOPIC_LABELS[topic] || topic}</span><span>${medal}${pct}%</span></div>
       <div class="mastery-row-bottom">
         <div class="mastery-track"><div class="mastery-fill" style="width:${pct}%"></div></div>
         ${renderSparkline(rec.history)}
       </div>
+      <div class="mastery-target">${target}</div>
     `;
     barsEl.appendChild(row);
   });
 
   const badgesEl = el('badges-grid');
   badgesEl.innerHTML = '';
-  badgeDefinitions.forEach((b) => {
+  // Topic medals (#129) live on the rows above, not as 24 more cards here.
+  badgeDefinitions.filter((b) => !b.topicTier).forEach((b) => {
     const earned = earnedBadgeIds.includes(b.id);
     const card = document.createElement('div');
     card.className = `badge-card ${earned ? 'earned' : 'locked'}`;
