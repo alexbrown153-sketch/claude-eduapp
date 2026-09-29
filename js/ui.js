@@ -2482,7 +2482,7 @@ export function renderShop(shopState, meta) {
       if (item.category === 'theme' || item.category === 'avatarColor') preview = `<div class="shop-item-swatch" style="background:${item.swatch}"></div>`;
       else if (item.category === 'avatar') preview = `<div class="shop-item-emoji">${item.emoji}</div>`;
       else if (item.category === 'accessory' || item.category === 'mood') preview = `<div class="shop-item-emoji">${item.emoji || '—'}</div>`;
-      else if (item.category === 'font') preview = `<div class="shop-item-font-sample" style="font-family:${item.id === 'font-rounded' ? '\'Comic Sans MS\', cursive' : item.id === 'font-mono' ? 'monospace' : 'inherit'}">Aa</div>`;
+      else if (item.category === 'font') preview = `<div class="shop-item-font-sample" style="font-family:var(--font-stack-${item.id === 'font-rounded' ? 'bubbly' : item.id === 'font-mono' ? 'robot' : 'classic'})">Aa</div>`;
       else if (item.category === 'frame') preview = `<div class="shop-item-frame-sample frame-${item.id}"></div>`;
 
       let actionLabel;

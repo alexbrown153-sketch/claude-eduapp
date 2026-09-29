@@ -16,6 +16,12 @@
     document.documentElement.dataset.mode = dark ? 'dark' : 'light';
   } catch (e) { /* no storage: stay light */ }
 </script>
+<script>
+  // Roadmap #153: ?look=b previews the "Calm & Clean" look so it can be
+  // compared with the default on the iPad. Read from the address only:
+  // never saved, and there is no setting for it.
+  if (/[?&]look=b(&|$)/.test(location.search)) document.documentElement.dataset.look = 'b';
+</script>
 </head>
 <body>
 

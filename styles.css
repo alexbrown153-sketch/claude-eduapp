@@ -1,23 +1,121 @@
+/* ======================================================================
+   Design tokens (Roadmap #153, "Chunky & Friendly")
+   The one place colours, type, spacing, radii, shadows and motion are set.
+   Ownership: the colour mode (light here, dark in the "Dark mode" section)
+   owns the neutrals and feedback colours; a Shop theme (the "Cosmetic
+   themes" section) owns only the five brand tokens --accent, --primary,
+   --primary-edge, --primary-tint and --accent-ink. New screens use these
+   tokens and the shared components below, never raw colours.
+   ====================================================================== */
 :root {
-  --bg: #f6f7fb;
-  --surface: #ffffff;
-  --ink: #1f2333;
-  --ink-soft: #5b6178;
-  --primary: #4c5fd5;
-  --primary-dark: #3a49b0;
-  --good: #1f9d6b;
-  --good-bg: #e6f7ef;
-  --bad: #d5484c;
-  --bad-bg: #fbe9ea;
-  --chip-bg: #eef0fb;
-  --chip-active-bg: #4c5fd5;
-  --chip-active-ink: #ffffff;
-  --border: #e1e3ee;
-  --disabled-bg: #b7bce8;
-  --radius: 16px;
+  /* Neutrals (owned by colour mode) */
+  --bg: #f4f5fb;            /* page, lightly tinted */
+  --surface: #ffffff;       /* cards */
+  --surface-2: #eef0f8;     /* insets, tracks, unselected chips, keypad tray */
+  --ink: #1b1e2e;           /* body text */
+  --ink-soft: #565c75;      /* secondary text */
+  --border: #e3e5f0;
+  --border-strong: #cfd3e4; /* secondary-button edge, key edge, dividers */
+
+  /* Brand (owned by Shop theme; Classic shown) */
+  --accent: #6d7cff;        /* DECORATION ONLY: glows, rings, swatches. Never behind or as text. */
+  --primary: #4c5fd5;       /* fills behind white text, >=4.5:1 with --on-primary */
+  --primary-edge: #3a49b0;  /* button bottom edge, pressed fill, hero gradient end */
+  --primary-tint: #eceefe;  /* selected chip, active nav, soft fills */
+  --accent-ink: #3a49b0;    /* brand-coloured text on --surface and --bg */
+  --on-primary: #ffffff;
+
+  /* Feedback: only the "-ink" shades are used for text */
+  --good: #22a06b;  --good-ink: #146c43;  --good-bg: #e3f6ec;
+  --bad:  #e5534b;  --bad-ink:  #b42318;  --bad-bg:  #fdecea;
+  --warn: #f5a524;  --warn-ink: #8a5300;  --warn-bg: #fff4dc;
+  --gold: #ffc53d;  /* stars, goal ring, rewards (graphics only) */
+
+  /* Type. The three stacks are the Shop fonts; body[data-font] picks one
+     into --font-body (see "Cosmetic fonts"), and the Shop's "Aa" preview
+     uses the same variables. All are installed on iPad: nothing downloads. */
+  --font-stack-classic: ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont,
+                        "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-stack-bubbly: "Comic Sans MS", "Chalkboard SE", "Segoe Print", cursive, sans-serif;
+  --font-stack-robot: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  --font-body: var(--font-stack-classic);
+  --font-display: var(--font-body);
+  --fs-xs: 0.8125rem;    /* 13px: captions, tags. Floor for any UI text */
+  --fs-sm: 0.9rem;       /* 14.4px: secondary lines */
+  --fs-base: 1rem;       /* 16px: body */
+  --fs-md: 1.125rem;     /* 18px: card titles, buttons */
+  --fs-lg: 1.375rem;     /* 22px: section headings, question prompt */
+  --fs-xl: 1.75rem;      /* 28px: screen titles, big stats */
+  --fs-display: 2.75rem; /* 44px: score, timer, verdict */
+  --fw-regular: 500; --fw-bold: 700; --fw-heavy: 800;
+  --lh-tight: 1.2; --lh-body: 1.45;
+
+  /* Space (4px base) */
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+  --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px;
+
+  /* Radii */
+  --radius-sm: 10px;    /* chips, inputs, icon tiles */
+  --radius-md: 14px;    /* buttons, keypad keys */
+  --radius-lg: 20px;    /* cards */
+  --radius-xl: 28px;    /* hero card, overlays */
+  --radius-pill: 999px; /* HUD pills, progress tracks */
+  --radius: var(--radius-lg); /* legacy alias */
+
+  /* Elevation. A pressable thing has a solid "edge" under it, drawn as a
+     blur-free box-shadow --press-depth (keys: --key-depth) tall; on :active
+     it moves down by the same amount and the edge collapses, like a key. */
+  --shadow-1: 0 1px 2px rgba(22, 24, 50, 0.06), 0 2px 6px rgba(22, 24, 50, 0.06);  /* cards */
+  --shadow-2: 0 6px 16px rgba(22, 24, 50, 0.10), 0 2px 4px rgba(22, 24, 50, 0.06); /* hero, sheets */
+  --shadow-3: 0 16px 40px rgba(22, 24, 50, 0.18);                                   /* overlays */
+  --press-depth: 4px;
+  --key-depth: 3px;
+
+  /* Sizing */
+  --tap-min: 44px; --btn-h: 56px; --icon-sm: 20px; --icon-md: 28px; --icon-lg: 40px;
+
+  /* Motion */
+  --dur-fast: 120ms; --dur-base: 200ms; --dur-slow: 320ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-spring: cubic-bezier(0.2, 1.4, 0.5, 1);
+
   /* Lets the browser draw its own bits (number/text fields, scrollbars) to
      match; dark mode flips it below. */
   color-scheme: light;
+}
+
+/* Tokens that are built from theme or mode tokens are declared on body, not
+   :root: a custom property's var() is resolved where it is declared, and
+   the Shop theme and dark mode both set their values on body. */
+body {
+  /* Cards float on a shadow in light mode. The border stays 1px (just
+     invisible) so sizes don't shift when dark mode or look B draw it. */
+  --card-border: transparent;
+  --hero-bg: linear-gradient(135deg, var(--primary), var(--primary-edge));
+  /* Selection ring (selected chip, active nav). Dark mode swaps it to the
+     theme's light --accent-ink: --primary is under 3:1 on dark greys. */
+  --ring: var(--primary);
+
+  /* Legacy aliases so the rest of this file keeps working until phase 2 of
+     #153 moves every rule onto the tokens above. */
+  --chip-bg: var(--surface-2);          /* unselected */
+  --chip-active-bg: var(--primary);
+  --chip-active-ink: var(--on-primary);
+  --primary-dark: var(--primary-edge);
+  --disabled-bg: #c4c8e6;
+}
+
+/* Look B "Calm & Clean" (#153 Q4), for comparing with look A on the iPad.
+   Only ever switched on by opening the app with ?look=b (see the small
+   script in index.html): nothing is saved and there is no setting for it.
+   Same tokens, but flat: no press edges, no card shadows, hairline card
+   borders, the standard system font for Classic. The body-level half is
+   in the "Look B" section after dark mode, so it wins there too. */
+html[data-look="b"] {
+  --font-stack-classic: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --fw-regular: 400;
+  --press-depth: 0px;
+  --key-depth: 0px;
 }
 
 * { box-sizing: border-box; }
@@ -34,7 +132,8 @@ html, body {
   height: 100%;
   background: var(--bg);
   color: var(--ink);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: var(--font-body);
+  font-weight: var(--fw-regular);
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -54,17 +153,21 @@ body {
   overflow: hidden;
 }
 
-/* Accent colour for *text* (headings, highlighted numbers, owned-item
-   labels). It's --primary-dark in light mode, but that shade is also used as
-   a button/gradient background behind white text, so dark mode can't simply
-   lighten it — hence a separate variable. Declared on body, not :root, so it
-   picks up the --primary-dark a shop theme sets on body. */
-body { --accent-ink: var(--primary-dark); }
-
 button {
   font-family: inherit;
   cursor: pointer;
 }
+/* Fields follow the bought font too (browsers don't inherit it by default). */
+input, textarea, select { font-family: inherit; }
+
+/* Numbers that change in place (timer, points, keypad, scores, tables)
+   keep a fixed width so they don't jiggle. */
+.numeric-display, .key, .session-hud, .header-points, .summary-row .value,
+.streak-widget-main, .pb-value, .mastery-label, .quest-count, .cal-cell,
+.shop-balance, .stat-num, .pill { font-variant-numeric: tabular-nums; }
+
+/* Keyboard focus on a laptop (touch never shows it). */
+:focus-visible { outline: 3px solid var(--accent-ink); outline-offset: 2px; }
 
 /* App shell: fixed header + fixed footer, with only the middle content
    region (#app) scrolling — this guarantees the Home button and each
@@ -118,8 +221,9 @@ button {
 .header-title {
   max-width: 100%;
   min-width: 0;
-  font-size: 1.19rem;
-  font-weight: 800;
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-heavy);
   color: var(--accent-ink);
   white-space: nowrap;
   overflow: hidden;
@@ -131,34 +235,43 @@ button {
   align-items: center;
   gap: 10px;
   justify-self: end;
+  /* Stay inside the grid column (#153): the badge strip below scrolls
+     sideways, so it shrinks instead of sliding under the avatar. */
+  min-width: 0;
+  max-width: 100%;
 }
 
 .header-points {
-  font-size: 0.95rem;
-  font-weight: 700;
+  flex-shrink: 0;
+  font-size: var(--fs-base);
+  font-weight: var(--fw-bold);
   color: var(--accent-ink);
 }
 
 .settings-btn {
-  min-width: 36px;
-  min-height: 36px;
+  /* An icon tile, and a full 44pt tap target (#153). */
+  width: var(--tap-min);
+  height: var(--tap-min);
   border: none;
-  background: none;
-  font-size: 1.1rem;
+  border-radius: 50%;
+  background: var(--surface-2);
+  font-size: 1.25rem;
+  padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
 }
+.settings-btn:active { background: var(--border-strong); }
 .nav-btn {
   border: none;
-  background: var(--chip-bg);
-  border-radius: 10px;
-  font-size: 0.85rem;
-  font-weight: 600;
+  background: var(--surface-2);
+  border-radius: var(--radius-md);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
   color: var(--ink);
-  padding: 10px 12px;
-  min-height: 40px;
+  padding: 0 12px;
+  min-height: var(--tap-min);
   white-space: nowrap;
   /* Icon and label are separate spans so phones can stack them (see the
      phone rules at the end of this file); side by side, this is the same
@@ -168,9 +281,12 @@ button {
   justify-content: center;
   gap: 6px;
 }
+.nav-btn:active { background: var(--border-strong); }
+/* Where you are: the soft theme tint with a ring, like a selected chip. */
 .nav-btn.active {
-  background: var(--chip-active-bg);
-  color: var(--chip-active-ink);
+  background: var(--primary-tint);
+  color: var(--accent-ink);
+  box-shadow: inset 0 0 0 2px var(--ring);
 }
 
 /* Badges sit inline in the header-top row (next to the avatar) rather than
@@ -187,8 +303,8 @@ button {
 }
 .header-badges-label {
   flex-shrink: 0;
-  font-size: 0.7rem;
-  font-weight: 700;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
   color: var(--ink-soft);
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -201,12 +317,13 @@ button {
   flex-shrink: 1;
 }
 .header-badge-icon {
+  /* Icon tile, medium. */
   flex-shrink: 0;
   font-size: 1.1rem;
-  background: var(--chip-bg);
+  background: var(--primary-tint);
   border-radius: 50%;
-  width: 28px;
-  height: 28px;
+  width: var(--icon-md);
+  height: var(--icon-md);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -316,19 +433,63 @@ button {
 .start-side-right { order: 2; margin-top: 28px; }
 .start-sidebar { order: 3; margin-top: 28px; }
 
-.focus-card {
-  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-  color: #fff;
-  border-radius: var(--radius);
-  padding: 20px;
+/* ======================================================================
+   Shared components (Roadmap #153). Existing class names are restyled to
+   these looks; new screens (#143-#148) use the component classes
+   directly. Only visual properties live here: each existing selector keeps
+   its own layout rule (display, width, margins) so no layout changes.
+   ====================================================================== */
+
+/* Card: a white surface floating on a soft shadow. Dark mode and look B
+   draw the 1px border via --card-border instead. */
+.card,
+.home-card,
+.summary-card,
+.summary-takeaways,
+.summary-wrong,
+.question-card,
+.backup-reminder,
+.home-streak-widget,
+.next-session-widget,
+.weather-widget,
+.joke-of-day,
+.word-of-day,
+.adventure-card {
+  background: var(--surface);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1);
 }
+.card { padding: var(--space-5); }
+.card-title,
+.home-card-title {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-heavy);
+  color: var(--ink);
+}
+.card-title { display: flex; align-items: center; gap: var(--space-2); margin: 0 0 var(--space-2); }
+
+/* Hero card: at most one per screen, in the theme colour. Both gradient
+   ends pass 4.5:1 with white; --accent may only glow behind, never under,
+   the text. */
+.card-hero,
+.focus-card {
+  background: var(--hero-bg);
+  color: var(--on-primary);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-2);
+}
+.card-hero { padding: var(--space-6); }
+.focus-card { padding: 20px; }
 .focus-phase { font-size: 1.1rem; font-weight: 700; margin: 0 0 6px; }
 .focus-tone { margin: 0; opacity: 0.92; font-size: 0.95rem; }
 .focus-card .strength-summary {
   color: rgba(255, 255, 255, 0.92);
 }
-.focus-card .strength-summary strong { color: #fff; }
+.focus-card .strength-summary strong { color: var(--on-primary); }
 
+/* Choice / chip: a soft grey button that turns the theme tint with a ring
+   when selected. Solid chips (.chip.selected) fill with the theme colour. */
 .choice-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -337,63 +498,281 @@ button {
 
 .choice-btn {
   min-height: 56px;
-  border: 2px solid var(--border);
-  background: var(--surface);
-  border-radius: 12px;
-  font-size: 1rem;
-  font-weight: 600;
+  border: 2px solid transparent;
+  background: var(--surface-2);
+  border-radius: var(--radius-md);
+  font-size: var(--fs-base);
+  font-weight: var(--fw-bold);
   color: var(--ink);
   padding: 10px;
+  box-shadow: 0 var(--key-depth) 0 var(--border-strong);
+  transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
 }
-.choice-btn.selected {
-  border-color: var(--primary);
-  background: var(--chip-bg);
+.choice-btn:active:not(:disabled) {
+  transform: translateY(var(--key-depth));
+  box-shadow: 0 0 0 var(--border-strong);
+  background: var(--border-strong);
+}
+.choice-btn.selected,
+.choice-btn.selected:active:not(:disabled) {
+  border-color: var(--ring);
+  background: var(--primary-tint);
   color: var(--accent-ink);
 }
-.choice-btn.chip.selected {
+.choice-btn.chip.selected,
+.choice-btn.chip.selected:active:not(:disabled) {
   background: var(--chip-active-bg);
   color: var(--chip-active-ink);
   border-color: var(--chip-active-bg);
+  box-shadow: 0 var(--key-depth) 0 var(--primary-edge);
 }
 
+/* Buttons. Every kind is at least --btn-h (56px) unless a screen sets a
+   smaller (still >=44px) size, and presses down on :active without hover.
+   The pressed fill also changes, so look B (no edge, no movement) still
+   shows the press. */
+.btn-primary,
+.btn-secondary,
+.btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-5);
+}
+.btn-primary,
+.btn-secondary,
+.btn-danger,
+.primary-btn,
+.secondary-btn,
+.danger-btn {
+  min-height: var(--btn-h);
+  border-radius: var(--radius-md);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-bold);
+  transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out), background-color var(--dur-fast);
+}
+
+/* Primary: theme fill, white text, darker edge. */
+.btn-primary,
+.primary-btn {
+  background: var(--primary);
+  color: var(--on-primary);
+  border: none;
+  box-shadow: 0 var(--press-depth) 0 var(--primary-edge);
+}
+.btn-primary:active:not(:disabled),
+.primary-btn:active:not(:disabled) {
+  background: var(--primary-edge);
+  transform: translateY(var(--press-depth));
+  box-shadow: 0 0 0 var(--primary-edge);
+}
+
+/* Secondary: white with a grey rim and edge, brand-coloured text. */
+.btn-secondary,
+.secondary-btn {
+  background: var(--surface);
+  color: var(--accent-ink);
+  border: 2px solid var(--border-strong);
+  box-shadow: 0 var(--press-depth) 0 var(--border-strong);
+}
+.btn-secondary:active:not(:disabled),
+.secondary-btn:active:not(:disabled) {
+  background: var(--surface-2);
+  transform: translateY(var(--press-depth));
+  box-shadow: 0 0 0 var(--border-strong);
+}
+
+/* Soft danger (Exit, Delete): calm pink, never a scary solid red. */
+.btn-danger,
+.danger-btn,
+.hud-exit-btn {
+  background: var(--bad-bg);
+  color: var(--bad-ink);
+  border: 2px solid transparent;
+  box-shadow: 0 var(--press-depth) 0 var(--border-strong);
+}
+.btn-danger:active:not(:disabled),
+.danger-btn:active:not(:disabled),
+.hud-exit-btn:active {
+  border-color: var(--bad);
+  transform: translateY(var(--press-depth));
+  box-shadow: 0 0 0 var(--border-strong);
+}
+
+/* Disabled: flat grey, no edge, no press. */
+.btn-primary:disabled,
+.btn-secondary:disabled,
+.btn-danger:disabled,
+.primary-btn:disabled,
+.secondary-btn:disabled,
+.danger-btn:disabled {
+  background: var(--disabled-bg);
+  color: var(--on-primary);
+  border-color: transparent;
+  box-shadow: none;
+  cursor: default;
+}
+html[data-mode="dark"] .btn-secondary:disabled,
+html[data-mode="dark"] .secondary-btn:disabled { color: var(--ink-soft); }
+
+/* Existing buttons' layout, unchanged. */
 .primary-btn {
   display: block;
   width: 100%;
-  min-height: 56px;
   margin-top: 18px;
-  background: var(--primary);
-  color: #fff;
-  border: none;
-  border-radius: 12px;
-  font-size: 1.05rem;
-  font-weight: 700;
 }
-.primary-btn:active { background: var(--primary-dark); }
-.primary-btn:disabled { background: var(--disabled-bg); }
-
 .secondary-btn {
   display: block;
   width: 100%;
-  min-height: 52px;
   margin-top: 12px;
-  background: var(--surface);
-  color: var(--accent-ink);
-  border: 2px solid var(--primary);
-  border-radius: 12px;
-  font-size: 1rem;
-  font-weight: 700;
 }
 
+/* Link button: text only, but a full tap target. */
+.btn-link,
 .link-btn {
-  display: block;
-  width: 100%;
-  margin-top: 16px;
+  min-height: var(--tap-min);
   background: none;
   border: none;
   color: var(--ink-soft);
   font-size: 0.95rem;
   text-decoration: underline;
   padding: 8px;
+}
+.btn-link:active,
+.link-btn:active { color: var(--ink); }
+.link-btn {
+  display: block;
+  width: 100%;
+  margin-top: 16px;
+}
+
+/* Keypad key and game tile (#144): white keys on a grey tray, with a
+   short grey edge that presses down. */
+.key,
+.game-tile {
+  min-height: 56px;
+  min-width: 56px;
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+  background: var(--surface);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-md);
+  color: var(--ink);
+  box-shadow: 0 var(--key-depth) 0 var(--border-strong);
+  transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+}
+.key:active:not(:disabled),
+.game-tile:active:not(:disabled) {
+  background: var(--surface-2);
+  transform: translateY(var(--key-depth));
+  box-shadow: 0 0 0 var(--border-strong);
+}
+.tile-tray {
+  background: var(--surface-2);
+  border-radius: var(--radius-lg);
+  padding: var(--space-2);
+}
+
+/* Pill: HUD items, timers, counts. A tappable pill must be >= --tap-min. */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 36px;
+  padding: 0 var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-1);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
+  color: var(--ink);
+}
+/* Last 10 seconds of a timer (#143). */
+.pill-warn { background: var(--warn-bg); color: var(--warn-ink); }
+
+/* Stat: a big number over a small label (score, streak, personal best). */
+.stat { display: flex; flex-direction: column; align-items: center; gap: var(--space-1); }
+.stat-num {
+  font-family: var(--font-display);
+  font-size: var(--fs-display);
+  font-weight: var(--fw-heavy);
+  line-height: var(--lh-tight);
+}
+.stat-label {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+}
+.card-hero .stat-label { color: var(--on-primary); }
+
+/* Ranked list: top-5 tables, quests, history. */
+.ranked-list { list-style: none; margin: 0; padding: 0; }
+.ranked-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--tap-min);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+}
+.ranked-row + .ranked-row { border-top: 1px solid var(--border); }
+.ranked-row.is-highlight { background: var(--primary-tint); border-top-color: transparent; }
+.ranked-rank {
+  min-width: 1.5em;
+  font-weight: var(--fw-heavy);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-soft);
+}
+.ranked-row.is-highlight .ranked-rank { color: var(--accent-ink); }
+
+/* Progress track: theme fill, or green (--good) where it means "done". */
+.track {
+  height: 12px;
+  background: var(--surface-2);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+.track-fill { height: 100%; background: var(--primary); border-radius: var(--radius-pill); }
+.track-fill.is-done { background: var(--good); }
+
+/* Icon tile: an emoji in a soft theme-tinted square (add .is-round for a
+   circle), at three fixed sizes. */
+.icon-tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: var(--icon-md);
+  height: var(--icon-md);
+  font-size: calc(var(--icon-md) * 0.6);
+  line-height: 1;
+  background: var(--primary-tint);
+  border-radius: var(--radius-sm);
+}
+.icon-tile.is-round { border-radius: 50%; }
+.icon-tile-sm { width: var(--icon-sm); height: var(--icon-sm); font-size: calc(var(--icon-sm) * 0.65); border-radius: 6px; }
+.icon-tile-lg { width: var(--icon-lg); height: var(--icon-lg); font-size: calc(var(--icon-lg) * 0.6); }
+
+/* Banner / celebration ("New best!"): a gold-edged card that pops in. */
+.banner-celebrate {
+  background: var(--surface);
+  color: var(--ink);
+  border: 2px solid var(--gold);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-2);
+  padding: var(--space-4) var(--space-5);
+  text-align: center;
+  animation: banner-in var(--dur-slow) var(--ease-spring) both;
+}
+@keyframes banner-in {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: none; }
 }
 
 /* Question screen */
@@ -419,30 +798,35 @@ button {
   40% { transform: scale(1.35); box-shadow: 0 0 0 4px rgba(232, 115, 74, 0.35); }
   100% { transform: scale(1); }
 }
+.session-hud { align-items: center; }
+/* Every HUD item is a Pill (see Shared components). */
 .session-hud span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 var(--space-3);
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 4px 12px;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-1);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
 }
+/* Soft-danger pill; 44pt tall so it's a real tap target (#153). */
 .hud-exit-btn {
   margin-left: auto;
-  background: var(--bad-bg);
-  color: var(--bad);
-  border: 1px solid var(--bad);
-  border-radius: 999px;
-  padding: 4px 12px;
-  font-size: 0.85rem;
-  font-weight: 700;
+  min-height: var(--tap-min);
+  border-radius: var(--radius-pill);
+  padding: 0 var(--space-4);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
+  transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
 }
 
 .question-card {
   position: relative;
-  background: var(--surface);
-  border-radius: var(--radius);
   padding: 22px;
-  border: 1px solid var(--border);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: border-color var(--dur-base) ease, box-shadow var(--dur-base) ease;
 }
 
 /* Once an answer is checked the whole card takes the verdict's colour, so
@@ -477,7 +861,7 @@ button {
 .question-blocked-title {
   font-size: 1.2rem;
   font-weight: 700;
-  color: var(--bad);
+  color: var(--bad-ink);
   margin: 0 0 10px;
 }
 .question-blocked-detail {
@@ -558,7 +942,7 @@ button {
   padding: 6px;
 }
 .shape-diagram .sd-shape {
-  fill: var(--chip-bg);
+  fill: var(--primary-tint);
   stroke: var(--primary);
   stroke-width: 2.5;
   stroke-linejoin: round;
@@ -636,7 +1020,7 @@ button {
   padding: 10px 14px;
   border-radius: 12px;
   border-left: 6px solid var(--primary);
-  background: var(--chip-bg);
+  background: var(--primary-tint);
   color: var(--ink);
   font-size: 1.05rem;
   line-height: 1.4;
@@ -662,18 +1046,11 @@ button {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 8px;
+  /* The Key component's grey tray. */
+  background: var(--surface-2);
+  border-radius: var(--radius-lg);
+  padding: var(--space-2);
 }
-
-.key {
-  min-height: 56px;
-  font-size: 1.3rem;
-  font-weight: 700;
-  border: 2px solid var(--border);
-  background: var(--surface);
-  border-radius: 12px;
-  color: var(--ink);
-}
-.key:active { background: var(--chip-bg); }
 .key-back { font-size: 1.4rem; }
 /* Roadmap #98: the r and / row under the 12-key pad — two wide keys. */
 .keypad-extra {
@@ -694,13 +1071,13 @@ button {
 .answer-area.answer-checked.answer-checked-correct .text-input {
   border-color: var(--good);
   background: var(--good-bg);
-  color: var(--good);
+  color: var(--good-ink);
 }
 .answer-area.answer-checked.answer-checked-incorrect .numeric-display,
 .answer-area.answer-checked.answer-checked-incorrect .text-input {
   border-color: var(--bad);
   background: var(--bad-bg);
-  color: var(--bad);
+  color: var(--bad-ink);
 }
 
 .text-input {
@@ -726,14 +1103,14 @@ button {
 .mcq-grid .choice-btn.choice-correct {
   border-color: var(--good);
   background: var(--good-bg);
-  color: var(--good);
+  color: var(--good-ink);
   font-weight: 800;
 }
 .mcq-grid .choice-btn.choice-correct::after { content: ' \2713'; }
 .mcq-grid .choice-btn.choice-wrong {
   border-color: var(--bad);
   background: var(--bad-bg);
-  color: var(--bad);
+  color: var(--bad-ink);
   text-decoration: line-through;
 }
 .mcq-grid .choice-btn.choice-wrong::after { content: ' \2715'; text-decoration: none; }
@@ -761,8 +1138,8 @@ button {
   margin: 0 0 10px;
   line-height: 1.3;
 }
-.feedback-inline.correct .feedback-result { color: var(--good); }
-.feedback-inline.incorrect .feedback-result { color: var(--bad); }
+.feedback-inline.correct .feedback-result { color: var(--good-ink); }
+.feedback-inline.incorrect .feedback-result { color: var(--bad-ink); }
 
 .feedback-explanation {
   font-size: 1rem;
@@ -902,8 +1279,8 @@ button {
   line-height: 1;
   font-weight: 900;
 }
-.verdict-overlay.correct .verdict-icon { color: var(--good); }
-.verdict-overlay.incorrect .verdict-icon { color: var(--bad); }
+.verdict-overlay.correct .verdict-icon { color: var(--good-ink); }
+.verdict-overlay.incorrect .verdict-icon { color: var(--bad-ink); }
 
 .verdict-headline {
   margin: 10px 0 0;
@@ -911,8 +1288,8 @@ button {
   font-weight: 900;
   letter-spacing: -0.01em;
 }
-.verdict-overlay.correct .verdict-headline { color: var(--good); }
-.verdict-overlay.incorrect .verdict-headline { color: var(--bad); }
+.verdict-overlay.correct .verdict-headline { color: var(--good-ink); }
+.verdict-overlay.incorrect .verdict-headline { color: var(--bad-ink); }
 
 .verdict-detail {
   margin: 8px 0 0;
@@ -1051,9 +1428,6 @@ button {
 
 /* Summary screen */
 .summary-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
   padding: 20px;
 }
 .summary-row {
@@ -1072,9 +1446,6 @@ button {
 
 /* ---------- Home streak/points widget (right sidebar) ---------- */
 .home-streak-widget {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
   padding: 14px;
   text-align: center;
 }
@@ -1084,9 +1455,6 @@ button {
 
 /* ---------- Next session recommendation widget (Roadmap #85) ---------- */
 .next-session-widget {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
   padding: 14px;
   margin-top: 14px;
 }
@@ -1105,7 +1473,7 @@ button {
   line-height: 1.35;
 }
 .streak-widget-chest-done { color: var(--ink-soft); font-weight: 600; }
-.streak-widget-shield { font-size: 0.82rem; font-weight: 700; color: var(--good); margin-top: 6px; }
+.streak-widget-shield { font-size: 0.82rem; font-weight: 700; color: var(--good-ink); margin-top: 6px; }
 
 /* ---------- Personal bests widget (Roadmap #89) ---------- */
 .pb-row {
@@ -1130,6 +1498,8 @@ button {
   border: 0;
   border-radius: 0;
   padding: 0;
+  min-height: 0;
+  box-shadow: none;
   margin-right: 2px;
   transition: transform 0.25s ease;
   transform-origin: 50% 80%;
@@ -1137,7 +1507,7 @@ button {
 #hud-streak[data-combo="2"] .combo-flame { transform: scale(1.25); margin-right: 4px; }
 #hud-streak[data-combo="3"] .combo-flame { transform: scale(1.5); margin-right: 6px; animation: combo-flicker 0.9s ease-in-out infinite; }
 #hud-streak:empty { display: none; }
-.combo-mult { color: #e8734a; margin-left: 2px; }
+.combo-mult { color: var(--warn-ink); margin-left: 2px; }
 #hud-streak[data-combo="3"] { border-color: #e8734a; }
 @keyframes combo-flicker {
   0%, 100% { transform: scale(1.5) rotate(-4deg); }
@@ -1150,6 +1520,7 @@ button {
    the card (rather than restyling each child) keeps the keypad, choices,
    text box and coordinate grids readable on the dark background. */
 #screen-question.boss-mode .session-hud {
+  --warn-ink: #ffc766; /* the combo "x3" on the dark arena HUD */
   background: #1b0f2a;
   padding: 8px 12px;
   border-radius: 999px;
@@ -1169,6 +1540,15 @@ button {
   --good-bg: rgba(47, 196, 138, 0.25);
   --bad-bg: rgba(255, 77, 109, 0.22);
   --accent-ink: #c3cbff;
+  /* #153 tokens the new components read, set to the same arena shades so
+     keys, choices and verdict text stay readable on the dark card. */
+  --surface-2: #36224f;
+  --border-strong: #5b3b84;
+  --card-border: #5b3b84;
+  --primary-tint: #36224f;
+  --good-ink: #7be0b0;
+  --bad-ink: #ff9aa9;
+  --warn-ink: #ffc766;
   background: radial-gradient(circle at 50% 0%, #4a1c3c 0%, #231433 55%, #170c24 100%);
   color: var(--ink);
   border: 2px solid #ff4d6d;
@@ -1361,7 +1741,7 @@ button {
 .mastery-track {
   flex: 1;
   height: 14px;
-  background: var(--chip-bg);
+  background: var(--surface-2);
   border-radius: 999px;
   overflow: hidden;
 }
@@ -1484,9 +1864,6 @@ button {
 /* ---------- Best thing today / practise next time (Roadmap #110) ---------- */
 .summary-takeaways {
   margin-top: 14px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
   padding: 16px 20px;
 }
 .takeaway + .takeaway {
@@ -1534,7 +1911,7 @@ button {
 }
 .name-input {
   flex: 1;
-  min-height: 40px;
+  min-height: var(--tap-min);
   border: none;
   border-bottom: 2px solid var(--border);
   background: none;
@@ -1584,9 +1961,6 @@ button {
 
 /* ---------- Weather widget ---------- */
 .weather-widget {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
   padding: 14px;
   text-align: center;
 }
@@ -1603,7 +1977,7 @@ button {
 }
 
 /* ---------- Settings: danger zone ---------- */
-.danger-heading { color: var(--bad); }
+.danger-heading { color: var(--bad-ink); }
 /* Light / Dark / Match device — three across at every width, unlike the
    2-then-4 column session-length grid it borrows its buttons from. */
 .choice-grid.mode-choices {
@@ -1622,16 +1996,8 @@ button {
   width: fit-content;
   min-width: 200px;
   margin: 0;
-  min-height: 52px;
-  background: var(--bad-bg);
-  color: var(--bad);
-  border: 2px solid var(--bad);
-  border-radius: 12px;
-  font-size: 1rem;
-  font-weight: 700;
   padding: 10px 20px;
 }
-.danger-btn:active { background: var(--bad); color: #fff; }
 
 /* ---------- Joke / word of the day (sidebar panels) ----------
    These sit under the date and weather widgets, so they use the same card
@@ -1643,10 +2009,7 @@ button {
 .joke-of-day,
 .word-of-day {
   margin-top: 14px;
-  background: var(--surface);
-  border: 1px solid var(--border);
   border-left: 4px solid var(--primary);
-  border-radius: 12px;
   padding: 12px 14px;
   color: var(--ink);
   line-height: 1.5;
@@ -1670,9 +2033,9 @@ button {
    row; sized as a real tap target, not just an icon glyph. */
 .panel-refresh-btn {
   margin-left: auto;
-  width: 36px;
-  height: 36px;
-  min-width: 36px;
+  width: var(--tap-min);
+  height: var(--tap-min);
+  min-width: var(--tap-min);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1734,15 +2097,15 @@ button {
   color: var(--ink);
 }
 .unit-btn.selected {
-  border-color: var(--primary);
-  background: var(--chip-bg);
+  border-color: var(--ring);
+  background: var(--primary-tint);
   color: var(--accent-ink);
 }
 
 /* ---------- Topic weighting preview ---------- */
 .topic-weighting-preview {
   margin-top: 10px;
-  background: var(--chip-bg);
+  background: var(--primary-tint);
   border-radius: 12px;
   padding: 12px 14px;
 }
@@ -1762,7 +2125,7 @@ button {
 .start-warning {
   margin-top: 10px;
   background: var(--bad-bg);
-  color: var(--bad);
+  color: var(--bad-ink);
   border-radius: 12px;
   padding: 12px 14px;
   font-size: 0.85rem;
@@ -1859,11 +2222,11 @@ button {
   border-radius: 999px;
 }
 .strength-strong { background: var(--good-bg); }
-.strength-strong .strength-tag { background: var(--good); color: #fff; }
-.strength-medium { background: var(--chip-bg); }
-.strength-medium .strength-tag { background: var(--primary); color: #fff; }
+.strength-strong .strength-tag { background: var(--good-ink); color: var(--surface); }
+.strength-medium { background: var(--primary-tint); }
+.strength-medium .strength-tag { background: var(--primary); color: var(--on-primary); }
 .strength-weak { background: var(--bad-bg); }
-.strength-weak .strength-tag { background: var(--bad); color: #fff; }
+.strength-weak .strength-tag { background: var(--bad-ink); color: var(--surface); }
 
 /* ---------- Import ---------- */
 .import-panel { display: flex; flex-direction: column; }
@@ -1895,7 +2258,7 @@ button {
   border-radius: 10px;
   padding: 10px 14px;
   font-size: 0.8rem;
-  color: var(--bad);
+  color: var(--bad-ink);
 }
 .import-errors ul { margin: 6px 0 0; padding-left: 18px; }
 .import-errors li { margin-bottom: 8px; }
@@ -1936,8 +2299,8 @@ button {
   background: var(--chip-bg);
   color: var(--ink-soft);
 }
-.import-tag-computed { background: var(--good-bg); color: var(--good); }
-.import-tag-guessed { background: var(--bad-bg); color: var(--bad); }
+.import-tag-computed { background: var(--good-bg); color: var(--good-ink); }
+.import-tag-guessed { background: var(--bad-bg); color: var(--bad-ink); }
 .import-tag-recovered { background: var(--chip-active-bg); color: var(--chip-active-ink); }
 .import-prompt {
   font-size: 0.92rem;
@@ -1969,7 +2332,7 @@ button {
 }
 .import-choice-correct {
   background: var(--good-bg);
-  color: var(--good);
+  color: var(--good-ink);
   font-weight: 700;
 }
 .import-answer {
@@ -1986,8 +2349,8 @@ button {
 
 /* ---------- Shop ---------- */
 .shop-balance {
-  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-  color: #fff;
+  background: var(--hero-bg);
+  color: var(--on-primary);
   border-radius: var(--radius);
   padding: 16px 20px;
   font-size: 1.1rem;
@@ -2012,7 +2375,7 @@ button {
   padding: 12px;
   text-align: center;
 }
-.shop-item.equipped { border-color: var(--primary); background: var(--chip-bg); }
+.shop-item.equipped { border-color: var(--ring); background: var(--primary-tint); }
 .shop-item-swatch {
   width: 32px;
   height: 32px;
@@ -2034,7 +2397,7 @@ button {
 .shop-item-frame-sample.frame-frame-fire { box-shadow: 0 0 0 3px #e8734a; }
 .shop-item-frame-sample.frame-frame-rainbow { background-image: conic-gradient(red, orange, yellow, green, blue, violet, red); }
 .shop-item-action {
-  min-height: 36px;
+  min-height: var(--tap-min);
   width: 100%;
   margin-top: 8px;
   border-radius: 8px;
@@ -2042,7 +2405,7 @@ button {
   font-size: 0.8rem;
   font-weight: 700;
   background: var(--primary);
-  color: #fff;
+  color: var(--on-primary);
 }
 .shop-item-action:disabled { background: var(--disabled-bg); }
 
@@ -2061,7 +2424,7 @@ button {
 .powerup-name { font-weight: 800; font-size: 1rem; color: var(--ink); }
 .powerup-price { font-weight: 700; color: var(--accent-ink); margin-left: 4px; }
 .powerup-desc { font-size: 0.9rem; color: var(--ink-soft); margin-top: 2px; }
-.powerup-held { font-size: 0.9rem; font-weight: 700; color: var(--good); margin-top: 4px; }
+.powerup-held { font-size: 0.9rem; font-weight: 700; color: var(--good-ink); margin-top: 4px; }
 .powerup-buy-btn {
   min-height: 48px;
   min-width: 110px;
@@ -2071,10 +2434,10 @@ button {
   font-size: 0.95rem;
   font-weight: 700;
   background: var(--primary);
-  color: #fff;
+  color: var(--on-primary);
 }
 .powerup-buy-btn:disabled { background: var(--disabled-bg); }
-.shop-item-action.owned { background: var(--chip-bg); color: var(--accent-ink); }
+.shop-item-action.owned { background: var(--primary-tint); color: var(--accent-ink); }
 
 .footer-link-row {
   display: flex;
@@ -2083,64 +2446,86 @@ button {
 }
 .footer-link-row .link-btn { width: auto; }
 
-/* ---------- Cosmetic themes ---------- */
+/* ---------- Cosmetic themes (Shop) ----------
+   A theme sets only the five brand tokens (#153). Each --primary is dark
+   enough for white text (>=4.5:1); the bright shade lives on as --accent
+   and as the Shop swatch (js/shop.js). Classic Blue is the :root default. */
 body[data-theme="theme-sunset"] {
-  --primary: #e8734a;
-  --primary-dark: #c85a35;
-  --chip-bg: #fdece3;
-  --chip-active-bg: #e8734a;
+  --accent: #ff8a5b;
+  --primary: #c2410c;
+  --primary-edge: #9a3412;
+  --primary-tint: #ffede4;
+  --accent-ink: #9a3412;
 }
 body[data-theme="theme-forest"] {
-  --primary: #2f9e64;
-  --primary-dark: #217a4c;
-  --chip-bg: #e3f5ea;
-  --chip-active-bg: #2f9e64;
+  --accent: #34c47c;
+  --primary: #15803d;
+  --primary-edge: #166534;
+  --primary-tint: #e3f6ea;
+  --accent-ink: #166534;
 }
 body[data-theme="theme-berry"] {
-  --primary: #9748c9;
-  --primary-dark: #77389f;
-  --chip-bg: #f2e6fa;
-  --chip-active-bg: #9748c9;
+  --accent: #b86ef0;
+  --primary: #9333ea;
+  --primary-edge: #6b21a8;
+  --primary-tint: #f3e8ff;
+  --accent-ink: #7e22ce;
 }
 
 /* ---------- Dark mode (Roadmap #87) ----------
    Chosen in Settings > Appearance; app.js resolves Light / Dark / Match
-   device into data-mode on <html>. Only the neutral colours change — the
-   shop theme's --primary is kept, so a bought colour theme still shows.
-   These rules sit on body (not :root) and after the theme rules so they win
-   over a theme's light --chip-bg; each theme then gets its own darkened chip
-   and a lighter accent, since its light-mode shades are unreadable on a dark
-   background. Images (question diagrams) keep their white card on purpose:
-   they're drawn for paper. */
+   device into data-mode on <html>. Only the neutrals and feedback shades
+   change: --primary, --primary-edge and --on-primary stay, since white on
+   a filled button reads the same on any page. These rules sit on body (not
+   :root) and after the theme rules so they win over a theme's light tint;
+   each theme then gets its own dark tint and lighter text accent. Images
+   (question diagrams) keep their white card on purpose: they're drawn for
+   paper. */
 /* html paints its own background from :root's (light) --bg, and iPad Safari
    shows it in the rubber-band overscroll and around the safe areas — so it
    needs the dark shade too, not just body. */
-html[data-mode="dark"] { color-scheme: dark; background: #14161f; }
+html[data-mode="dark"] { color-scheme: dark; background: #11131b; }
 html[data-mode="dark"] body {
-  --bg: #14161f;
-  --surface: #1f2230;
-  --ink: #e8eaf3;
-  --ink-soft: #a3a8bf;
-  --good: #3cc48c;
-  --good-bg: #16362a;
-  --bad: #f06a6e;
-  --bad-bg: #3d1c1f;
-  --chip-bg: #2a2f48;
-  --border: #353a52;
-  --disabled-bg: #454a66;
-  --accent-ink: #aab5ff;
+  --bg: #11131b;
+  --surface: #1b1e2a;
+  --surface-2: #252939;
+  --ink: #eceef7;
+  --ink-soft: #a9aec4;
+  --border: #2f3447;
+  --border-strong: #3d435a;
+  --primary-tint: #2a2e55;
+  --accent-ink: #b4b8ff;
+  --good-ink: #5fd39b; --good-bg: #163426;
+  --bad-ink: #ff8a80;  --bad-bg: #3b1d1d;
+  --warn-ink: #ffc766; --warn-bg: #3a2c10;
+  /* Shadows barely read on dark, so cards show a 1px border instead. */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 6px 18px rgba(0, 0, 0, 0.45);
+  --shadow-3: 0 16px 40px rgba(0, 0, 0, 0.55);
+  --card-border: var(--border);
+  --disabled-bg: #3d4260;
+  --ring: var(--accent-ink);
 }
-html[data-mode="dark"] body[data-theme="theme-sunset"] { --chip-bg: #3d2a22; --accent-ink: #ffb08f; }
-html[data-mode="dark"] body[data-theme="theme-forest"] { --chip-bg: #1f3a2b; --accent-ink: #86dcae; }
-html[data-mode="dark"] body[data-theme="theme-berry"] { --chip-bg: #35254a; --accent-ink: #d4a6f2; }
+html[data-mode="dark"] body[data-theme="theme-sunset"] { --primary-tint: #3d2a22; --accent-ink: #ffb08f; }
+html[data-mode="dark"] body[data-theme="theme-forest"] { --primary-tint: #1f3a2b; --accent-ink: #86dcae; }
+html[data-mode="dark"] body[data-theme="theme-berry"] { --primary-tint: #35254a; --accent-ink: #d4a6f2; }
 
-/* ---------- Cosmetic fonts ---------- */
-body[data-font="font-rounded"] {
-  font-family: "Comic Sans MS", "Chalkboard SE", "Segoe Print", cursive, sans-serif;
+/* ---------- Look B "Calm & Clean" preview, body half (?look=b) ----------
+   After dark mode so it also wins there: flat cards with hairline borders
+   and a flat hero. The html half (font, no press edges) is in the tokens
+   block at the top. */
+html[data-look="b"] body {
+  --shadow-1: none;
+  --shadow-2: none;
+  --card-border: var(--border);
+  --hero-bg: var(--primary);
 }
-body[data-font="font-mono"] {
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-}
+
+/* ---------- Cosmetic fonts ----------
+   Each sets --font-body, so headings, buttons, keypad and inputs all follow
+   the bought font. Classic is the :root default (--font-stack-classic). */
+body[data-font="font-rounded"] { --font-body: var(--font-stack-bubbly); --font-display: var(--font-stack-bubbly); }
+body[data-font="font-mono"] { --font-body: var(--font-stack-robot); --font-display: var(--font-stack-robot); }
 
 /* ---------- Wider screens: use the extra horizontal space instead of
    leaving it empty either side of a narrow centered column ---------- */
@@ -2247,22 +2632,19 @@ body[data-font="font-mono"] {
   line-height: 1.4;
   color: var(--ink);
 }
-.backup-status.backup-status-warn { color: var(--bad); }
+.backup-status.backup-status-warn { color: var(--bad-ink); }
 .home-notice {
   margin: 12px 0 0;
   padding: 10px 14px;
   border-radius: 12px;
   background: var(--good-bg);
-  color: var(--good);
+  color: var(--good-ink);
   font-weight: 700;
 }
 /* Calm, not alarming: the ordinary card look, no red (#151 AC12). */
 .backup-reminder {
   margin-top: 12px;
   padding: 14px 16px;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  background: var(--surface);
 }
 .backup-reminder-text {
   margin: 0;
@@ -2324,7 +2706,7 @@ body[data-font="font-mono"] {
   font-size: 0.72rem;
   font-weight: 700;
   color: var(--accent-ink);
-  background: var(--chip-bg);
+  background: var(--primary-tint);
   border-radius: 999px;
   padding: 2px 8px;
 }
@@ -2373,8 +2755,8 @@ body[data-font="font-mono"] {
   margin-top: 12px;
 }
 .suggestion-submit-btn { width: auto; min-width: 200px; margin: 0; }
-.suggestion-status { font-size: 0.85rem; font-weight: 600; color: var(--good); }
-.suggestion-status-warn { color: var(--bad); }
+.suggestion-status { font-size: 0.85rem; font-weight: 600; color: var(--good-ink); }
+.suggestion-status-warn { color: var(--bad-ink); }
 .suggestion-list {
   display: flex;
   flex-direction: column;
@@ -2394,7 +2776,7 @@ body[data-font="font-mono"] {
   min-width: 32px;
   height: 32px;
   border-radius: 999px;
-  background: var(--chip-bg);
+  background: var(--primary-tint);
   color: var(--accent-ink);
   font-weight: 800;
   font-size: 0.85rem;
@@ -2502,11 +2884,11 @@ body[data-font="font-mono"] {
   font-weight: 600;
   color: var(--ink-soft);
 }
-.sync-state-on { color: var(--good); }
+.sync-state-on { color: var(--good-ink); }
 
 .suggestion-status-busy { color: var(--ink-soft); }
 
-.suggestion-number-sent { background: var(--good-bg); color: var(--good); }
+.suggestion-number-sent { background: var(--good-bg); color: var(--good-ink); }
 
 .suggestion-when {
   display: flex;
@@ -2521,10 +2903,10 @@ body[data-font="font-mono"] {
   letter-spacing: 0.03em;
   border-radius: 999px;
   padding: 2px 8px;
-  background: var(--chip-bg);
+  background: var(--primary-tint);
   color: var(--accent-ink);
 }
-.suggestion-tag-sent { background: var(--good-bg); color: var(--good); }
+.suggestion-tag-sent { background: var(--good-bg); color: var(--good-ink); }
 
 /* ======================================================================
    Build 2 (Roadmap 127–128, 130–131, 134–142, 149)
@@ -2540,12 +2922,9 @@ body[data-font="font-mono"] {
 .home-card {
   margin-top: 12px;
   padding: 14px 16px;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  background: var(--surface);
 }
 .start-main > .home-card:first-child { margin-top: 0; }
-.home-card-title { margin: 0 0 6px; font-size: 1.02rem; font-weight: 800; color: var(--ink); }
+.home-card-title { margin: 0 0 6px; }
 .home-card-btn { margin-top: 12px; min-height: 48px; }
 .parent-note-card { border: 2px solid var(--primary); margin-bottom: 12px; }
 .parent-note-text { margin: 0; font-size: 1.05rem; line-height: 1.45; color: var(--ink); white-space: pre-line; overflow-wrap: anywhere; }
@@ -2592,7 +2971,7 @@ body[data-font="font-mono"] {
 }
 
 /* Reward goal (#138). */
-.reward-track { height: 14px; border-radius: 999px; background: var(--chip-bg); overflow: hidden; }
+.reward-track { height: 14px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
 .reward-fill { height: 100%; background: var(--good); border-radius: 999px; max-width: 100%; }
 .reward-text { margin: 8px 0 0; font-size: 0.95rem; font-weight: 700; color: var(--ink); }
 .reward-reached { border: 2px solid var(--good); }
@@ -2609,7 +2988,7 @@ body[data-font="font-mono"] {
 .quest-body { flex: 1 1 auto; min-width: 0; }
 .quest-label { font-size: 0.86rem; font-weight: 700; color: var(--ink); line-height: 1.3; }
 .quest-bar-row { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
-.quest-track { flex: 1 1 auto; height: 8px; border-radius: 999px; background: var(--chip-bg); overflow: hidden; }
+.quest-track { flex: 1 1 auto; height: 10px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
 .quest-fill { height: 100%; background: var(--primary); border-radius: 999px; }
 .quest-done .quest-fill { background: var(--good); }
 .quest-count { font-size: 0.8rem; font-weight: 700; color: var(--ink-soft); white-space: nowrap; }
@@ -2625,13 +3004,10 @@ body[data-font="font-mono"] {
   margin-top: 14px;
   padding: 12px 14px;
   text-align: left;
-  background: var(--surface);
   color: var(--ink);
-  border: 1px solid var(--border);
-  border-radius: 12px;
   font: inherit;
 }
-.adventure-card:active { background: var(--chip-bg); }
+.adventure-card:active { background: var(--surface-2); }
 .adventure-avatar { flex: 0 0 auto; }
 .adventure-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .adventure-title { font-size: 0.95rem; font-weight: 700; }
@@ -2683,9 +3059,6 @@ body[data-font="font-mono"] {
 /* Summary: questions I got wrong (#127). */
 .summary-wrong {
   margin-top: 14px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
   padding: 16px 20px;
 }
 .summary-wrong-title { margin: 0 0 8px; font-size: 1rem; font-weight: 800; color: var(--ink); }
@@ -2740,7 +3113,7 @@ body[data-font="font-mono"] {
   font-size: 1.1rem;
   font-weight: 800;
 }
-.cal-ticked { background: var(--good-bg); color: var(--good); border-color: var(--good); }
+.cal-ticked { background: var(--good-bg); color: var(--good-ink); border-color: var(--good); }
 .cal-shield { background: var(--chip-bg); }
 .cal-future { opacity: 0.35; }
 .cal-today { outline: 3px solid var(--primary); outline-offset: 1px; }
@@ -2761,7 +3134,7 @@ body[data-font="font-mono"] {
 .wc-topic { font-weight: 700; color: var(--ink); overflow-wrap: anywhere; }
 .wc-pcts { color: var(--ink-soft); font-weight: 600; white-space: nowrap; }
 .wc-arrow { font-weight: 800; white-space: nowrap; }
-.wc-up { color: var(--good); }
+.wc-up { color: var(--good-ink); }
 .wc-steady, .wc-down { color: var(--ink-soft); }
 .wc-partial { margin: 6px 0 0; font-size: 0.88rem; color: var(--ink-soft); }
 
@@ -2826,11 +3199,31 @@ button.header-badges-group:active { background: var(--chip-bg); }
 .note-row .note-btn { width: auto; min-height: 48px; padding: 0 18px; margin: 0; }
 .note-row .note-delete-btn { width: auto; min-height: 44px; margin: 0; }
 .note-status { margin: 0; font-weight: 700; color: var(--ink); }
-.reward-goal-status { margin: 4px 0 0; font-size: 0.9rem; color: var(--good); }
-.reward-goal-status.backup-status-warn { color: var(--bad); }
+.reward-goal-status { margin: 4px 0 0; font-size: 0.9rem; color: var(--good-ink); }
+.reward-goal-status.backup-status-warn { color: var(--bad-ink); }
 
 @media (prefers-reduced-motion: reduce) {
   .goal-sparkle .goal-ring-pic,
   .reward-celebrate { animation: none; }
   .map-avatar-moving { transition: none; }
+}
+
+/* ---------- Motion (#153) ----------
+   A screen fades in and rises 8px as it opens. Only transform and opacity
+   animate, and `both` leaves no transform behind afterwards. */
+.screen.active { animation: screen-in var(--dur-base) var(--ease-out) both; }
+@keyframes screen-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Reduce Motion: no slides, presses or pops. State is still shown by
+   colour, icon and words. (The two blocks above stay as they are.) */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0.01ms; --dur-base: 0.01ms; --dur-slow: 0.01ms;
+    --press-depth: 0px; --key-depth: 0px;
+  }
+  .screen.active,
+  .banner-celebrate { animation: none; }
 }

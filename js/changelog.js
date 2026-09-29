@@ -14,9 +14,20 @@
 // roadmap file. The Suggestions screen numbers new suggestions from here, so
 // they slot straight onto the end of that file (see suggestions in ui.js).
 // Bump it whenever items are appended to the roadmap file.
-export const ROADMAP_LAST_ITEM_NUMBER = 152;
+export const ROADMAP_LAST_ITEM_NUMBER = 153;
 
 export const CHANGELOG = [
+  {
+    at: '2026-09-29T13:37+01:00',
+    label: 'Roadmap 153 (part 1)',
+    changes: [
+      'Sprint has a brighter, friendlier new look. Boxes float on the page, and buttons and number keys press down like real keys when you tap them.',
+      'The Classic writing now uses the iPad\u2019s rounded letters. Bubbly and Robot Mode still work, and now change the buttons and number keys too.',
+      'The Sunset and Forest colours are a little deeper on buttons, so the white writing is easier to read. The Shop still shows their bright colours.',
+      'Green \u201cright\u201d and red \u201cwrong\u201d writing is a bit darker, so it\u2019s easier to read.',
+      'The settings cog, the buttons at the top and the Exit button are bigger, so they\u2019re easier to tap.',
+    ],
+  },
   {
     at: '2026-09-29T18:00+01:00',
     label: 'Roadmap 127\u2013128, 130\u2013131, 134\u2013142, 149',
