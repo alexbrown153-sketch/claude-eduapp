@@ -68,6 +68,18 @@
           <p class="focus-tone" id="focus-tone"></p>
           <div id="strength-summary" class="strength-summary" hidden></div>
         </div>
+        <p id="home-notice" class="home-notice" role="status" hidden></p>
+
+        <!-- Roadmap #151: a gentle reminder when progress hasn't been saved to
+             a file for a while. Only shown when due; "Not now" snoozes it. -->
+        <div id="backup-reminder" class="backup-reminder" hidden>
+          <p class="backup-reminder-text">It’s been a while since your progress was saved to a file. Save a copy so nothing gets lost.</p>
+          <p id="backup-reminder-error" class="backup-reminder-error" role="status" hidden></p>
+          <div class="backup-reminder-actions">
+            <button id="backup-reminder-save" type="button" class="secondary-btn">Save a copy now</button>
+            <button id="backup-reminder-snooze" type="button" class="link-btn">Not now</button>
+          </div>
+        </div>
 
         <h2 class="section-heading">Session length</h2>
         <div class="choice-grid" id="length-choices">
@@ -132,13 +144,16 @@
         <p id="boss-status" class="boss-status" role="status"></p>
       </div>
       <p id="question-prompt" class="question-prompt"></p>
+      <!-- Roadmap #123: "Type it like this: 7/5" under improper-fraction
+           questions. Kept out of the prompt itself. -->
+      <p id="question-answer-hint" class="question-answer-hint" hidden></p>
 
       <div id="question-diagram" class="question-diagram" hidden>
         <img id="question-diagram-img" alt="Diagram for this question" hidden />
-        <!-- Drawn diagrams (currently the coordinate grids in
-             js/coordinates.js) arrive as SVG markup on the question itself
-             and are dropped in here; the <img> above is for a diagram
-             captured from an imported PDF. -->
+        <!-- Drawn diagrams (the coordinate grids in js/coordinates.js and
+             the shape pictures in js/diagrams.js) arrive as SVG markup on the
+             question itself and are dropped in here; the <img> above is for
+             a diagram captured from an imported PDF. -->
         <div id="question-diagram-svg" class="question-diagram-svg" hidden></div>
       </div>
 
@@ -148,7 +163,14 @@
         <button id="question-blocked-home-btn" class="primary-btn">Back to Home</button>
       </div>
 
+      <!-- Roadmap #132: the answer controls and Check/Next, as one block, so
+           a wide landscape screen can put them in a column of their own on
+           the right. In portrait this wrapper changes nothing. -->
+      <div class="question-controls">
       <div id="answer-numeric" class="answer-area" hidden>
+        <!-- Roadmap #97: "Right number!" when the value is right but the
+             form isn't, with one more try. -->
+        <p id="right-form-msg" class="right-form-msg" role="status" hidden></p>
         <div class="numeric-display" id="numeric-display">&nbsp;</div>
         <div class="keypad">
           <button class="key" data-key="1">1</button>
@@ -170,6 +192,13 @@
           <button class="key" data-key="r" aria-label="remainder">r</button>
           <button class="key" data-key="/" aria-label="fraction bar">/</button>
         </div>
+        <!-- Roadmap #133: a one-time tip pointing up at the r key, the first
+             time a remainder question comes up. In the page flow, under the
+             pad, so it never covers a key, the display or the question. -->
+        <div id="remainder-tip" class="remainder-tip" role="note" hidden>
+          <p id="remainder-tip-text" class="remainder-tip-text"></p>
+          <button id="remainder-tip-btn" type="button" class="remainder-tip-btn">Got it</button>
+        </div>
       </div>
 
       <div id="answer-text" class="answer-area" hidden>
@@ -185,10 +214,18 @@
              so Next stays exactly where Check was. -->
         <button id="retry-btn" class="secondary-btn retry-btn" hidden>Try one like it</button>
       </div>
+      </div>
 
       <div id="feedback-inline" class="feedback-inline" role="status" hidden>
         <p id="feedback-result" class="feedback-result"></p>
         <p id="feedback-explanation" class="feedback-explanation"></p>
+        <!-- Roadmap #124: after a wrong answer, a multi-step explanation is
+             shown one step at a time instead of the paragraph above. -->
+        <ol id="feedback-steps" class="feedback-steps" hidden></ol>
+        <button id="next-step-btn" type="button" class="secondary-btn next-step-btn" hidden>Show next step</button>
+        <!-- Roadmap #122: the bar-model picture for "share in a ratio"
+             questions, shown only once the answer has been checked. -->
+        <div id="feedback-diagram" class="feedback-diagram" hidden></div>
       </div>
     </div>
   </section>
@@ -209,7 +246,7 @@
   <section id="screen-progress" class="screen">
     <h2 class="section-heading">Progress</h2>
 
-    <h3 class="section-subheading">Mastery by topic</h3>
+    <h3 class="section-subheading">How I’m doing in each topic</h3>
     <div id="mastery-bars" class="mastery-bars"></div>
 
     <h3 class="section-subheading">Strengths &amp; weaknesses</h3>
@@ -269,6 +306,20 @@
     <h3 class="section-subheading">Changes</h3>
     <p class="changelog-hint">Everything that has been added or changed in the app, newest first. Nothing is ever removed from this list.</p>
     <div id="changelog-list" class="changelog-list"></div>
+
+    <!-- Roadmap #150: all progress lives only in this browser, so it can be
+         saved to a file and brought back from one. -->
+    <h3 class="section-subheading">Back up and restore</h3>
+    <p class="weather-hint">Saves a copy of your progress as a file. Keep it in Files or iCloud Drive so you can bring your progress back if this iPad forgets it.</p>
+    <p id="backup-last" class="backup-last"></p>
+    <div class="backup-actions">
+      <button id="backup-btn" type="button" class="secondary-btn">Back up my progress</button>
+      <!-- No accept filter: some values grey out .json files on iPad. The
+           file's contents are checked properly before anything changes. -->
+      <label for="restore-file" class="secondary-btn backup-restore-label">Restore from file</label>
+      <input type="file" id="restore-file" hidden />
+    </div>
+    <p id="backup-status" class="backup-status" role="status" hidden></p>
 
     <h3 class="section-subheading danger-heading">Danger zone</h3>
     <p class="danger-hint">Permanently erases all progress, points, badges, purchases and settings, and starts fresh.</p>

@@ -3,12 +3,7 @@
 // each topic was last practised, so it's the same whatever the device clock
 // says apart from that staleness.
 
-function daysBetween(a, b) {
-  const msPerDay = 24 * 60 * 60 * 1000;
-  const d1 = new Date(a.getFullYear(), a.getMonth(), a.getDate());
-  const d2 = new Date(b.getFullYear(), b.getMonth(), b.getDate());
-  return Math.round((d2 - d1) / msPerDay);
-}
+import { localDateStr, daysBetweenLocalDates } from './dates.js';
 
 function normalize(raw) {
   const total = Object.values(raw).reduce((a, b) => a + b, 0);
@@ -27,12 +22,14 @@ function equalWeights(topics) {
 // recently, so every topic keeps cycling through instead of being neglected.
 function weakAndStaleWeights(topics, mastery, today) {
   const raw = {};
+  const todayStr = localDateStr(today);
   topics.forEach((t) => {
     const rec = mastery[t];
     const weaknessScore = 1 - rec.masteryScore;
-    const daysSince = rec.lastPracticed
-      ? daysBetween(new Date(`${rec.lastPracticed}T00:00:00`), today)
-      : 99;
+    // Never practised (or an unreadable date) counts as very stale; a date
+    // later than today (clock set back) counts as today.
+    const gap = daysBetweenLocalDates(rec.lastPracticed, todayStr);
+    const daysSince = Number.isFinite(gap) ? Math.max(gap, 0) : 99;
     const stalenessBoost = Math.min(daysSince / 7, 1);
     raw[t] = 0.4 + weaknessScore * 0.4 + stalenessBoost * 0.2;
   });
@@ -50,7 +47,8 @@ export function computeTodaysPlan(today, meta, mastery, topics) {
       phase: 'diagnostic',
       sessionLengthSuggestion: { type: 'questions', value: 12 },
       topicWeighting: equalWeights(topics),
-      framingTone: "Let's find out where you're strongest to start with.",
+      // Roadmap #118: a friendly warm-up, not a test.
+      framingTone: "It's not a test. Just try your best, and Sprint will know what to practise with you next.",
     };
   }
 
@@ -63,6 +61,6 @@ export function computeTodaysPlan(today, meta, mastery, topics) {
 }
 
 export const PHASE_LABELS = {
-  diagnostic: 'Diagnostic',
+  diagnostic: "Warm-up quiz: let's see what you know", // Roadmap #118
   bulk: 'Daily practice',
 };

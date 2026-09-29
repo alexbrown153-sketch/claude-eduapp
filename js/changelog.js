@@ -14,9 +14,34 @@
 // roadmap file. The Suggestions screen numbers new suggestions from here, so
 // they slot straight onto the end of that file (see suggestions in ui.js).
 // Bump it whenever items are appended to the roadmap file.
-export const ROADMAP_LAST_ITEM_NUMBER = 114;
+export const ROADMAP_LAST_ITEM_NUMBER = 152;
 
 export const CHANGELOG = [
+  {
+    at: '2026-09-29T09:30+01:00',
+    label: 'Roadmap 97, 115\u2013126, 129, 132\u2013133, 150\u2013151',
+    changes: [
+      'Got the right number but typed it the wrong way, like 0.3 when the question wanted 3/10? Sprint now says \u201cRight number!\u201d, tells you how to write it, and gives you one more go.',
+      'Quadrant questions no longer have 1st, 2nd, 3rd and 4th written on the grid, so you work it out yourself. Remember: the quadrants are numbered anticlockwise, starting at the top right.',
+      'The question number now stays the same while you read how you did. It moves on when you tap Next question.',
+      'When you get one wrong, the \u201cNot quite\u201d message now shows as a strip at the top of the screen, so it doesn\u2019t cover the answer buttons. You can see which one you picked and which one was right.',
+      'Your very first session is now called a warm-up quiz. It\u2019s not a test, it just helps Sprint know what to practise with you.',
+      'On Progress, \u201cMastery by topic\u201d is now called \u201cHow I\u2019m doing in each topic\u201d.',
+      'Home only names your strongest topic once you\u2019ve really shown it. Until then it says \u201cWe\u2019ll find out as you practise\u201d.',
+      'Rectangle and L-shape questions now come with a picture of the shape and its measurements. The rectangles-with-corners-cut-off questions have a picture too, and now say exactly which corners.',
+      'Ratio sharing questions now show a bar model after you answer: one bar for each share, with the same amount in every box.',
+      'Top-heavy fraction questions now show \u201cType it like this: 7/5\u201d under the question, so you know how to write the answer.',
+      'Got one wrong? The explanation now comes one step at a time. Tap \u201cShow next step\u201d to see the next bit.',
+      'Fraction questions no longer ask you to times or divide by a whole one, like 4/5 \u00d7 5/5, and take-away questions never come out as 0.',
+      'Word problems now say \u201che\u201d or \u201cshe\u201d instead of \u201cthey\u201d for the person in the question.',
+      'Each topic now has bronze, silver and gold medals at 50%, 70% and 90%. Answer 10 questions in a topic to start winning them. Progress shows your medal and how far it is to the next one.',
+      'With the iPad on its side, the question is on the left and the number pad is on the right, so it isn\u2019t stretched right across the screen.',
+      'The first time a remainder question comes up, a little tip shows you how to use the r key.',
+      'Settings has a new Back up and restore section. You can save your progress to a file and bring it back later, even on a different iPad.',
+      'If your progress hasn\u2019t been saved to a file for a month, Home shows a gentle reminder to save a copy.',
+      'Practice just after midnight now counts for the right day, so it can\u2019t break your streak by mistake.',
+    ],
+  },
   {
     at: '2026-09-28T13:55+01:00',
     label: 'Roadmap 96\u2013114',

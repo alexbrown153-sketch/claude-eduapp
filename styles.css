@@ -528,13 +528,6 @@ button {
   font-size: 11px;
   font-style: italic;
 }
-.coord-grid .cg-quadrant {
-  fill: var(--ink-soft);
-  font-size: 12px;
-  font-weight: 700;
-  opacity: 0.45;
-  text-anchor: middle;
-}
 .coord-grid .cg-segment {
   stroke: var(--primary);
   stroke-width: 2.5;
@@ -551,6 +544,104 @@ button {
   font-size: 13px;
   font-weight: 700;
 }
+
+/* Roadmap #121: shape pictures for rectangle, L-shape and cut-corner area
+   questions (js/diagrams.js). Same frame as the coordinate grids. The shape
+   is tinted, never the removed piece, so nothing hints at the method. */
+.shape-diagram {
+  width: 100%;
+  max-width: 340px;
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 6px;
+}
+.shape-diagram .sd-shape {
+  fill: var(--chip-bg);
+  stroke: var(--primary);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+}
+.shape-diagram .sd-label {
+  fill: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+}
+.shape-diagram .sd-dim {
+  stroke: var(--ink-soft);
+  stroke-width: 1.5;
+}
+.shape-diagram .sd-caption {
+  fill: var(--ink-soft);
+  font-size: 11px;
+  font-style: italic;
+}
+
+/* Roadmap #123: "Type it like this: 7/5" under the prompt — quieter than
+   the prompt, but still readable at arm's length. */
+.question-answer-hint {
+  margin: -10px 0 18px;
+  text-align: center;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+/* Roadmap #133: the one-time tip under the pad, its pointer aimed up at the
+   r key (the left-hand key of the two-key row, so a quarter of the way
+   across). Ink-on-surface colours so it reads in every theme and mode. */
+.remainder-tip {
+  position: relative;
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--ink);
+  color: var(--surface);
+}
+.remainder-tip::before {
+  content: '';
+  position: absolute;
+  top: -10px;
+  left: calc(25% - 10px);
+  border: 10px solid transparent;
+  border-top: 0;
+  border-bottom-color: var(--ink);
+}
+.remainder-tip-text {
+  flex: 1;
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.remainder-tip-btn {
+  min-height: 44px;
+  min-width: 88px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+/* Roadmap #97: "Right number!" above the display. Friendly, not a verdict:
+   no red, ink on the chip colour so it reads in every theme and mode. */
+.right-form-msg {
+  margin: 0 0 10px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border-left: 6px solid var(--primary);
+  background: var(--chip-bg);
+  color: var(--ink);
+  font-size: 1.05rem;
+  line-height: 1.4;
+}
+.right-form-msg strong { font-weight: 800; }
 
 .answer-area { margin-bottom: 16px; }
 
@@ -679,6 +770,56 @@ button {
   color: var(--ink);
   margin: 0;
   white-space: pre-line;
+}
+
+/* Roadmap #124: a wrong answer's explanation, one numbered step at a time. */
+.feedback-steps {
+  margin: 0;
+  padding-left: 1.6em;
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--ink);
+}
+.feedback-steps li + li { margin-top: 6px; }
+.feedback-steps li { animation: step-in 0.25s ease-out both; }
+@keyframes step-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+.next-step-btn { min-height: 56px; }
+
+/* Roadmap #122: the bar model under a ratio explanation. The share the
+   question asked for is filled in the theme colour. */
+.feedback-diagram { margin-top: 16px; }
+.bar-model {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+.bar-model .bm-box {
+  fill: var(--surface);
+  stroke: var(--ink-soft);
+  stroke-width: 1.5;
+}
+.bar-model .bm-box.bm-on {
+  fill: var(--primary);
+  stroke: var(--primary-dark);
+}
+.bar-model .bm-num,
+.bar-model .bm-total,
+.bar-model .bm-label {
+  fill: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+.bar-model .bm-num.bm-on { fill: #fff; }
+.bar-model .bm-label.bm-on,
+.bar-model .bm-total.bm-on { fill: var(--accent-ink); font-weight: 800; }
+.bar-model .bm-summary {
+  fill: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 600;
 }
 
 /* Tablet and up (an iPad in portrait is 768px): this is the primary device,
@@ -852,6 +993,38 @@ button {
 .verdict-overlay.incorrect .verdict-headline { margin-top: 4px; font-size: 1.05rem; }
 .verdict-overlay.incorrect .verdict-detail { margin-top: 4px; font-size: 1rem; }
 
+/* Roadmap #117: the wrong-answer card is a slim banner pinned to the top of
+   the content area, lined up with the content column, instead of a card in
+   the middle of the screen where it covered the marked answer buttons.
+   scrollFeedbackIntoView (ui.js) keeps the answer record below it. */
+.verdict-overlay.incorrect {
+  align-items: flex-start;
+  padding: 8px 16px 0;
+}
+.verdict-overlay.incorrect .verdict-card {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  column-gap: 12px;
+  row-gap: 2px;
+  width: 100%;
+  max-width: 608px;
+  text-align: left;
+  padding: 10px 18px;
+  animation-name: verdict-drop;
+}
+.verdict-overlay.incorrect.leaving .verdict-card { animation-name: verdict-rise; }
+.verdict-overlay.incorrect .verdict-headline,
+.verdict-overlay.incorrect .verdict-detail { margin: 0; }
+@keyframes verdict-drop {
+  0% { opacity: 0; transform: translateY(-16px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+@keyframes verdict-rise {
+  0% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-12px); }
+}
+
 /* Motion is decoration here; the colour, the icon and the words carry the
    verdict on their own, so drop the movement but keep the card. */
 @media (prefers-reduced-motion: reduce) {
@@ -859,6 +1032,10 @@ button {
   .verdict-streak,
   .badge-card-reveal { animation: none; }
   .verdict-overlay.leaving .verdict-card { opacity: 0; animation: none; }
+  /* The #117 banner's own slide, which is more specific than the above. */
+  .verdict-overlay.incorrect .verdict-card { animation: none; }
+  .verdict-overlay.incorrect.leaving .verdict-card { opacity: 0; animation: none; }
+  .feedback-steps li { animation: none; }
   .correct-burst { display: none; }
   .streak-pulse { animation: none; }
   .combo-flame,
@@ -1000,6 +1177,7 @@ button {
 .question-card.boss-question .question-prompt { font-size: 1.5rem; }
 .question-card.boss-question .coord-grid .cg-segment { stroke: #9aa8ff; }
 .question-card.boss-question .coord-grid .cg-point { fill: #9aa8ff; }
+.question-card.boss-question .shape-diagram .sd-shape { stroke: #9aa8ff; }
 
 .boss-banner {
   margin: -6px 0 18px;
@@ -1195,6 +1373,14 @@ button {
 .sparkline {
   flex-shrink: 0;
   color: var(--primary);
+}
+/* Roadmap #129: a topic's best medal beside its %, and the next target. */
+.mastery-medal { margin-right: 6px; }
+.mastery-target {
+  margin-top: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ink-soft);
 }
 
 .badges-grid {
@@ -2009,6 +2195,104 @@ body[data-font="font-mono"] {
     grid-column: 3;
     margin-top: 0;
   }
+}
+
+/* ---------- Roadmap #132: the question screen on a wide landscape screen
+   Two columns: the question, any picture and the feedback on the left; the
+   answer controls with Check/Next (.question-controls) in a fixed column on
+   the right, so the keypad isn't stretched across the whole tablet. The
+   boss banner runs across both. The rows are only for lining things up:
+   the controls span them all, and the last row soaks up any extra height
+   so the left-hand items don't spread apart. Portrait, narrow windows and
+   iPad Split View under 900px keep the single column. ---------- */
+@media (min-width: 900px) and (orientation: landscape) {
+  .question-card:not(.is-blocked) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+    grid-template-rows: auto auto auto auto auto 1fr;
+    column-gap: 32px;
+    align-items: start;
+  }
+  .question-card:not(.is-blocked) > * { grid-column: 1; }
+  .question-card:not(.is-blocked) > .boss-banner { grid-column: 1 / -1; grid-row: 1; }
+  .question-card:not(.is-blocked) > .question-controls { grid-column: 2; grid-row: 1 / -1; }
+  .question-card.boss-question:not(.is-blocked) > .question-controls { grid-row: 2 / -1; }
+}
+
+/* ---------- Backup and restore (Roadmap #150) and reminder (#151) ---------- */
+.backup-last {
+  margin: 0 0 10px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+.backup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.backup-actions .secondary-btn {
+  flex: 1 1 200px;
+  margin: 0;
+}
+.backup-restore-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.backup-status {
+  margin: 10px 0 0;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  color: var(--ink);
+}
+.backup-status.backup-status-warn { color: var(--bad); }
+.home-notice {
+  margin: 12px 0 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--good-bg);
+  color: var(--good);
+  font-weight: 700;
+}
+/* Calm, not alarming: the ordinary card look, no red (#151 AC12). */
+.backup-reminder {
+  margin-top: 12px;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+.backup-reminder-text {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: var(--ink);
+}
+.backup-reminder-error {
+  margin: 8px 0 0;
+  font-size: 0.88rem;
+  color: var(--ink-soft);
+}
+.backup-reminder-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  margin-top: 10px;
+}
+.backup-reminder-actions .secondary-btn {
+  width: auto;
+  flex: 0 1 auto;
+  min-height: 48px;
+  padding: 0 18px;
+  margin: 0;
+}
+.backup-reminder-actions .link-btn {
+  width: auto;
+  min-height: 48px;
+  margin: 0;
 }
 
 /* ---------- Settings > Changes (Roadmap #81) ---------- */

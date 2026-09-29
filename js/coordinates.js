@@ -124,10 +124,12 @@ function esc(s) {
 }
 
 // Draws a square grid from `min` to `max` on both axes, with optional
-// plotted points ({x, y, label}), line segments ({from, to, dashed}) and
-// quadrant labels. Returns SVG markup; every colour and font size comes
+// plotted points ({x, y, label}) and line segments ({from, to, dashed}).
+// There are deliberately no quadrant labels (Roadmap #115): every question
+// about quadrants asks the child to name one, so a label would give the
+// answer away. Returns SVG markup; every colour and font size comes
 // from styles.css (.coord-grid) rather than being baked in here.
-function gridSvg({ min, max, points = [], segments = [], quadrants = false, description = '' }) {
+function gridSvg({ min, max, points = [], segments = [], description = '' }) {
   const sx = (x) => PAD + (x - min) * CELL;
   const sy = (y) => PAD + (max - y) * CELL;
   const size = (max - min) * CELL;
@@ -141,18 +143,6 @@ function gridSvg({ min, max, points = [], segments = [], quadrants = false, desc
   for (let i = min; i <= max; i += 1) {
     parts.push(`<line class="cg-grid" x1="${sx(i)}" y1="${sy(max)}" x2="${sx(i)}" y2="${sy(min)}" />`);
     parts.push(`<line class="cg-grid" x1="${sx(min)}" y1="${sy(i)}" x2="${sx(max)}" y2="${sy(i)}" />`);
-  }
-
-  if (quadrants) {
-    // Numbered anticlockwise from the top right, as they're taught.
-    const right = sx(max / 2);
-    const left = sx(min / 2);
-    const top = sy(max / 2);
-    const bottom = sy(min / 2);
-    parts.push(`<text class="cg-quadrant" x="${right}" y="${top}">1st</text>`);
-    parts.push(`<text class="cg-quadrant" x="${left}" y="${top}">2nd</text>`);
-    parts.push(`<text class="cg-quadrant" x="${left}" y="${bottom}">3rd</text>`);
-    parts.push(`<text class="cg-quadrant" x="${right}" y="${bottom}">4th</text>`);
   }
 
   parts.push(`<line class="cg-axis" x1="${sx(min)}" y1="${sy(axis)}" x2="${sx(max)}" y2="${sy(axis)}" />`);
@@ -338,11 +328,13 @@ function quadrantWhy(p) {
   return `x is ${p.x > 0 ? 'positive' : 'negative'} so it is ${side}, and y is ${p.y > 0 ? 'positive' : 'negative'} so it is ${level}`;
 }
 
+// The grid for a question whose answer is a quadrant's name: an ordinary
+// grid, unlabelled, and described to a screen reader the same way as every
+// other grid (Roadmap #115), so neither the picture nor its description
+// gives the answer away. The explanation teaches the numbering instead.
+const QUADRANT_RULE = 'The quadrants are numbered anticlockwise from the top right.';
 function quadrantGrid(min, max, points = []) {
-  return gridSvg({
-    min, max, points, quadrants: true,
-    description: `Coordinate grid from ${min} to ${max} on both axes with the four quadrants labelled 1st to 4th, anticlockwise from the top right.`,
-  });
+  return gridSvg({ min, max, points, description: gridDescription(min, max, points) });
 }
 
 function coordT3() {
@@ -357,7 +349,7 @@ function coordT3() {
       prompt: `In which quadrant does the point ${fmt(p)} lie?`,
       answerType: 'mcq', correctAnswer: QUADRANT_CHOICES[q - 1], choices: [...QUADRANT_CHOICES],
       diagramSvg: quadrantGrid(min, max),
-      explanation: `For ${fmt(p)}, ${quadrantWhy(p)} — that corner of the grid is the ${QUADRANT_CHOICES[q - 1]}. The quadrants are numbered anticlockwise from the top right.`,
+      explanation: `For ${fmt(p)}, ${quadrantWhy(p)} — that corner of the grid is the ${QUADRANT_CHOICES[q - 1]}. ${QUADRANT_RULE}`,
     });
   }
 
@@ -374,7 +366,7 @@ function coordT3() {
       prompt: `Which of these points lies in the ${QUADRANT_CHOICES[target - 1]}?`,
       answerType: 'mcq', correctAnswer: fmt(answer), choices: shuffle(points.map(fmt)),
       diagramSvg: quadrantGrid(min, max),
-      explanation: `The ${QUADRANT_CHOICES[target - 1]} needs x ${signs[target][0] > 0 ? 'positive' : 'negative'} and y ${signs[target][1] > 0 ? 'positive' : 'negative'}, which is ${fmt(answer)}.`,
+      explanation: `The ${QUADRANT_CHOICES[target - 1]} needs x ${signs[target][0] > 0 ? 'positive' : 'negative'} and y ${signs[target][1] > 0 ? 'positive' : 'negative'}, which is ${fmt(answer)}. ${QUADRANT_RULE}`,
     });
   }
 
@@ -541,7 +533,7 @@ function coordT5() {
       prompt: `Point P is at ${fmt(p)}. ${steps}. In which quadrant does it end up?`,
       answerType: 'mcq', correctAnswer: QUADRANT_CHOICES[q - 1], choices: [...QUADRANT_CHOICES],
       diagramSvg: quadrantGrid(min, max, [p]),
-      explanation: `Add the two moves together: ${moveWords(total.x, total.y)} altogether. x = ${p.x} ${total.x >= 0 ? '+' : '-'} ${Math.abs(total.x)} = ${rawEnd.x}, y = ${p.y} ${total.y >= 0 ? '+' : '-'} ${Math.abs(total.y)} = ${rawEnd.y}. At ${fmt(rawEnd)}, ${quadrantWhy(rawEnd)} — the ${QUADRANT_CHOICES[q - 1]}.`,
+      explanation: `Add the two moves together: ${moveWords(total.x, total.y)} altogether. x = ${p.x} ${total.x >= 0 ? '+' : '-'} ${Math.abs(total.x)} = ${rawEnd.x}, y = ${p.y} ${total.y >= 0 ? '+' : '-'} ${Math.abs(total.y)} = ${rawEnd.y}. At ${fmt(rawEnd)}, ${quadrantWhy(rawEnd)} — the ${QUADRANT_CHOICES[q - 1]}. ${QUADRANT_RULE}`,
     });
   }
 

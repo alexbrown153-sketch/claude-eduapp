@@ -3,16 +3,15 @@
 // of step with it (and Clear all progress resets them for free). A single
 // profile means the child is only ever competing with themselves.
 
+import { sessionLocalDay } from './dates.js';
+
 // Below this many questions a session's accuracy doesn't count: 2 out of 2
 // is 100%, but it isn't a record worth beating.
 export const MIN_QUESTIONS_FOR_ACCURACY = 5;
 
-// Sessions store an ISO (UTC) timestamp; "a day" should be the child's own
-// calendar day, so group on the local date.
-function localDay(iso) {
-  const d = new Date(iso);
-  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
-}
+// Sessions store ISO (UTC) timestamps; "a day" is the child's own calendar
+// day that the session finished on (sessionLocalDay in dates.js), the same
+// day the streak and chest credit.
 
 // Returns each record's value, or null while there's nothing to measure.
 // A combo of 0, 0% accuracy or a day of 0 questions is "no record yet", not
@@ -36,7 +35,7 @@ export function computePersonalBests(sessions) {
       }
     });
     if (qs.length > 0) {
-      const day = localDay(s.date);
+      const day = sessionLocalDay(s);
       perDay[day] = (perDay[day] || 0) + qs.length;
     }
   });

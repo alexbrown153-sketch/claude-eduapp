@@ -1,6 +1,8 @@
 // A lightweight "joke of the day" for the home screen — deterministic by
 // date (same joke all day, rotates daily) rather than random on every visit.
 
+import { localDateStr, daysBetweenLocalDates } from './dates.js';
+
 const JOKES = [
   'Why was the equals sign so humble? Because it knew it wasn’t less than or greater than anyone else.',
   'Why did the boy eat his maths homework? Because the teacher said it was a piece of cake!',
@@ -29,9 +31,11 @@ const JOKES = [
   'Why was the maths textbook depressed? It had too many problems.',
 ];
 
+// Day of the year in local calendar days, so it changes at the child's
+// midnight (a millisecond count floored was an hour late in summer time).
 export function getJokeOfTheDay(date = new Date()) {
   const startOfYear = new Date(date.getFullYear(), 0, 0);
-  const dayOfYear = Math.floor((date - startOfYear) / 86400000);
+  const dayOfYear = daysBetweenLocalDates(localDateStr(startOfYear), localDateStr(date));
   return JOKES[dayOfYear % JOKES.length];
 }
 

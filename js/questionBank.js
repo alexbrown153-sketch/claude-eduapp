@@ -15,6 +15,7 @@
 
 import { getWordProblem } from './wordProblems.js';
 import { genCoordinates } from './coordinates.js';
+import { rectangleSvg, lShapeSvg, twoCornersSvg, barModelSvg } from './diagrams.js';
 
 function randInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -60,8 +61,89 @@ function fracWorking(num, den) {
 // Mixed numbers ("1 5/12") aren't accepted as answers (Alex's decision), so
 // when the answer is an improper fraction the prompt says so up front. A
 // whole-number answer isn't a fraction at all, so it keeps the plain wording.
+function isImproper(s) {
+  return s.den > 1 && s.num > s.den;
+}
 function simplestFormHint(s) {
-  return s.den > 1 && s.num > s.den ? '(simplest form, as an improper fraction)' : '(simplest form)';
+  return isImproper(s) ? '(simplest form, as an improper fraction)' : '(simplest form)';
+}
+// Extra fields for a question whose answer is the simplified fraction `s`,
+// spread into the question:
+//  - answerForm (#97): the form wanted and the exact value, so an answer
+//    with the right value in the wrong form (0.3 for 3/10) can get one more
+//    try instead of "Not quite".
+//  - answerHint (#123): the "Type it like this: 7/5" line under the prompt,
+//    for improper-fraction answers only. It's its own field, not part of the
+//    prompt, so the prompt that "Try one like it" and later lists reuse
+//    stays as it is.
+function fractionAnswerFields(s) {
+  let form = 'fraction';
+  if (s.den === 1 || s.num === 0) form = 'whole';
+  else if (isImproper(s)) form = 'improper-fraction';
+  const fields = { answerForm: { form, num: s.num, den: s.den } };
+  if (form === 'improper-fraction') fields.answerHint = typeItLike('improper-fraction', formatFrac(s.num, s.den));
+  return fields;
+}
+
+// ---------- Answer shapes (Roadmaps #123 and #133; #97 will share these) ----------
+
+// What kind of typed answer a correct answer is, so every "how do I type
+// this?" hint agrees: 'remainder' ("12 r 3"), 'improper-fraction' ("7/5"),
+// 'fraction' ("3/4"), or null for anything else.
+export function answerShape(correctAnswer) {
+  const s = String(correctAnswer).replace(/\s+/g, '').toLowerCase();
+  if (/^\d+r\d+$/.test(s)) return 'remainder';
+  const m = s.match(/^(\d+)\/(\d+)$/);
+  if (m) return Number(m[1]) > Number(m[2]) ? 'improper-fraction' : 'fraction';
+  return null;
+}
+
+// The example answer shown for a shape, and a fallback for when the example
+// would be this question's own answer: an example must never give the
+// answer away. Compared ignoring spaces, as marking does.
+const SHAPE_EXAMPLES = {
+  fraction: ['3/4', '2/3'],
+  'improper-fraction': ['7/5', '9/4'],
+  remainder: ['9 r 1', '7 r 2'],
+};
+export function answerShapeExample(shape, correctAnswer) {
+  const [example, fallback] = SHAPE_EXAMPLES[shape];
+  const bare = (x) => String(x).replace(/\s+/g, '').toLowerCase();
+  return bare(example) === bare(correctAnswer) ? fallback : example;
+}
+
+// "Type it like this: 7/5" — the one wording for every example (#123, #97).
+export function typeItLike(shape, correctAnswer) {
+  return `Type it like this: ${answerShapeExample(shape, correctAnswer)}`;
+}
+
+// Roadmap #97: the line under "Right number!" when the value typed was right
+// but its form wasn't. `typed` is what was typed: 'decimal' or 'fraction'
+// (see classifyAnswer in session.js). Every example comes from the shared
+// list above, so it matches #123's caption and #133's tip.
+export function rightFormHint(question, typed) {
+  const { form } = question.answerForm;
+  const answer = question.correctAnswer;
+  if (form === 'whole') return 'Write it as a whole number.';
+  if (form === 'remainder') return `This one needs a remainder. ${typeItLike('remainder', answer)}`;
+  // A fraction was wanted and a fraction was typed, with the right value:
+  // the only thing wrong is that it isn't simplified.
+  if (typed === 'fraction') return 'Now write it in its simplest form.';
+  if (form === 'improper-fraction') return `This one needs a top-heavy fraction. ${typeItLike('improper-fraction', answer)}`;
+  return `This one needs a fraction. ${typeItLike('fraction', answer)}`;
+}
+
+// ---------- Explanations as steps (Roadmap #124) ----------
+
+// Splits a worked explanation into steps at each sentence boundary (a full
+// stop followed by a space) and at line breaks; the separating ". " itself
+// is dropped. A decimal point never has a space after it, so 3.14 or £12.50
+// is never split. Reusable for a later "Hint" (first step only).
+export function splitExplanationSteps(text) {
+  return String(text || '')
+    .split(/\.\s+|\n+/)
+    .map((step) => step.trim())
+    .filter(Boolean);
 }
 
 // ---------- Arithmetic ----------
@@ -142,10 +224,17 @@ function arithT5() {
   const quotient = randInt(5, 20);
   const remainder = randInt(1, divisor - 1);
   const dividend = divisor * quotient + remainder;
+  const answer = `${quotient} r ${remainder}`;
+  // The same example as the r-key tip (#133), and never this question's own
+  // answer (a fixed "e.g. 12 r 3" used to give 51 ÷ 4 away).
+  const example = answerShapeExample('remainder', answer);
   return {
     topic: 'arithmetic', subtopic: 'division', difficulty: 5, source: 'generated',
-    prompt: `${dividend} ÷ ${divisor} = ? (give as "quotient r remainder", e.g. "12 r 3")`,
-    answerType: 'text', correctAnswer: `${quotient} r ${remainder}`, choices: null,
+    prompt: `${dividend} ÷ ${divisor} = ? (give as "quotient r remainder", e.g. "${example}")`,
+    answerType: 'text', correctAnswer: answer, choices: null,
+    // #97: the exact value, so 16.625 or 133/8 for 16 r 5 can be recognised
+    // as the right number (the answer alone doesn't say what the divisor was).
+    answerForm: { form: 'remainder', num: dividend, den: divisor },
     explanation: `${divisor} × ${quotient} = ${dividend - remainder}. Remainder = ${dividend} - ${dividend - remainder} = ${remainder}. Answer: ${quotient} r ${remainder}`,
   };
 }
@@ -190,9 +279,15 @@ function fdpT1() {
 function fdpT2() {
   if (Math.random() < 0.5) {
     const den = pick([4, 5, 6, 8, 10]);
-    let a = randInt(1, den - 1);
-    let b = randInt(1, den - 1);
     const op = pick(['+', '-']);
+    let a;
+    let b;
+    // Roadmap #125: a subtraction of equal numerators comes out as 0 ("take
+    // away everything"), so pick again.
+    do {
+      a = randInt(1, den - 1);
+      b = randInt(1, den - 1);
+    } while (op === '-' && a === b);
     if (op === '-' && b > a) [a, b] = [b, a];
     const resultNum = op === '+' ? a + b : a - b;
     const simplified = simplifyFrac(resultNum, den);
@@ -200,6 +295,7 @@ function fdpT2() {
       topic: 'fdp', subtopic: 'fractions', difficulty: 2, source: 'generated',
       prompt: `${a}/${den} ${op} ${b}/${den} = ? ${simplestFormHint(simplified)}`,
       answerType: 'text', correctAnswer: formatFrac(simplified.num, simplified.den), choices: null,
+      ...fractionAnswerFields(simplified),
       explanation: `${a}/${den} ${op} ${b}/${den} = ${fracWorking(resultNum, den)}`,
     };
   }
@@ -232,6 +328,7 @@ function fdpT3Frac() {
     topic: 'fdp', subtopic: 'fractions', difficulty: 3, source: 'generated',
     prompt: `${a}/${d1} ${op} ${b}/${d2} = ? ${simplestFormHint(simplified)}`,
     answerType: 'text', correctAnswer: formatFrac(simplified.num, simplified.den), choices: null,
+    ...fractionAnswerFields(simplified),
     explanation: `Common denominator ${lcm}: ${an}/${lcm} ${op} ${bn}/${lcm} = ${fracWorking(resultNum, lcm)}`,
   };
 }
@@ -252,11 +349,24 @@ function fdpT3() {
   return Math.random() < 0.5 ? fdpT3Frac() : fdpT3Percent();
 }
 
+// Roadmap #125: a tier-4 operand is never a whole number in disguise (2/2,
+// 5/5, or 4/2, which is just "× 2"), so the question is never "× 1". Improper
+// and unsimplified operands (5/2, 2/4) are kept on purpose (Alex's call).
+function fracOperand() {
+  let f;
+  do {
+    f = { num: randInt(1, 5), den: randInt(2, 8) };
+  } while (f.num % f.den === 0);
+  return f;
+}
+
 function fdpT4() {
   if (Math.random() < 0.5) {
-    const f1 = { num: randInt(1, 5), den: randInt(2, 8) };
-    const f2 = { num: randInt(1, 5), den: randInt(2, 8) };
     const op = pick(['×', '÷']);
+    const f1 = fracOperand();
+    let f2 = fracOperand();
+    // Dividing a fraction by the very same fraction is always 1.
+    while (op === '÷' && f2.num === f1.num && f2.den === f1.den) f2 = fracOperand();
     let resultNum;
     let resultDen;
     if (op === '×') {
@@ -271,6 +381,7 @@ function fdpT4() {
       topic: 'fdp', subtopic: 'fractions', difficulty: 4, source: 'generated',
       prompt: `${f1.num}/${f1.den} ${op} ${f2.num}/${f2.den} = ? ${simplestFormHint(simplified)}`,
       answerType: 'text', correctAnswer: formatFrac(simplified.num, simplified.den), choices: null,
+      ...fractionAnswerFields(simplified),
       explanation: op === '×'
         ? `Multiply numerators and denominators: (${f1.num}×${f2.num})/(${f1.den}×${f2.den}) = ${fracWorking(resultNum, resultDen)}`
         : `Flip and multiply: ${f1.num}/${f1.den} × ${f2.den}/${f2.num} = ${fracWorking(resultNum, resultDen)}`,
@@ -325,6 +436,7 @@ function geoT1() {
     topic: 'geometry', subtopic: 'perimeter', difficulty: 1, source: 'generated',
     prompt: `A rectangle is ${w}cm by ${h}cm. What is its perimeter (in cm)?`,
     answerType: 'numeric', correctAnswer: String(answer), choices: null,
+    diagramSvg: rectangleSvg(w, h), // Roadmap #121
     explanation: `Perimeter = 2 × (${w} + ${h}) = ${answer}cm`,
   };
 }
@@ -337,6 +449,7 @@ function geoT2() {
     topic: 'geometry', subtopic: 'area', difficulty: 2, source: 'generated',
     prompt: `A rectangle is ${w}cm by ${h}cm. What is its area (in cm²)?`,
     answerType: 'numeric', correctAnswer: String(answer), choices: null,
+    diagramSvg: rectangleSvg(w, h), // Roadmap #121
     explanation: `Area = ${w} × ${h} = ${answer}cm²`,
   };
 }
@@ -353,6 +466,8 @@ function geoT3() {
       topic: 'geometry', subtopic: 'composite-area', difficulty: 3, source: 'generated',
       prompt: `An L-shape is a ${w}cm × ${h}cm rectangle with a ${cutW}cm × ${cutH}cm rectangle removed from one corner. What is the remaining area (in cm²)?`,
       answerType: 'numeric', correctAnswer: String(area), choices: null,
+      // Roadmap #121: the prompt says "one corner", so the picture picks one.
+      diagramSvg: lShapeSvg(w, h, cutW, cutH, pick(['tl', 'tr', 'bl', 'br'])),
       explanation: `Full rectangle: ${w}×${h} = ${w * h}. Remove ${cutW}×${cutH} = ${cutW * cutH}. ${w * h} - ${cutW * cutH} = ${area}cm²`,
     };
   }
@@ -386,7 +501,9 @@ function geoT4() {
     const perimM = round2(perimCm / 100);
     return {
       topic: 'geometry', subtopic: 'unit-conversion', difficulty: 4, source: 'generated',
-      prompt: `A rectangular field is ${lCm}cm by ${wCm}cm on a scale drawing. What is its perimeter in metres?`,
+      // A real-size object: "on a scale drawing" with no scale given was
+      // misleading (Roadmap #121, Alex's rewording).
+      prompt: `A rectangular rug is ${lCm}cm by ${wCm}cm. What is its perimeter in metres?`,
       answerType: 'numeric', correctAnswer: String(perimM), choices: null,
       explanation: `Perimeter = 2 × (${lCm} + ${wCm}) = ${perimCm}cm. Convert to metres: ${perimCm} ÷ 100 = ${perimM}m`,
     };
@@ -414,13 +531,17 @@ function geoT5() {
   if (Math.random() < 0.5) {
     const w = randInt(10, 25);
     const h = randInt(10, 25);
-    const cutW = randInt(2, Math.floor(w / 2));
-    const cutH = randInt(2, Math.floor(h / 2));
+    // Roadmap #121: each cut is strictly less than half of each side, so the
+    // two opposite corners can never meet (at exactly half they'd touch at
+    // the centre and leave two pieces joined at a point).
+    const cutW = randInt(2, Math.floor((w - 1) / 2));
+    const cutH = randInt(2, Math.floor((h - 1) / 2));
     const area = w * h - 2 * cutW * cutH;
     return {
       topic: 'geometry', subtopic: 'composite-area', difficulty: 5, source: 'generated',
-      prompt: `A ${w}cm × ${h}cm rectangle has two ${cutW}cm × ${cutH}cm square corners cut off. What is the remaining area (in cm²)?`,
+      prompt: `A ${w}cm × ${h}cm rectangle has two ${cutW}cm × ${cutH}cm rectangles cut from opposite corners. What is the remaining area (in cm²)?`,
       answerType: 'numeric', correctAnswer: String(area), choices: null,
+      diagramSvg: twoCornersSvg(w, h, cutW, cutH, pick(['tl-br', 'tr-bl'])),
       explanation: `Full rectangle: ${w}×${h} = ${w * h}. Two cut corners: 2 × (${cutW}×${cutH}) = ${2 * cutW * cutH}. ${w * h} - ${2 * cutW * cutH} = ${area}cm²`,
     };
   }
@@ -490,6 +611,13 @@ function ratioT3() {
     topic: 'ratio', subtopic: 'sharing', difficulty: 3, source: 'generated',
     prompt: `Share ${total} sweets in the ratio ${p1}:${p2}. How many sweets are in the ${askSmaller ? 'smaller' : 'larger'} share?`,
     answerType: 'numeric', correctAnswer: String(askSmaller ? smaller : larger), choices: null,
+    // Roadmap #122: shown with the explanation, never before answering.
+    explanationSvg: barModelSvg({
+      rows: [{ label: '1st share', parts: p1 }, { label: '2nd share', parts: p2 }],
+      perPart: unit,
+      highlight: (p1 < p2) === askSmaller ? 0 : 1,
+      totalNoun: 'sweets',
+    }),
     explanation: `${p1} + ${p2} = ${p1 + p2} parts. ${total} ÷ ${p1 + p2} = ${unit} per part. Smaller share: ${Math.min(p1, p2)} × ${unit} = ${smaller}. Larger share: ${Math.max(p1, p2)} × ${unit} = ${larger}`,
   };
 }
@@ -519,6 +647,12 @@ function ratioT5() {
     topic: 'ratio', subtopic: 'ratio-totals', difficulty: 5, source: 'generated',
     prompt: `The ratio of boys to girls in a class is ${p1}:${p2}. There are ${total} pupils in total. How many girls are there?`,
     answerType: 'numeric', correctAnswer: String(girls), choices: null,
+    explanationSvg: barModelSvg({ // Roadmap #122
+      rows: [{ label: 'Boys', parts: p1 }, { label: 'Girls', parts: p2 }],
+      perPart: unit,
+      highlight: 1,
+      totalNoun: 'pupils',
+    }),
     explanation: `${p1} + ${p2} = ${p1 + p2} parts. ${total} ÷ ${p1 + p2} = ${unit} per part. Girls: ${p2} × ${unit} = ${girls}`,
   };
 }
