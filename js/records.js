@@ -17,11 +17,14 @@ export const MIN_QUESTIONS_FOR_ACCURACY = 5;
 // (the warm-up quiz), 'checkup' (#149), 'fix' ("Fix my mistakes", #128) or
 // 'retry' ("Try these again", #127), plus old phase names on early sessions.
 //
-// OFF_RECORD_MODES is for rounds that aren't the child's own practice (the
-// planned game and guest modes, #143–#147). Sessions in these modes are left
-// out of everything worked out from the log here and on Home: goal ring,
-// quests, calendar, map, records, fixes, arrows and recaps. None exist yet.
-export const OFF_RECORD_MODES = [];
+// OFF_RECORD_MODES is for rounds that aren't the child's own practice: the
+// games (#143 Blitz, #144 Numbers Target, #145 Close Enough) and the #147
+// guest round. Sessions in these modes are left out of everything worked
+// out from the log here and on Home: goal ring, quests, calendar, map,
+// records, fixes, arrows and recaps. In practice none are ever logged (the
+// games keep their own keys and never call finishSession); listing them here
+// is the safety net if that ever changes.
+export const OFF_RECORD_MODES = ['blitz', 'numbers', 'estimation', 'guest'];
 export function countsAsPractice(s) {
   return Boolean(s) && !OFF_RECORD_MODES.includes(s.mode);
 }

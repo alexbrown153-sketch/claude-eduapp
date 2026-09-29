@@ -3,9 +3,10 @@
 // and persists progress incrementally so an interrupted session on a tablet
 // doesn't lose data.
 
-import { Storage } from './storage.js';
+import { Storage, TOPICS } from './storage.js';
 import { selectDifficultyTier, updateMastery, weightedRandomPick, EXPECTED_TIME_MS, tierFromMastery } from './mastery.js';
 import { getQuestion, questionVariant, getNewVersion } from './questionBank.js';
+import { getSpotQuestion, hasSpotTemplate } from './spotMistake.js';
 import { localDateStr, daysBetweenLocalDates, sessionLocalDay, addDays } from './dates.js';
 
 // Two kinds of session with a list fixed at the start (build 2):
@@ -119,8 +120,10 @@ export const BOSS_UNLOCK_ACCURACY = 0.8;
 // score among topics actually practised, so it isn't just whichever topic
 // happens to sit first at the untouched 50% default. No practice data yet
 // (a first session) falls back to this session's own topic mix.
+//
+// Only the core topics: Year 7 topics (#148) are never the boss's topic.
 function strongestTopic(session, mastery) {
-  const practised = Object.entries(mastery).filter(([, rec]) => rec.questionsSeen > 0);
+  const practised = Object.entries(mastery).filter(([t, rec]) => TOPICS.includes(t) && rec.questionsSeen > 0);
   if (practised.length === 0) return session.topicFocus || weightedRandomPick(session.topicWeighting);
   return practised.sort((a, b) => b[1].masteryScore - a[1].masteryScore)[0][0];
 }
@@ -227,19 +230,45 @@ export function pickNextQuestion(session, mastery) {
   const topic = session.topicFocus || weightedRandomPick(session.topicWeighting);
   const record = mastery[topic];
   const tier = selectDifficultyTier(record);
+  const spot = maybeSpotQuestion(session, topic, tier);
+  if (spot) return spot;
   const q = getQuestion(topic, tier, session.usedWordProblemIds);
   if (!q) return { blocked: true, topic };
   if (q.source === 'authored' && q.id) session.usedWordProblemIds.add(q.id);
   return q;
 }
 
+// ---------- Spot the mistake (Roadmap #146) ----------
+
+// Only in regular Home practice ('bulk'): never the warm-up quiz, a
+// check-up, Fix my mistakes or a retry round, never the boss, and never the
+// first question. When the topic has a template at or below the tier just
+// picked, each such slot has a 1 in 8 chance. At most 1 in a session of up
+// to 10 questions, at most 2 in anything longer or timed.
+export const SPOT_CHANCE = 1 / 8;
+export function spotAllowance(session) {
+  return session.lengthType === 'questions' && session.lengthValue <= 10 ? 1 : 2;
+}
+function maybeSpotQuestion(session, topic, tier) {
+  if (session.mode !== 'bulk' || session.questions.length === 0) return null;
+  const asked = session.questions.filter((q) => q.format === 'spotMistake').length;
+  if (asked >= spotAllowance(session) || !hasSpotTemplate(topic, tier)) return null;
+  if (Math.random() >= SPOT_CHANCE) return null;
+  return getSpotQuestion(topic, tier);
+}
+
 export function checkAnswer(question, userInput) {
   const trimmed = String(userInput).trim();
   if (trimmed === '') return false;
 
+  // #146: the line number picked.
+  if (question.answerType === 'spot') return trimmed === String(question.correctAnswer);
+
   if (question.answerType === 'numeric') {
-    const userNum = parseFloat(trimmed.replace(/,/g, ''));
-    const correctNum = parseFloat(question.correctAnswer);
+    // #148: a true minus sign (−) reads the same as a typed "-".
+    const toNum = (v) => parseFloat(String(v).replace(/\u2212/g, '-').replace(/,/g, ''));
+    const userNum = toNum(trimmed);
+    const correctNum = toNum(question.correctAnswer);
     if (Number.isNaN(userNum)) return false;
     return Math.abs(userNum - correctNum) < 0.01;
   }
@@ -340,11 +369,16 @@ function gcdNum(a, b) {
 export function recordAnswer(session, mastery, question, userInput, timeMs, { formRetry = false } = {}) {
   const correct = checkAnswer(question, userInput);
   const tier = question.difficulty;
+  // #146: reading working takes longer than answering, so a Spot the
+  // mistake question expects twice the tier's usual time, for both the
+  // speed bonus and mastery's speed part.
+  const spot = question.format === 'spotMistake';
+  const expectedMs = EXPECTED_TIME_MS[tier] * (spot ? 2 : 1);
 
-  updateMastery(mastery[question.topic], correct, tier, timeMs, localDateStr());
+  updateMastery(mastery[question.topic], correct, tier, timeMs, localDateStr(), expectedMs);
   Storage.markQuestionResult(question.id, correct);
 
-  const speedBonus = correct && !formRetry && timeMs < EXPECTED_TIME_MS[tier] ? 5 : 0;
+  const speedBonus = correct && !formRetry && timeMs < expectedMs ? 5 : 0;
   const streakBonus = correct ? Math.min(session.streak + 1, 5) : 0;
 
   session.streak = correct ? session.streak + 1 : 0;
@@ -386,7 +420,13 @@ export function recordAnswer(session, mastery, question, userInput, timeMs, { fo
     ...(formRetry ? { formRetry: true } : {}),
     ...(variant ? { variant } : {}),
     ...(Number.isInteger(question.followUpOf) ? { followUpOf: question.followUpOf } : {}),
-    ...(correct ? {} : { prompt: question.prompt, correctAnswer: question.correctAnswer }),
+    ...(spot ? { format: 'spotMistake', templateId: question.templateId } : {}),
+    ...(correct ? {} : {
+      prompt: question.prompt,
+      // #127: for Spot the mistake, "the right answer" is which line and
+      // what it should have said.
+      correctAnswer: spot ? `The mistake was in line ${question.wrongLine}: ${question.correction}` : question.correctAnswer,
+    }),
   });
   if (!correct) {
     session.reviewExtras = session.reviewExtras || {};

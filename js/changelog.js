@@ -14,9 +14,34 @@
 // roadmap file. The Suggestions screen numbers new suggestions from here, so
 // they slot straight onto the end of that file (see suggestions in ui.js).
 // Bump it whenever items are appended to the roadmap file.
-export const ROADMAP_LAST_ITEM_NUMBER = 152;
+export const ROADMAP_LAST_ITEM_NUMBER = 153;
 
 export const CHANGELOG = [
+  {
+    at: '2026-09-29T18:10+01:00',
+    label: 'Roadmap 143–148, 153',
+    changes: [
+      'There’s a new Games card on Home! Games are just for fun and don’t change your practice or your streak.',
+      '60-second Blitz: answer as many sums as you can in one minute. Try to beat your top 5 scores!',
+      'Numbers Target: use the six numbers with + − × ÷ to make the target number. Get close for stars, or tap “Show me a way” to see one way to do it.',
+      'Close Enough: slide to guess the answer to a big sum. The closer you get, the more stars you win.',
+      'Beat the Grown-Up: you answer 10 questions, then a grown-up answers the same 10. Who will win?',
+      'Sometimes in practice you’ll see “Spot the mistake”. Someone has worked out a question, but one line is wrong. Can you find it?',
+      'A grown-up can switch on “Year 7 topics” in Settings. Then you can pick negative numbers, powers and roots, primes, probability and equations with brackets on Home.',
+      'Sprint’s new look is finished. Every screen now has the same friendly cards and buttons, and some small writing is bigger and easier to read.',
+    ],
+  },
+  {
+    at: '2026-09-29T13:37+01:00',
+    label: 'Roadmap 153 (part 1)',
+    changes: [
+      'Sprint has a brighter, friendlier new look. Boxes float on the page, and buttons and number keys press down like real keys when you tap them.',
+      'The Classic writing now uses the iPad\u2019s rounded letters. Bubbly and Robot Mode still work, and now change the buttons and number keys too.',
+      'The Sunset and Forest colours are a little deeper on buttons, so the white writing is easier to read. The Shop still shows their bright colours.',
+      'Green \u201cright\u201d and red \u201cwrong\u201d writing is a bit darker, so it\u2019s easier to read.',
+      'The settings cog, the buttons at the top and the Exit button are bigger, so they\u2019re easier to tap.',
+    ],
+  },
   {
     at: '2026-09-29T18:00+01:00',
     label: 'Roadmap 127\u2013128, 130\u2013131, 134\u2013142, 149',

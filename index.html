@@ -127,7 +127,7 @@
         </div>
 
         <h2 class="section-heading">Topic focus (optional)</h2>
-        <div class="choice-grid" id="topic-choices">
+        <div class="choice-grid topic-grid" id="topic-choices">
           <button class="choice-btn chip" data-topic="">All topics</button>
           <button class="choice-btn chip" data-topic="arithmetic">Arithmetic</button>
           <button class="choice-btn chip" data-topic="fdp">Fractions / %</button>
@@ -138,8 +138,29 @@
           <button class="choice-btn chip" data-topic="algebra">Algebra</button>
           <button class="choice-btn chip" data-topic="dataHandling">Data handling</button>
         </div>
+        <!-- Roadmap #148: only shown while Settings > Year 7 topics is on.
+             These topics are only ever asked from their own chip. -->
+        <div id="year7-chips" hidden>
+          <h3 class="section-subheading">Year 7</h3>
+          <div class="choice-grid topic-grid" id="year7-choices">
+            <button class="choice-btn chip" data-topic="negatives">Negative numbers</button>
+            <button class="choice-btn chip" data-topic="powersRoots">Powers &amp; roots</button>
+            <button class="choice-btn chip" data-topic="primes">Primes &amp; factors</button>
+            <button class="choice-btn chip" data-topic="probability">Probability</button>
+            <button class="choice-btn chip" data-topic="bracketEquations">Equations with brackets</button>
+          </div>
+        </div>
         <div id="topic-weighting-preview" class="topic-weighting-preview" hidden></div>
         <div id="start-warning" class="start-warning" hidden></div>
+
+        <!-- Roadmap #143-#147: the one way into the games (Alex's decision:
+             one Games card, not a button per game). Games never change
+             practice: no mastery, streak, session log or badges. -->
+        <div class="card games-card">
+          <p class="card-title"><span class="icon-tile" aria-hidden="true">🎮</span> Games</p>
+          <p class="games-card-text">Blitz, Numbers Target, Close Enough and Beat the Grown-Up. Just for fun: they don’t change your practice.</p>
+          <button id="games-btn" type="button" class="btn-secondary games-open-btn">Play a game</button>
+        </div>
       </div>
 
       <aside class="start-side-right">
@@ -177,7 +198,9 @@
         <div id="boss-pips" class="boss-pips" aria-hidden="true"></div>
         <p id="boss-status" class="boss-status" role="status"></p>
       </div>
+      <p id="spot-heading" class="spot-heading" hidden>Spot the mistake 🔍</p>
       <p id="question-prompt" class="question-prompt"></p>
+      <p id="spot-intro" class="spot-intro" hidden></p>
       <!-- Roadmap #123: "Type it like this: 7/5" under improper-fraction
            questions. Kept out of the prompt itself. -->
       <p id="question-answer-hint" class="question-answer-hint" hidden></p>
@@ -226,6 +249,11 @@
           <button class="key" data-key="r" aria-label="remainder">r</button>
           <button class="key" data-key="/" aria-label="fraction bar">/</button>
         </div>
+        <!-- Roadmap #148: shown for every Year 7 keypad question, whatever
+             the sign of its answer, so it never gives the answer away. -->
+        <div id="keypad-minus" class="keypad keypad-minus" hidden>
+          <button class="key" data-key="-" aria-label="minus">&minus;</button>
+        </div>
         <!-- Roadmap #133: a one-time tip pointing up at the r key, the first
              time a remainder question comes up. In the page flow, under the
              pad, so it never covers a key, the display or the question. -->
@@ -240,6 +268,11 @@
       </div>
 
       <div id="answer-mcq" class="answer-area mcq-grid" hidden></div>
+
+      <!-- Roadmap #146: "Spot the mistake" working lines, one tappable row
+           each. -->
+      <div id="answer-spot" class="answer-area spot-rows" hidden></div>
+      <p id="spot-hint" class="spot-hint" role="status" hidden>Tap the line with the mistake first.</p>
 
       <div class="action-slot">
         <button id="check-btn" class="primary-btn">Check answer</button>
@@ -362,6 +395,14 @@
     </div>
     <p class="weather-hint">A ding for a right answer, and a little tune when a session ends.</p>
 
+    <!-- Roadmap #148 -->
+    <h3 class="section-subheading">Year 7 topics</h3>
+    <div class="choice-grid mode-choices" id="year7-choices-setting" role="group" aria-label="Year 7 topics">
+      <button class="choice-btn" data-year7="off">Off</button>
+      <button class="choice-btn" data-year7="on">On</button>
+    </div>
+    <p class="weather-hint">Adds negative numbers, powers and roots, primes and factors, probability and equations with brackets as extra topic chips on Home. They’re only asked when their chip is tapped.</p>
+
     <!-- Roadmap #139 and #138 -->
     <h3 class="section-subheading">For grown-ups</h3>
     <h4 id="note-heading" class="settings-minor-heading">Note for your child</h4>
@@ -458,6 +499,219 @@
         <button id="suggestion-send-btn" class="secondary-btn" hidden>Send to GitHub</button>
         <button id="suggestion-copy-btn" class="secondary-btn">Copy all</button>
         <button id="suggestion-clear-btn" class="link-btn">Clear my suggestions</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- GAMES (Roadmap #143-#147) -->
+  <section id="screen-games" class="screen">
+    <h2 class="section-heading">🎮 Games</h2>
+    <p class="games-intro">Just for fun. Games never change your practice, streak or badges.</p>
+    <div class="games-grid">
+      <button type="button" class="card game-tile-card" data-game="blitz">
+        <span class="icon-tile icon-tile-lg" aria-hidden="true">⚡</span>
+        <span class="game-name">60-second Blitz</span>
+        <span class="game-desc">How many sums can you do in a minute?</span>
+        <span class="game-best" id="games-best-blitz"></span>
+      </button>
+      <button type="button" class="card game-tile-card" data-game="numbers">
+        <span class="icon-tile icon-tile-lg" aria-hidden="true">🎯</span>
+        <span class="game-name">Numbers Target</span>
+        <span class="game-desc">Use the numbers to hit the target.</span>
+        <span class="game-best" id="games-best-numbers"></span>
+      </button>
+      <button type="button" class="card game-tile-card" data-game="estimate">
+        <span class="icon-tile icon-tile-lg" aria-hidden="true">📏</span>
+        <span class="game-name">Close Enough</span>
+        <span class="game-desc">Guess the answer on the slider. How close can you get?</span>
+        <span class="game-best" id="games-best-estimate"></span>
+      </button>
+      <button type="button" class="card game-tile-card" data-game="guest">
+        <span class="icon-tile icon-tile-lg" aria-hidden="true">🤝</span>
+        <span class="game-name">Beat the Grown-Up</span>
+        <span class="game-desc">You answer 10, then a grown-up answers the same 10.</span>
+        <span class="game-best" id="games-best-guest"></span>
+      </button>
+    </div>
+  </section>
+
+  <!-- 60-SECOND BLITZ (Roadmap #143) -->
+  <section id="screen-blitz" class="screen">
+    <div id="blitz-countdown" class="blitz-countdown" hidden>
+      <p class="blitz-countdown-label">Get ready…</p>
+      <p id="blitz-countdown-num" class="stat-num blitz-countdown-num">3</p>
+    </div>
+    <div id="blitz-run" hidden>
+      <div class="game-hud">
+        <span id="blitz-clock" class="pill blitz-clock">⏱ 60</span>
+        <span id="blitz-score" class="pill">✓ 0</span>
+        <button id="blitz-exit-btn" type="button" class="hud-exit-btn">&#10005; Exit</button>
+      </div>
+      <div class="card blitz-card">
+        <p id="blitz-prompt" class="blitz-prompt"></p>
+        <div id="blitz-display" class="numeric-display blitz-display">&nbsp;</div>
+        <div id="blitz-flash" class="blitz-flash" aria-live="polite"></div>
+        <div class="keypad blitz-keypad">
+          <button class="key" data-bkey="1">1</button><button class="key" data-bkey="2">2</button><button class="key" data-bkey="3">3</button>
+          <button class="key" data-bkey="4">4</button><button class="key" data-bkey="5">5</button><button class="key" data-bkey="6">6</button>
+          <button class="key" data-bkey="7">7</button><button class="key" data-bkey="8">8</button><button class="key" data-bkey="9">9</button>
+          <button class="key key-back" data-bkey="back" aria-label="Delete">&#9003;</button>
+          <button class="key" data-bkey="0">0</button>
+          <button id="blitz-go" class="btn-primary blitz-go" data-bkey="go">Go</button>
+        </div>
+      </div>
+    </div>
+    <div id="blitz-results" hidden>
+      <div id="blitz-banner" class="banner-celebrate" hidden>🎉 New best!</div>
+      <div class="card-hero blitz-hero">
+        <div class="stat"><span id="blitz-final" class="stat-num"></span><span class="stat-label">right in 60 seconds</span></div>
+        <p id="blitz-tried" class="blitz-tried"></p>
+      </div>
+      <p id="blitz-encourage" class="game-line"></p>
+      <div class="card">
+        <p class="card-title"><span class="icon-tile" aria-hidden="true">🏆</span> Top 5</p>
+        <ol id="blitz-top" class="ranked-list"></ol>
+      </div>
+      <div id="blitz-missed-card" class="card" hidden>
+        <p class="card-title"><span class="icon-tile" aria-hidden="true">🧠</span> Ones to remember</p>
+        <ul id="blitz-missed" class="ranked-list"></ul>
+      </div>
+    </div>
+    <div id="blitz-interrupted" class="card" hidden>
+      <p class="card-title">That run was interrupted</p>
+      <p class="game-line">Nothing was saved. Go again?</p>
+    </div>
+    <div id="blitz-actions" class="game-actions" hidden>
+      <button id="blitz-again-btn" type="button" class="btn-primary">One more go</button>
+      <button id="blitz-home-btn" type="button" class="btn-secondary">Home</button>
+    </div>
+  </section>
+
+  <!-- NUMBERS TARGET (Roadmap #144) -->
+  <section id="screen-numbers" class="screen">
+    <div id="numbers-setup">
+      <button id="numbers-back-btn" type="button" class="back-btn">&larr; Games</button>
+      <h2 class="section-heading">🎯 Numbers Target</h2>
+      <p class="game-line">Use the numbers to make the target. Tap a number, then + − × or ÷, then another number. You don’t have to use them all.</p>
+      <p id="numbers-stats" class="game-line game-stats"></p>
+      <h3 class="section-subheading">Level</h3>
+      <div class="choice-grid mode-choices numbers-levels" id="numbers-levels">
+        <button class="choice-btn selected" data-level="starter">Starter (10 to 99)</button>
+        <button class="choice-btn" data-level="classic">Classic (101 to 999)</button>
+      </div>
+      <div id="numbers-big-row" hidden>
+        <h3 class="section-subheading">How many big numbers? (25, 50, 75, 100)</h3>
+        <div class="choice-grid numbers-big" id="numbers-big">
+          <button class="choice-btn" data-big="0">0</button>
+          <button class="choice-btn selected" data-big="1">1</button>
+          <button class="choice-btn" data-big="2">2</button>
+          <button class="choice-btn" data-big="3">3</button>
+          <button class="choice-btn" data-big="4">4</button>
+        </div>
+      </div>
+      <button id="numbers-start-btn" type="button" class="btn-primary game-wide-btn">Start</button>
+    </div>
+    <div id="numbers-board" hidden>
+      <div class="card-hero numbers-target">
+        <div class="stat"><span class="stat-label">Target</span><span id="numbers-target" class="stat-num"></span></div>
+      </div>
+      <div class="card numbers-card">
+        <div id="numbers-tiles" class="tile-tray numbers-tiles"></div>
+        <div class="numbers-ops" id="numbers-ops">
+          <button class="game-tile numbers-op" data-op="+" aria-label="add">+</button>
+          <button class="game-tile numbers-op" data-op="−" aria-label="take away">−</button>
+          <button class="game-tile numbers-op" data-op="×" aria-label="times">×</button>
+          <button class="game-tile numbers-op" data-op="÷" aria-label="divide">÷</button>
+        </div>
+        <p id="numbers-msg" class="game-msg" role="status"></p>
+        <ol id="numbers-steps" class="ranked-list numbers-steps"></ol>
+        <div class="game-actions numbers-controls" id="numbers-controls">
+          <button id="numbers-undo-btn" type="button" class="btn-secondary">Undo</button>
+          <button id="numbers-reset-btn" type="button" class="btn-secondary">Start again</button>
+          <button id="numbers-done-btn" type="button" class="btn-primary">I’m done</button>
+          <button id="numbers-reveal-btn" type="button" class="btn-secondary">Show me a way</button>
+        </div>
+      </div>
+      <div id="numbers-result" hidden>
+        <div id="numbers-result-banner" class="banner-celebrate" hidden></div>
+        <p id="numbers-result-text" class="game-line numbers-result-text"></p>
+        <div id="numbers-way-card" class="card" hidden>
+          <p class="card-title"><span class="icon-tile" aria-hidden="true">💡</span> A way to do it</p>
+          <ol id="numbers-way" class="ranked-list"></ol>
+        </div>
+        <div class="game-actions">
+          <button id="numbers-again-btn" type="button" class="btn-primary">Another round</button>
+          <button id="numbers-way-btn" type="button" class="btn-secondary" hidden>Show me a way</button>
+          <button id="numbers-home-btn" type="button" class="btn-secondary">Home</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CLOSE ENOUGH (Roadmap #145) -->
+  <section id="screen-estimate" class="screen">
+    <div id="estimate-play">
+      <div class="game-hud">
+        <span id="estimate-progress" class="pill">1 of 5</span>
+        <span id="estimate-stars" class="pill">⭐ 0</span>
+        <button id="estimate-exit-btn" type="button" class="hud-exit-btn">&#10005; Exit</button>
+      </div>
+      <div class="card estimate-card">
+        <p class="stat-label estimate-ask">About how much is…</p>
+        <p id="estimate-calc" class="estimate-calc"></p>
+        <p id="estimate-readout" class="stat-num estimate-readout">0</p>
+        <div class="estimate-slider-row">
+          <button id="estimate-minus" type="button" class="game-tile estimate-nudge" aria-label="Guess less">−</button>
+          <div id="estimate-slider" class="estimate-slider">
+            <div class="track estimate-track"><div id="estimate-fill" class="track-fill"></div></div>
+            <div id="estimate-marker" class="estimate-marker" hidden></div>
+            <div id="estimate-thumb" class="estimate-thumb" role="slider" tabindex="0" aria-label="Your guess" aria-valuemin="0"></div>
+          </div>
+          <button id="estimate-plus" type="button" class="game-tile estimate-nudge" aria-label="Guess more">+</button>
+        </div>
+        <div id="estimate-ticks" class="estimate-ticks" aria-hidden="true"></div>
+        <button id="estimate-lock-btn" type="button" class="btn-primary game-wide-btn" disabled>Lock it in</button>
+        <div id="estimate-reveal" class="estimate-reveal" hidden>
+          <p id="estimate-reveal-title" class="card-title estimate-reveal-title"></p>
+          <p id="estimate-reveal-text" class="game-line"></p>
+          <button id="estimate-next-btn" type="button" class="btn-primary game-wide-btn">Next</button>
+        </div>
+      </div>
+    </div>
+    <div id="estimate-summary" hidden>
+      <div id="estimate-banner" class="banner-celebrate" hidden>🎉 New best!</div>
+      <div class="card-hero estimate-hero">
+        <div class="stat"><span id="estimate-total-stars" class="stat-num"></span><span class="stat-label">stars out of 15</span></div>
+        <p id="estimate-total-points" class="blitz-tried"></p>
+      </div>
+      <p id="estimate-best-line" class="game-line"></p>
+      <div class="game-actions">
+        <button id="estimate-again-btn" type="button" class="btn-primary">One more round</button>
+        <button id="estimate-home-btn" type="button" class="btn-secondary">Home</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- BEAT THE GROWN-UP (Roadmap #147): hand-over and result. The turns
+       themselves use the question screen. -->
+  <section id="screen-guest" class="screen">
+    <div id="guest-handover" class="card-hero guest-handover" hidden>
+      <p class="guest-big">📱➡️🧑</p>
+      <p class="guest-title">Pass the iPad to the grown-up!</p>
+      <p class="guest-sub">Same 10 questions. No peeking at the score until the end.</p>
+      <button id="guest-start-btn" type="button" class="btn-secondary game-wide-btn">I’m the grown-up, start</button>
+    </div>
+    <div id="guest-result" hidden>
+      <div id="guest-banner" class="banner-celebrate"></div>
+      <div class="card guest-scores">
+        <div class="stat"><span id="guest-child-score" class="stat-num"></span><span id="guest-child-label" class="stat-label"></span></div>
+        <div class="stat"><span id="guest-adult-score" class="stat-num"></span><span class="stat-label">Grown-up</span></div>
+      </div>
+      <p id="guest-how" class="game-line"></p>
+      <p id="guest-tally" class="game-line game-stats"></p>
+      <div class="game-actions">
+        <button id="guest-rematch-btn" type="button" class="btn-primary">Rematch</button>
+        <button id="guest-home-btn" type="button" class="btn-secondary">Home</button>
       </div>
     </div>
   </section>

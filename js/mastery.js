@@ -2,6 +2,8 @@
 // moving average of a per-question score that rewards correctness first,
 // speed second — no full ELO system needed at this scale.
 
+import { TOPICS } from './storage.js';
+
 export const EXPECTED_TIME_MS = { 1: 8000, 2: 12000, 3: 18000, 4: 25000, 5: 35000 };
 
 const ALPHA = 0.15; // ~last 6-7 questions dominate the running average
@@ -10,9 +12,11 @@ function clamp(v, lo, hi) {
   return Math.max(lo, Math.min(hi, v));
 }
 
-export function computeQuestionScore(correct, tier, actualTimeMs) {
+// expectedMs defaults to the tier's usual time; a Spot the mistake question
+// (#146) passes double, since reading working takes longer.
+export function computeQuestionScore(correct, tier, actualTimeMs, expectedMs = EXPECTED_TIME_MS[tier]) {
   if (!correct) return 0;
-  const speedScore = clamp(EXPECTED_TIME_MS[tier] / Math.max(actualTimeMs, 1), 0, 1);
+  const speedScore = clamp(expectedMs / Math.max(actualTimeMs, 1), 0, 1);
   return 0.7 + 0.3 * speedScore;
 }
 
@@ -25,8 +29,8 @@ export function tierFromMastery(score) {
 }
 
 // Mutates and returns masteryRecord after one answered question.
-export function updateMastery(masteryRecord, correct, tier, actualTimeMs, todayStr) {
-  const score = computeQuestionScore(correct, tier, actualTimeMs);
+export function updateMastery(masteryRecord, correct, tier, actualTimeMs, todayStr, expectedMs = EXPECTED_TIME_MS[tier]) {
+  const score = computeQuestionScore(correct, tier, actualTimeMs, expectedMs);
   const newScore = masteryRecord.masteryScore * (1 - ALPHA) + score * ALPHA;
 
   masteryRecord.masteryScore = newScore;
@@ -82,9 +86,13 @@ export function weightedRandomPick(weights) {
 // `strongest` is null and Home says "We'll find out as you practise".
 // `weakest`, which the focus card, Next session widget, summary and weekly
 // quests (#136) all use, is unchanged.
+//
+// Only the core topics count (Roadmap #148): Alex decided Year 7 topics stay
+// out of today's focus, the Focus area, the Next-session widget and the
+// "practise next time" line, all of which come from here.
 const STARTING_SCORE = 0.5;
 export function computeStrengthSummary(mastery) {
-  const entries = Object.entries(mastery).filter(([, rec]) => rec.questionsSeen > 0);
+  const entries = Object.entries(mastery).filter(([t, rec]) => TOPICS.includes(t) && rec.questionsSeen > 0);
   const totalSeen = entries.reduce((sum, [, rec]) => sum + rec.questionsSeen, 0);
   if (totalSeen < 5) return null;
   const sorted = [...entries].sort((a, b) => b[1].masteryScore - a[1].masteryScore);

@@ -187,3 +187,41 @@ export function barModelSvg({ rows, perPart, highlight, money = false, totalNoun
   // Capped so a short model isn't blown up to huge text on a wide card.
   return `<svg class="bar-model" viewBox="0 0 ${w} ${h}" style="max-width:${Math.round(w * 1.3)}px" role="img" aria-label="${esc(`Bar model: ${spoken}; ${amount(total)} in total.`)}">${parts.join('')}</svg>`;
 }
+
+// ---------- Factor tree (Roadmap #148, Year 7 primes T3) ----------
+
+// A two-level factor tree: the number at the top, its two factors under
+// it, and any factor that isn't prime split into two primes underneath.
+// Primes are circled (as school does it). Exactly one node is the empty box
+// to fill in, drawn dashed with a "?", so it's clear without colour.
+// `tree` is { value, children?: [tree, tree] }; `missing` is the path to
+// the empty node ('' for the top, '0', '1', '00', '01', '10', '11').
+export function factorTreeSvg(tree, missing, isPrime) {
+  const W = 320;
+  const H = 214;
+  const parts = [];
+  const nodes = [];
+  const place = (node, path, x, y, spread) => {
+    nodes.push({ node, path, x, y });
+    (node.children || []).forEach((child, i) => {
+      const cx = x + (i === 0 ? -spread : spread);
+      const cy = y + 76;
+      parts.push(`<line class="ft-line" x1="${x}" y1="${y + 18}" x2="${cx}" y2="${cy - 20}" />`);
+      place(child, `${path}${i}`, cx, cy, spread / 2);
+    });
+  };
+  place(tree, '', W / 2, 30, 76);
+  nodes.forEach(({ node, path, x, y }) => {
+    if (path === missing) {
+      parts.push(`<rect class="ft-missing" x="${x - 30}" y="${y - 20}" width="60" height="40" rx="8" />`);
+      parts.push(text(x, y + 7, '?', 'ft-label'));
+    } else if (isPrime(node.value)) {
+      parts.push(`<circle class="ft-prime" cx="${x}" cy="${y}" r="21" />`);
+      parts.push(text(x, y + 7, String(node.value), 'ft-label'));
+    } else {
+      parts.push(text(x, y + 7, String(node.value), 'ft-label'));
+    }
+  });
+  const spoken = 'Factor tree with one empty box marked with a question mark';
+  return `<svg class="tree-diagram" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(spoken)}">${parts.join('')}</svg>`;
+}

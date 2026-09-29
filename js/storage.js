@@ -5,6 +5,22 @@ const NS = 'sprint:v1:default';
 
 export const TOPICS = ['arithmetic', 'fdp', 'geometry', 'coordinates', 'wordProblems', 'ratio', 'algebra', 'dataHandling'];
 
+// Roadmap #148: the Year 7 pack, behind Settings > "Year 7 topics" (off by
+// default). These are NOT in TOPICS on purpose: everything that plans
+// practice (the All-topics mix, today's focus, the Next-session widget, the
+// boss, the check-up, quests and the map) reads TOPICS, and Alex decided
+// Year 7 topics are only asked when their own chip is tapped. Their mastery
+// is always stored (so switching the pack off never loses progress); only
+// display is filtered, via activeTopics().
+export const YEAR7_TOPICS = ['negatives', 'powersRoots', 'primes', 'probability', 'bracketEquations'];
+export const ALL_TOPICS = [...TOPICS, ...YEAR7_TOPICS];
+
+// Topics shown on Progress, in the Trophy cabinet and as chips: the core
+// eight, plus the Year 7 five while the switch is on.
+export function activeTopics(meta) {
+  return meta && meta.year7PackEnabled ? ALL_TOPICS : TOPICS;
+}
+
 function defaultMasteryRecord() {
   return {
     masteryScore: 0.5,
@@ -18,7 +34,7 @@ function defaultMasteryRecord() {
 
 function defaultMastery() {
   const m = {};
-  TOPICS.forEach((t) => { m[t] = defaultMasteryRecord(); });
+  ALL_TOPICS.forEach((t) => { m[t] = defaultMasteryRecord(); });
   return m;
 }
 
@@ -64,6 +80,8 @@ function defaultMeta() {
     questWeeksCompleted: 0,
     // Optional sound effects, off unless switched on in Settings — #142.
     soundOn: false,
+    // Roadmap #148: the Year 7 topics switch, off until a grown-up turns it on.
+    year7PackEnabled: false,
   };
 }
 
@@ -169,7 +187,7 @@ export const Storage = {
     const stored = readJSON(`${NS}:mastery`, null);
     const merged = defaultMastery();
     if (stored) {
-      TOPICS.forEach((t) => {
+      ALL_TOPICS.forEach((t) => {
         if (stored[t]) merged[t] = { ...defaultMasteryRecord(), ...stored[t] };
       });
     }
@@ -323,6 +341,73 @@ export const Storage = {
   },
   clearParentNote() {
     localStorage.removeItem(`${NS}:parentNote`);
+  },
+
+  // ---------- Games (Roadmap #143-#147) ----------
+  // Each game keeps one small key of its own, read with defaults so a
+  // missing or odd value just means "nothing yet". Games never touch
+  // sessions, mastery, badges or inprogress; the only shared thing they may
+  // change is meta.totalPoints (Numbers Target and Close Enough).
+
+  // #143 Blitz: the top-5 table for one fixed question mix. A table made
+  // for a different mix is kept aside (archived), never compared.
+  getBlitz(currentMix) {
+    const empty = { version: 1, mix: currentMix, totalRuns: 0, top: [] };
+    const b = readJSON(`${NS}:blitz`, null);
+    if (!isObject(b) || !Array.isArray(b.top)) return empty;
+    if (b.mix !== currentMix) return { ...empty, archived: b };
+    const top = b.top.filter((r) => isObject(r) && isCount(r.correct) && isCount(r.wrong) && typeof r.date === 'string');
+    return { ...empty, ...b, totalRuns: isCount(b.totalRuns) ? b.totalRuns : top.length, top };
+  },
+  setBlitz(blitz) {
+    writeJSON(`${NS}:blitz`, blitz);
+  },
+
+  // #144 Numbers Target.
+  getNumbersGame() {
+    const d = { targetsHit: 0, roundsPlayed: 0, currentHitRun: 0, bestHitRun: 0, recent: [] };
+    const g = readJSON(`${NS}:numbersGame`, null);
+    if (!isObject(g)) return d;
+    const out = { ...d };
+    ['targetsHit', 'roundsPlayed', 'currentHitRun', 'bestHitRun'].forEach((k) => { if (isCount(g[k])) out[k] = g[k]; });
+    if (Array.isArray(g.recent)) out.recent = g.recent.filter(isObject).slice(-20);
+    return out;
+  },
+  setNumbersGame(game) {
+    writeJSON(`${NS}:numbersGame`, game);
+  },
+
+  // #145 Close Enough.
+  getEstimation() {
+    const e = readJSON(`${NS}:estimation`, null);
+    return {
+      bestRoundScore: isObject(e) && isCount(e.bestRoundScore) ? e.bestRoundScore : null,
+      roundsPlayed: isObject(e) && isCount(e.roundsPlayed) ? e.roundsPlayed : 0,
+    };
+  },
+  setEstimation(est) {
+    writeJSON(`${NS}:estimation`, est);
+  },
+
+  // #147 Beat the Grown-Up: the only thing a guest round ever saves.
+  getGrownUpTally() {
+    const t = readJSON(`${NS}:grownUpTally`, null);
+    const n = (k) => (isObject(t) && isCount(t[k]) ? t[k] : 0);
+    return { childWins: n('childWins'), grownUpWins: n('grownUpWins'), draws: n('draws') };
+  },
+  setGrownUpTally(tally) {
+    writeJSON(`${NS}:grownUpTally`, tally);
+  },
+
+  // Adds game points to the lifetime total, reading meta fresh so a copy
+  // held in memory elsewhere can't be clobbered. Returns the new meta.
+  addPoints(points) {
+    const meta = Storage.getMeta();
+    if (points > 0) {
+      meta.totalPoints = (meta.totalPoints || 0) + points;
+      writeJSON(`${NS}:meta`, meta);
+    }
+    return meta;
   },
 
   getInProgress() {

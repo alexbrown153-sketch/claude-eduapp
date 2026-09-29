@@ -6,12 +6,14 @@
 
 export const SHOP_ITEMS = [
   // Themes — override CSS custom properties via [data-theme] on <body>.
-  { id: 'theme-default', category: 'theme', label: 'Classic Blue', cost: 0, swatch: '#4c5fd5' },
-  { id: 'theme-sunset', category: 'theme', label: 'Sunset Orange', cost: 150, swatch: '#e8734a' },
-  { id: 'theme-forest', category: 'theme', label: 'Forest Green', cost: 150, swatch: '#2f9e64' },
-  { id: 'theme-berry', category: 'theme', label: 'Berry Purple', cost: 200, swatch: '#9748c9' },
+  // The swatch is the theme's bright --accent colour (Roadmap #153); the
+  // buttons use a deeper shade of it so white text stays readable.
+  { id: 'theme-default', category: 'theme', label: 'Classic Blue', cost: 0, swatch: '#6d7cff' },
+  { id: 'theme-sunset', category: 'theme', label: 'Sunset Orange', cost: 150, swatch: '#ff8a5b' },
+  { id: 'theme-forest', category: 'theme', label: 'Forest Green', cost: 150, swatch: '#34c47c' },
+  { id: 'theme-berry', category: 'theme', label: 'Berry Purple', cost: 200, swatch: '#b86ef0' },
 
-  // Fonts — override font-family via [data-font] on <body>.
+  // Fonts — set --font-body via [data-font] on <body>.
   { id: 'font-default', category: 'font', label: 'Classic', cost: 0 },
   { id: 'font-rounded', category: 'font', label: 'Bubbly', cost: 100 },
   { id: 'font-mono', category: 'font', label: 'Robot Mode', cost: 100 },
