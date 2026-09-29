@@ -13,7 +13,7 @@
 // filler hybrid — see project_imported_only_questions in memory for the
 // full history if this area needs revisiting again.
 
-import { getWordProblem } from './wordProblems.js';
+import { getWordProblem, getWordProblemVersion } from './wordProblems.js';
 import { genCoordinates } from './coordinates.js';
 import { rectangleSvg, lShapeSvg, twoCornersSvg, barModelSvg } from './diagrams.js';
 
@@ -886,16 +886,47 @@ export function getQuestion(topic, tier, usedWordProblemIds) {
 // never get one.
 const SIMILAR_ATTEMPTS = 40;
 function arithmeticOps(prompt) {
-  return (prompt.match(/[+\-×÷]/g) || []).join('');
+  return (String(prompt).match(/[+\-×÷]/g) || []).join('');
 }
 export function getSimilarQuestion(question) {
   if (question.source !== 'generated') return null;
-  const gen = GENERATORS[question.topic];
+  return getNewVersion(question);
+}
+
+// Roadmap #127/#128: what's saved with each answer so a new version of it
+// can be made later: the operators for arithmetic ("×", "+×"), the
+// template id for a word problem, otherwise null (subtopic and tier say
+// it all).
+export function questionVariant(question) {
+  if (question.topic === 'arithmetic' && question.source === 'generated') return arithmeticOps(question.prompt);
+  if (question.topic === 'wordProblems' && question.source === 'authored' && question.id) return question.id;
+  return null;
+}
+
+// A new version of a kind of question: { topic, subtopic, difficulty,
+// variant?, prompt? } from a saved answer or a live question. Generated
+// topics keep the topic, tier and subtopic, plus the operators for
+// arithmetic (from `variant`, or read off the prompt); a word problem keeps
+// its template (see getWordProblemVersion). Never the same prompt as the
+// one given. Null when no version can be made — an arithmetic answer with
+// no known operators, an imported question, or no match in the tries.
+export function getNewVersion(kind) {
+  if (kind.topic === 'wordProblems') {
+    return getWordProblemVersion({
+      templateId: kind.variant || null, tier: kind.difficulty, subtopic: kind.subtopic, notPrompt: kind.prompt,
+    });
+  }
+  const gen = GENERATORS[kind.topic];
   if (!gen) return null;
+  let ops = null;
+  if (kind.topic === 'arithmetic') {
+    ops = kind.variant || (kind.prompt ? arithmeticOps(kind.prompt) : '');
+    if (!ops) return null;
+  }
   for (let i = 0; i < SIMILAR_ATTEMPTS; i += 1) {
-    const q = gen(question.difficulty);
-    if (q.subtopic !== question.subtopic || q.prompt === question.prompt) continue;
-    if (question.topic === 'arithmetic' && arithmeticOps(q.prompt) !== arithmeticOps(question.prompt)) continue;
+    const q = gen(kind.difficulty);
+    if (q.subtopic !== kind.subtopic || q.prompt === kind.prompt) continue;
+    if (ops !== null && arithmeticOps(q.prompt) !== ops) continue;
     return q;
   }
   return null;

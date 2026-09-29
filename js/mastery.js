@@ -68,3 +68,29 @@ export function weightedRandomPick(weights) {
   }
   return entries[entries.length - 1][0];
 }
+
+// ---------- Strongest and weakest topic (moved from ui.js for #136) ----------
+
+// Only shown once there's enough real practice data to be meaningful —
+// before that, every topic sits at the same default mastery score and
+// "strongest/weakest" would just be noise.
+//
+// Roadmap #120: every topic starts at 50%, so after a mostly-wrong first
+// quiz the "strongest" topic was just the one with the fewest wrong answers
+// (e.g. 43% after 0 out of 1). A topic is only called strongest once the
+// child's answers have pushed it above that 50% start; until then
+// `strongest` is null and Home says "We'll find out as you practise".
+// `weakest`, which the focus card, Next session widget, summary and weekly
+// quests (#136) all use, is unchanged.
+const STARTING_SCORE = 0.5;
+export function computeStrengthSummary(mastery) {
+  const entries = Object.entries(mastery).filter(([, rec]) => rec.questionsSeen > 0);
+  const totalSeen = entries.reduce((sum, [, rec]) => sum + rec.questionsSeen, 0);
+  if (totalSeen < 5) return null;
+  const sorted = [...entries].sort((a, b) => b[1].masteryScore - a[1].masteryScore);
+  const top = sorted[0];
+  const weakest = sorted[sorted.length - 1];
+  if (top[0] === weakest[0]) return null;
+  const strongest = top[1].masteryScore > STARTING_SCORE ? top : null;
+  return { strongest, weakest };
+}

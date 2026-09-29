@@ -4,19 +4,37 @@
 // doesn't lose data.
 
 import { Storage } from './storage.js';
-import { selectDifficultyTier, updateMastery, weightedRandomPick, EXPECTED_TIME_MS } from './mastery.js';
-import { getQuestion } from './questionBank.js';
-import { localDateStr, daysBetweenLocalDates, sessionLocalDay } from './dates.js';
+import { selectDifficultyTier, updateMastery, weightedRandomPick, EXPECTED_TIME_MS, tierFromMastery } from './mastery.js';
+import { getQuestion, questionVariant, getNewVersion } from './questionBank.js';
+import { localDateStr, daysBetweenLocalDates, sessionLocalDay, addDays } from './dates.js';
 
-export function startSession({ topicWeighting, topicFocus, lengthType, lengthValue, mode }) {
+// Two kinds of session with a list fixed at the start (build 2):
+//  - `queue`: ready-made questions asked in order — "Try these again"
+//    (mode 'retry', #127) and "Fix my mistakes" (mode 'fix', #128);
+//  - `checkupQueue`: topics asked in order, each question made when it's
+//    reached so its tier can react to the answer before (mode 'checkup',
+//    #149).
+// Both are saved with the in-progress session, so Resume carries on with
+// what's left in the same order. In these sessions a "Try one like it"
+// follow-up never uses up a place in the list. Retry and Fix have no boss;
+// the check-up does, like any session.
+export function startSession({ topicWeighting, topicFocus, lengthType, lengthValue, mode, queue = null, checkupQueue = null }) {
+  const listed = queue || checkupQueue;
   return {
     sessionId: `s_${Date.now()}`,
     date: new Date().toISOString(),
     mode,
-    lengthType,
-    lengthValue,
-    topicFocus: topicFocus || null,
+    lengthType: listed ? 'questions' : lengthType,
+    lengthValue: listed ? listed.length : lengthValue,
+    topicFocus: listed ? null : (topicFocus || null),
     topicWeighting,
+    ...(queue ? { queue } : {}),
+    ...(checkupQueue ? { checkupQueue } : {}),
+    // #127: the explanation and diagram of each wrong answer, by its index
+    // in `questions`, for this session's "Questions I got wrong" list. Kept
+    // with the in-progress session only, never in the saved log (diagrams
+    // would fill up storage over the months).
+    reviewExtras: {},
     questions: [],
     startedAt: Date.now(),
     score: 0,
@@ -27,12 +45,51 @@ export function startSession({ topicWeighting, topicFocus, lengthType, lengthVal
     // bossLocked records that accuracy wasn't high enough to face it;
     // bossHits counts challenge questions answered correctly, and
     // bossDefeated is true only when all of them were.
-    bossDone: false,
+    bossDone: mode === 'retry' || mode === 'fix',
     bossLocked: false,
     bossHits: 0,
     bossDefeated: false,
     usedWordProblemIds: new Set(),
   };
+}
+
+// #127/#128: the one queue builder for "Try these again" and "Fix my
+// mistakes". `kinds` ({ topic, subtopic, difficulty, variant?, prompt? })
+// come in priority order; a new version of each (getNewVersion: same
+// topic, subtopic and tier, same operators or word-problem template, a
+// different prompt) is made until `cap` are ready, skipping any kind that
+// can't be remade. Then easiest tier first, so the round opens with a win
+// (SPEC §6) — a stable sort, so equal tiers keep their order.
+export function buildRetryQueue(kinds, cap) {
+  const queue = [];
+  for (const kind of kinds) {
+    if (queue.length >= cap) break;
+    const q = getNewVersion(kind);
+    if (q) queue.push(q);
+  }
+  return queue.sort((a, b) => a.difficulty - b.difficulty);
+}
+
+// #149: the check-up's topic list — every topic twice (once each if that
+// would be more than CHECKUP_MAX questions), shuffled so no topic comes
+// twice in a row. With two of each of 8 topics that's always possible; a
+// few random shuffles find one almost at once, and the fallback just
+// accepts the last shuffle.
+export const CHECKUP_MAX = 20;
+export function buildCheckupQueue(topics) {
+  const perTopic = topics.length * 2 <= CHECKUP_MAX ? 2 : 1;
+  const list = topics.flatMap((t) => Array(perTopic).fill(t));
+  let best = list;
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const shuffled = [...list];
+    for (let i = shuffled.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    best = shuffled;
+    if (shuffled.every((t, i) => i === 0 || t !== shuffled[i - 1])) break;
+  }
+  return best;
 }
 
 // Roadmap #88: the combo meter. The run of correct answers in a row
@@ -84,6 +141,34 @@ function bossQuestionsAsked(session) {
   return session.questions.filter((q) => q.boss).length;
 }
 
+export function isListedSession(session) {
+  return Array.isArray(session.queue) || Array.isArray(session.checkupQueue);
+}
+
+// The answers that use up the session's length: everything but the boss —
+// and, in a listed session, but "Try one like it" follow-ups too, so the
+// next place in the list is always questions[regularCount].
+export function regularCount(session) {
+  const listed = isListedSession(session);
+  return session.questions.filter((q) => !q.boss && !(listed && Number.isInteger(q.followUpOf))).length;
+}
+
+// Roadmap #149: the check-up's next question. The first question in a
+// topic is at the topic's current tier exactly (no stretch or easier roll),
+// so it measures where the child is now. The second is at the same tier if
+// the first was right, or one tier lower (never below 1) if it was wrong —
+// SPEC §6's anti-frustration rule.
+function pickCheckupQuestion(session, mastery, topic) {
+  const first = session.questions.find((q) => q.topic === topic && !q.boss && !Number.isInteger(q.followUpOf));
+  const record = mastery[topic];
+  let tier;
+  if (first) tier = first.correct ? first.difficulty : Math.max(1, first.difficulty - 1);
+  else tier = record.difficultyLevel || tierFromMastery(record.masteryScore);
+  const q = getQuestion(topic, tier, session.usedWordProblemIds);
+  if (q && q.source === 'authored' && q.id) session.usedWordProblemIds.add(q.id);
+  return q;
+}
+
 // The session's own length (question count or minutes) is used up, so the
 // only thing left before the summary is the boss challenge.
 export function isBossDue(session) {
@@ -132,6 +217,12 @@ export function pickNextQuestion(session, mastery) {
     const boss = pickBossQuestion(session, mastery);
     if (boss) return boss;
     session.bossDone = true; // nothing to fight; skip straight to the end
+  }
+  const next = regularCount(session);
+  if (Array.isArray(session.queue) && session.queue[next]) return { ...session.queue[next] };
+  if (Array.isArray(session.checkupQueue) && session.checkupQueue[next]) {
+    const q = pickCheckupQuestion(session, mastery, session.checkupQueue[next]);
+    if (q) return q;
   }
   const topic = session.topicFocus || weightedRandomPick(session.topicWeighting);
   const record = mastery[topic];
@@ -278,6 +369,12 @@ export function recordAnswer(session, mastery, question, userInput, timeMs, { fo
   }
   session.score += bossBonus;
 
+  // #127/#128: `variant` says exactly which kind of question this was (see
+  // questionVariant), and a wrong answer also keeps its prompt and right
+  // answer (text only, never a diagram) so "Questions I got wrong" and
+  // "Fix my mistakes" can show it and make a new version of it later.
+  // followUpOf links a "Try one like it" answer to the miss it followed.
+  const variant = questionVariant(question);
   session.questions.push({
     topic: question.topic,
     subtopic: question.subtopic,
@@ -287,7 +384,17 @@ export function recordAnswer(session, mastery, question, userInput, timeMs, { fo
     pointsEarned,
     ...(question.isBoss ? { boss: true } : {}),
     ...(formRetry ? { formRetry: true } : {}),
+    ...(variant ? { variant } : {}),
+    ...(Number.isInteger(question.followUpOf) ? { followUpOf: question.followUpOf } : {}),
+    ...(correct ? {} : { prompt: question.prompt, correctAnswer: question.correctAnswer }),
   });
+  if (!correct) {
+    session.reviewExtras = session.reviewExtras || {};
+    session.reviewExtras[session.questions.length - 1] = {
+      explanation: question.explanation || '',
+      diagramSvg: question.diagramSvg || '',
+    };
+  }
   session.bossBonus = (session.bossBonus || 0) + bossBonus;
 
   Storage.setMastery(mastery);
@@ -299,7 +406,7 @@ export function recordAnswer(session, mastery, question, userInput, timeMs, { fo
 // The chosen length only — the boss challenge comes on top of it, so a
 // 10-question session is 10 questions and then the boss's three.
 export function hasReachedLength(session) {
-  const regular = session.questions.filter((q) => !q.boss).length;
+  const regular = regularCount(session);
   if (session.lengthType === 'questions') {
     return regular >= session.lengthValue;
   }
@@ -357,6 +464,10 @@ export function finishSession(session, meta) {
     bossBonus: session.bossBonus || 0,
   };
 
+  const today = localDateStr();
+  const gap = daysBetweenLocalDates(meta.lastPracticeDate, today);
+  const shieldCovers = gap === 2 && (meta.streakShields || 0) > 0;
+
   const entry = {
     profileId: 'default',
     sessionId: session.sessionId,
@@ -370,11 +481,11 @@ export function finishSession(session, meta) {
     topicFocus: session.topicFocus,
     questions: session.questions,
     summary,
+    // #140: the missed day a Streak Shield bridged, for the calendar.
+    ...(shieldCovers ? { shieldCoveredDate: addDays(today, -1) } : {}),
   };
   Storage.addSession(entry);
 
-  const today = localDateStr();
-  const gap = daysBetweenLocalDates(meta.lastPracticeDate, today);
   const newMeta = { ...meta };
   let shieldUsed = false;
   if (gap <= 0) {
@@ -383,7 +494,7 @@ export function finishSession(session, meta) {
     // west): treat that as today too, rather than resetting the streak.
   } else if (gap === 1) {
     newMeta.currentStreakDays = (meta.currentStreakDays || 0) + 1;
-  } else if (gap === 2 && (meta.streakShields || 0) > 0) {
+  } else if (shieldCovers) {
     // Roadmap #112: exactly one missed day, and a Streak Shield to cover it.
     // The missed day is bridged, not counted (6 on Thu, nothing on Fri,
     // practice on Sat makes 7), and the shield is used up. A longer gap
@@ -399,6 +510,8 @@ export function finishSession(session, meta) {
   if (session.mode === 'diagnostic' && !meta.diagnosticCompletedAt) {
     newMeta.diagnosticCompletedAt = new Date().toISOString();
   }
+  // #149: only a finished check-up counts; an abandoned one stays offered.
+  if (session.mode === 'checkup') newMeta.lastCheckupCompletedAt = new Date().toISOString();
   Storage.setMeta(newMeta);
   Storage.clearInProgress();
 

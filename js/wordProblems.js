@@ -392,7 +392,29 @@ export function getWordProblem(tier, usedIds = new Set()) {
   const pool = TEMPLATES[tier] || TEMPLATES[3];
   let available = pool.filter((t) => !usedIds.has(t.id));
   if (available.length === 0) available = pool;
-  const template = pick(available);
+  return fromTemplate(pick(available), tier);
+}
+
+// Roadmap #128: a new version of the same word problem — the same template
+// (so the same scenario and method) with new numbers, never with the same
+// prompt as `notPrompt`. Answers saved before the template id was logged
+// fall back to any template of that subtopic and tier. Null if nothing
+// different comes up in a fixed number of tries (a narrow template).
+const VERSION_ATTEMPTS = 40;
+export function getWordProblemVersion({ templateId, tier, subtopic, notPrompt }) {
+  const pool = TEMPLATES[tier] || [];
+  const candidates = templateId
+    ? pool.filter((t) => t.id === templateId)
+    : pool.filter((t) => t.subtopic === subtopic);
+  if (candidates.length === 0) return null;
+  for (let i = 0; i < VERSION_ATTEMPTS; i += 1) {
+    const q = fromTemplate(pick(candidates), tier);
+    if (q.prompt !== notPrompt) return q;
+  }
+  return null;
+}
+
+function fromTemplate(template, tier) {
   const q = template.generate();
   return {
     topic: 'wordProblems',

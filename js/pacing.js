@@ -63,4 +63,7 @@ export function computeTodaysPlan(today, meta, mastery, topics) {
 export const PHASE_LABELS = {
   diagnostic: "Warm-up quiz: let's see what you know", // Roadmap #118
   bulk: 'Daily practice',
+  checkup: 'Check-up quiz', // Roadmap #149
+  fix: 'Fix my mistakes', // Roadmap #128
+  retry: 'Try these again', // Roadmap #127
 };

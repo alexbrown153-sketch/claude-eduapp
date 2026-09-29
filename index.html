@@ -37,10 +37,11 @@
       <span id="header-avatar" class="header-avatar"></span>
     </div>
     <div class="header-actions">
-      <div id="header-badges-group" class="header-badges-group" hidden>
+      <!-- Roadmap #134: the whole badge group opens the Trophy cabinet. -->
+      <button type="button" id="header-badges-group" class="header-badges-group" aria-label="Badges: open the Trophy cabinet" hidden>
         <span class="header-badges-label">Badges</span>
-        <div id="header-badges" class="header-badges"></div>
-      </div>
+        <span id="header-badges" class="header-badges"></span>
+      </button>
       <span id="header-points" class="header-points"></span>
       <button id="nav-settings-btn" class="settings-btn" aria-label="Settings" title="Settings">&#9881;&#65039;</button>
     </div>
@@ -63,12 +64,41 @@
       </aside>
 
       <div class="start-main">
+        <!-- Roadmap #139: a note from a grown-up, shown once. -->
+        <div id="parent-note-card" class="home-card parent-note-card" hidden>
+          <p class="home-card-title">💌 A note for you</p>
+          <p id="parent-note-text" class="parent-note-text"></p>
+          <button id="parent-note-thanks" type="button" class="primary-btn home-card-btn">Thanks!</button>
+        </div>
+
+        <!-- Roadmap #141: last month in a few lines, on the first visit of a new month. -->
+        <div id="recap-card" class="home-card recap-card" hidden>
+          <p id="recap-title" class="home-card-title"></p>
+          <ul id="recap-lines" class="recap-lines"></ul>
+          <button id="recap-dismiss" type="button" class="primary-btn home-card-btn">Nice!</button>
+        </div>
+
         <div class="focus-card" id="focus-card">
           <p class="focus-phase" id="focus-phase"></p>
           <p class="focus-tone" id="focus-tone"></p>
           <div id="strength-summary" class="strength-summary" hidden></div>
+          <!-- Roadmap #149: offered every 4 weeks; the footer Start still
+               starts ordinary practice. -->
+          <button id="checkup-btn" type="button" class="focus-card-btn" hidden>Start check-up</button>
+          <!-- Roadmap #130: today's questions towards the daily goal. -->
+          <div id="goal-ring" class="goal-ring"></div>
         </div>
         <p id="home-notice" class="home-notice" role="status" hidden></p>
+
+        <!-- Roadmap #138: the grown-up's reward goal, when one is set. -->
+        <div id="reward-goal-card" class="home-card reward-goal-card" hidden></div>
+
+        <!-- Roadmap #128: new versions of this week's mistakes. -->
+        <div id="fix-card" class="home-card fix-card" hidden>
+          <p class="home-card-title">🔧 Fix my mistakes</p>
+          <p id="fix-card-detail" class="fix-card-detail"></p>
+          <button id="fix-btn" type="button" class="secondary-btn fix-btn">Fix them now</button>
+        </div>
 
         <!-- Roadmap #151: a gentle reminder when progress hasn't been saved to
              a file for a while. Only shown when due; "Not now" snoozes it. -->
@@ -114,7 +144,11 @@
 
       <aside class="start-side-right">
         <div id="home-streak-widget" class="home-streak-widget"></div>
+        <!-- Roadmap #136 -->
+        <div id="quests-widget" class="next-session-widget quests-widget" hidden></div>
         <div id="next-session-widget" class="next-session-widget"></div>
+        <!-- Roadmap #137: opens the adventure map. -->
+        <button id="adventure-card" type="button" class="adventure-card"></button>
         <div id="personal-bests-widget" class="next-session-widget personal-bests-widget" hidden></div>
       </aside>
     </div>
@@ -236,15 +270,28 @@
     <h2 class="section-heading" id="summary-heading">Session complete!</h2>
     <div id="new-records" class="new-records" role="status" hidden></div>
     <div id="chest-reward" class="chest-reward" hidden></div>
-    <div id="new-badges" class="new-badges" hidden></div>
     <div class="summary-card" id="summary-card"></div>
     <div id="summary-notes" class="summary-notes" hidden></div>
     <div id="summary-takeaways" class="summary-takeaways"></div>
+    <!-- Roadmap #127: this session's misses, with "Try these again". -->
+    <div id="summary-wrong" class="summary-wrong" hidden></div>
+    <div id="new-badges" class="new-badges" hidden></div>
+    <!-- Quests done (#136), map step (#137), daily goal (#130) and the
+         check-up line (#149), in that order. -->
+    <div id="summary-more" class="summary-more" hidden></div>
   </section>
 
   <!-- PROGRESS SCREEN -->
   <section id="screen-progress" class="screen">
     <h2 class="section-heading">Progress</h2>
+
+    <!-- Roadmap #140 -->
+    <h3 class="section-subheading">My practice days</h3>
+    <div id="practice-calendar" class="practice-calendar"></div>
+
+    <!-- Roadmap #131 -->
+    <h3 class="section-subheading">This week vs last week</h3>
+    <div id="week-compare" class="week-compare"></div>
 
     <h3 class="section-subheading">How I’m doing in each topic</h3>
     <div id="mastery-bars" class="mastery-bars"></div>
@@ -255,11 +302,27 @@
     <h3 class="section-subheading">Mistakes I fixed</h3>
     <div id="fixed-mistakes" class="fixed-mistakes"></div>
 
-    <h3 class="section-subheading">Badges</h3>
-    <div id="badges-grid" class="badges-grid"></div>
+    <!-- Roadmap #134: the badges live in the Trophy cabinet now. -->
+    <button id="cabinet-btn" type="button" class="secondary-btn cabinet-btn"></button>
 
     <h3 class="section-subheading">Recent sessions</h3>
     <div id="session-history" class="session-history"></div>
+  </section>
+
+  <!-- TROPHY CABINET (Roadmap #134) -->
+  <section id="screen-cabinet" class="screen">
+    <button id="cabinet-back-btn" type="button" class="back-btn">&larr; Back</button>
+    <h2 class="section-heading">🏆 Trophy cabinet</h2>
+    <p id="cabinet-count" class="cabinet-count"></p>
+    <div id="cabinet-shelves" class="cabinet-shelves"></div>
+  </section>
+
+  <!-- ADVENTURE MAP (Roadmap #137) -->
+  <section id="screen-map" class="screen">
+    <button id="map-back-btn" type="button" class="back-btn">&larr; Back</button>
+    <h2 class="section-heading">🗺️ Adventure map</h2>
+    <p id="map-lap" class="map-lap"></p>
+    <div id="map-path" class="map-path"></div>
   </section>
 
   <!-- SHOP SCREEN -->
@@ -290,6 +353,50 @@
       <button class="choice-btn" data-colour-mode="auto">&#128241; Match device</button>
     </div>
     <p class="weather-hint">Match device follows the iPad's own light/dark setting and switches with it.</p>
+
+    <!-- Roadmap #142 -->
+    <h3 class="section-subheading">Sounds</h3>
+    <div class="choice-grid mode-choices" id="sound-choices" role="group" aria-label="Sound effects">
+      <button class="choice-btn" data-sound="off">&#128263; Off</button>
+      <button class="choice-btn" data-sound="on">&#128266; On</button>
+    </div>
+    <p class="weather-hint">A ding for a right answer, and a little tune when a session ends.</p>
+
+    <!-- Roadmap #139 and #138 -->
+    <h3 class="section-subheading">For grown-ups</h3>
+    <h4 id="note-heading" class="settings-minor-heading">Note for your child</h4>
+    <p class="weather-hint">A short, kind note. It shows once at the top of Home the next time Sprint is opened.</p>
+    <div id="note-editor">
+      <label for="note-input" class="visually-hidden">Your note</label>
+      <textarea id="note-input" class="suggestion-input note-input" rows="3" maxlength="200"></textarea>
+      <div class="note-row">
+        <span id="note-count" class="note-count">0 / 200</span>
+        <button id="note-save-btn" type="button" class="secondary-btn note-btn" disabled>Save note</button>
+      </div>
+    </div>
+    <div id="note-saved" hidden>
+      <p id="note-status" class="note-status"></p>
+      <div class="note-row">
+        <button id="note-edit-btn" type="button" class="secondary-btn note-btn">Edit note</button>
+        <button id="note-delete-btn" type="button" class="link-btn note-delete-btn">Delete note</button>
+      </div>
+    </div>
+
+    <h4 class="settings-minor-heading">Reward goal</h4>
+    <p class="weather-hint">A real-life treat to save up for. Home shows a bar that fills up with the points earned after the goal is saved. Spending points in the Shop never moves it back.</p>
+    <div class="name-row">
+      <label for="reward-label-input" class="name-label">Reward</label>
+      <input id="reward-label-input" class="name-input" type="text" maxlength="40" placeholder="e.g. Cinema trip" autocomplete="off" />
+    </div>
+    <div class="name-row">
+      <label for="reward-target-input" class="name-label">Points needed</label>
+      <input id="reward-target-input" class="name-input" type="number" inputmode="numeric" pattern="[0-9]*" min="100" max="100000" step="1" placeholder="e.g. 2000" autocomplete="off" />
+    </div>
+    <p id="reward-goal-status" class="reward-goal-status" role="status" hidden></p>
+    <div class="note-row">
+      <button id="reward-save-btn" type="button" class="secondary-btn note-btn">Save goal</button>
+      <button id="reward-remove-btn" type="button" class="link-btn note-delete-btn" hidden>Remove goal</button>
+    </div>
 
     <h3 class="section-subheading">Send suggestions to GitHub</h3>
     <p class="weather-hint">Optional. With this filled in, a suggestion is added straight to the roadmap file on GitHub instead of waiting to be copied across. Set up the relay first &mdash; see <code>worker/README.md</code>. The app key here can only add a line to that one file; it is not a GitHub password and gives no other access.</p>
