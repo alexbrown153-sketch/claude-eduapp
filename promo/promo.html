@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sprint promo (30s)</title>
+<!--
+  30-second promo for Sprint, built as a seekable animation: everything on
+  screen is a pure function of time, render(t). promo/render.mjs steps t frame
+  by frame, screenshots each frame and hands them to ffmpeg. Open this file in
+  a browser to watch it live (it loops). Add #t=12.5 to the URL to freeze on a moment.
+  Icons are inline SVG (no emoji fonts needed, no network calls).
+-->
+<style>
+  :root { --ink:#14172b; --indigo:#4c5fd5; --accent:#6d7cff; --gold:#ffc53d; --good:#22a06b; --pink:#ff5fa2; --orange:#ff8a3d; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { width:1280px; height:720px; overflow:hidden; background:#0d1024; }
+  body { font-family:"Liberation Sans","Helvetica Neue",Arial,sans-serif; font-weight:900; color:#fff; }
+  #stage { position:relative; width:1280px; height:720px; overflow:hidden;
+           background:radial-gradient(circle at 50% 40%, #3a49b0 0%, #1b1e4a 55%, #0d1024 100%); }
+  .abs { position:absolute; left:0; top:0; }
+  .center { position:absolute; left:0; width:1280px; text-align:center; }
+  .scene { position:absolute; inset:0; display:none; }
+  .big { font-size:120px; letter-spacing:-2px; line-height:1; font-style:italic; text-shadow:0 8px 0 rgba(0,0,0,.35); }
+  .mid { font-size:64px; line-height:1.05; font-style:italic; text-shadow:0 5px 0 rgba(0,0,0,.35); }
+  .small { font-size:34px; font-weight:700; opacity:.9; }
+  .card { background:#fff; color:var(--ink); border-radius:34px; box-shadow:0 14px 0 #cfd3e4, 0 30px 60px rgba(0,0,0,.4); }
+  .key { position:absolute; width:96px; height:76px; border-radius:20px; background:#eef0f8; color:var(--ink);
+         font-size:40px; display:flex; align-items:center; justify-content:center; box-shadow:0 6px 0 #cfd3e4; }
+  .pill { position:absolute; border-radius:999px; padding:10px 26px; font-size:34px; display:flex; align-items:center; gap:10px; }
+  svg { display:block; overflow:visible; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="bg" class="abs" width="1280" height="720"></canvas>
+
+  <!-- 0-4s HOOK -->
+  <div class="scene" id="s1">
+    <div class="center" id="h1" style="top:150px"><div class="big" style="font-size:104px">THINK YOU'RE</div></div>
+    <div class="center" id="h2" style="top:270px"><div class="big" style="font-size:180px;color:var(--gold)">FAST</div></div>
+    <div class="center" id="h3" style="top:470px"><div class="mid">at maths?</div></div>
+    <div class="center" id="cd" style="top:230px"><div class="big" style="font-size:340px;color:#fff"></div></div>
+  </div>
+
+  <!-- 4-8s LOGO -->
+  <div class="scene" id="s2">
+    <div class="abs" id="rocket" style="left:0;top:0"></div>
+    <div class="center" id="logo" style="top:210px"><div class="big" style="font-size:230px;color:#fff">SPRINT</div></div>
+    <div class="center" id="tag" style="top:480px"><div class="mid" style="color:var(--gold)">Maths... but make it a GAME.</div></div>
+  </div>
+
+  <!-- 8-15s GAMEPLAY -->
+  <div class="scene" id="s3">
+    <div class="abs card" id="qcard" style="left:150px;top:90px;width:560px;height:540px"></div>
+    <div class="abs" id="hud" style="left:760px;top:90px;width:380px"></div>
+    <div class="center" id="feedback" style="top:642px"></div>
+  </div>
+
+  <!-- 15-21s FEATURES -->
+  <div class="scene" id="s4">
+    <div class="center" style="top:36px"><div class="mid" id="s4title">LOADS to unlock</div></div>
+    <div class="abs" id="chestBox" style="left:90px;top:170px;width:330px;height:420px"></div>
+    <div class="abs" id="badgeBox" style="left:475px;top:170px;width:330px;height:420px"></div>
+    <div class="abs" id="shopBox" style="left:860px;top:170px;width:330px;height:420px"></div>
+  </div>
+
+  <!-- 21-26s GROW -->
+  <div class="scene" id="s5">
+    <div class="center" style="top:50px"><div class="mid">Watch yourself get <span style="color:var(--gold)">BETTER</span></div></div>
+    <div class="abs" id="bars" style="left:200px;top:190px;width:880px"></div>
+    <div class="center" id="streakline" style="top:600px"></div>
+  </div>
+
+  <!-- 26-30s CTA -->
+  <div class="scene" id="s6">
+    <div class="center" id="c1" style="top:120px"><div class="mid" style="font-size:78px">Beat your best.</div></div>
+    <div class="center" id="c2" style="top:230px"><div class="big" style="font-size:150px;color:var(--gold)">EVERY DAY.</div></div>
+    <div class="center" id="c3" style="top:410px"><div class="big" style="font-size:210px;">GO!</div></div>
+    <div class="center" id="c4" style="top:670px"><div class="small" id="c4t">Sprint &mdash; free maths practice that feels like a game</div></div>
+  </div>
+
+  <canvas id="fx" class="abs" width="1280" height="720" style="pointer-events:none"></canvas>
+  <div id="flash" class="abs" style="width:1280px;height:720px;background:#fff;opacity:0"></div>
+</div>
+
+<script>
+// ---------- helpers ----------
+const $ = (id) => document.getElementById(id);
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+const eOut = (x) => 1 - Math.pow(1 - x, 3);
+const eBack = (x) => { const c = 1.9; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+const eElastic = (x) => x === 0 || x === 1 ? x : Math.pow(2, -9 * x) * Math.sin((x * 10 - 0.75) * (2 * Math.PI / 3)) + 1;
+const lerp = (a, b, x) => a + (b - a) * x;
+const rnd = (n) => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+function tf(el, x, y, s, r, o) {
+  el.style.transform = `translate(${x}px,${y}px) scale(${s}) rotate(${r || 0}deg)`;
+  if (o !== undefined) el.style.opacity = o;
+}
+// pop-in: scale 0 -> 1 with overshoot starting at time a
+const pop = (t, a, d = 0.4) => eBack(prog(t, a, a + d));
+
+// ---------- icons (inline SVG) ----------
+const ICON = {
+  flame: (s = 80) => `<svg width="${s}" height="${s}" viewBox="0 0 64 64"><path d="M34 3c2 12 14 17 14 33a16 16 0 0 1-32 0c0-8 4-12 6-17 3 3 3 6 5 8 3-8 4-14 7-24z" fill="#ff7a1a"/><path d="M33 26c1 7 8 10 8 19a9 9 0 0 1-18 0c0-5 3-7 4-10 2 2 2 3 3 5 2-4 2-8 3-14z" fill="#ffd23d"/></svg>`,
+  star: (s = 80, c = '#ffc53d') => `<svg width="${s}" height="${s}" viewBox="0 0 64 64"><path d="M32 4l8.4 17.6 19.3 2.4-14.2 13.3 3.7 19.1L32 47.2 14.8 56.4l3.7-19.1L4.3 24l19.3-2.4z" fill="${c}" stroke="#e29a00" stroke-width="3" stroke-linejoin="round"/></svg>`,
+  rocket: (s = 160) => `<svg width="${s}" height="${s}" viewBox="0 0 64 64"><path d="M26 44c-6 2-9 8-9 14 6 0 12-3 14-9z" fill="#ff7a1a"/><path d="M22 36l-8 2 6-12 10-1zM40 46l-2 8 12-6 1-10z" fill="#ff5fa2"/><path d="M20 44C18 30 26 14 46 6c4 0 8 4 8 8-8 20-24 28-34 30z" fill="#f4f5fb" stroke="#cfd3e4" stroke-width="2"/><circle cx="40" cy="20" r="6" fill="#6d7cff" stroke="#3a49b0" stroke-width="3"/><path d="M22 44c-4 2-6 6-6 10 0 0 8 2 12-4z" fill="#ffd23d"/></svg>`,
+  trophy: (s = 80) => `<svg width="${s}" height="${s}" viewBox="0 0 64 64"><path d="M18 6h28v16a14 14 0 0 1-28 0z" fill="#ffc53d" stroke="#e29a00" stroke-width="3"/><path d="M18 10H8c0 12 4 18 12 20M46 10h10c0 12-4 18-12 20" fill="none" stroke="#e29a00" stroke-width="4"/><rect x="28" y="34" width="8" height="12" fill="#e29a00"/><rect x="18" y="46" width="28" height="10" rx="3" fill="#ffc53d" stroke="#e29a00" stroke-width="3"/></svg>`,
+  medal: (s = 80, c = '#ff5fa2') => `<svg width="${s}" height="${s}" viewBox="0 0 64 64"><path d="M20 4l12 24 12-24z" fill="${c}"/><circle cx="32" cy="40" r="17" fill="#ffc53d" stroke="#e29a00" stroke-width="3"/><path d="M32 30l3 7 8 1-6 5 2 8-7-4-7 4 2-8-6-5 8-1z" fill="#fff" opacity=".9"/></svg>`,
+  bolt: (s = 80) => `<svg width="${s}" height="${s}" viewBox="0 0 64 64"><path d="M38 3L12 36h16l-4 25 28-36H36z" fill="#ffd23d" stroke="#e29a00" stroke-width="3" stroke-linejoin="round"/></svg>`,
+  chest: (s = 200, open = 0) => `<svg width="${s}" height="${s}" viewBox="0 0 100 100">
+    <ellipse cx="50" cy="90" rx="38" ry="6" fill="rgba(0,0,0,.3)"/>
+    <rect x="12" y="46" width="76" height="40" rx="6" fill="#b86a2b" stroke="#6b3a14" stroke-width="3"/>
+    <rect x="44" y="46" width="12" height="40" fill="#ffc53d" stroke="#6b3a14" stroke-width="2"/>
+    <g transform="rotate(${-open * 62} 12 46)"><path d="M12 46V36a38 22 0 0 1 76 0v10z" fill="#cd7f3a" stroke="#6b3a14" stroke-width="3"/><rect x="44" y="20" width="12" height="26" fill="#ffc53d" stroke="#6b3a14" stroke-width="2"/></g>
+    <rect x="44" y="52" width="12" height="14" rx="3" fill="#ffd23d" stroke="#6b3a14" stroke-width="2" opacity="${1 - open}"/></svg>`,
+  face: (s, bg, ear) => `<svg width="${s}" height="${s}" viewBox="0 0 64 64"><circle cx="32" cy="32" r="28" fill="${bg}"/>${ear || ''}<circle cx="23" cy="28" r="4" fill="#14172b"/><circle cx="41" cy="28" r="4" fill="#14172b"/><path d="M20 40q12 12 24 0" fill="none" stroke="#14172b" stroke-width="4" stroke-linecap="round"/></svg>`,
+};
+const AVATARS = [
+  ICON.face(84, '#ffb84d', '<path d="M10 14l8 12-12 2zM54 14l-8 12 12 2z" fill="#ffb84d"/>'),
+  ICON.face(84, '#6dd3a0', '<circle cx="14" cy="14" r="8" fill="#6dd3a0"/><circle cx="50" cy="14" r="8" fill="#6dd3a0"/>'),
+  ICON.face(84, '#c490ff', '<path d="M16 6l16-4 16 4" stroke="#7a3fd0" stroke-width="5" fill="none"/>'),
+  ICON.face(84, '#ff8fb8', ''),
+  ICON.face(84, '#6d7cff', '<rect x="26" y="0" width="12" height="8" fill="#3a49b0"/>'),
+  ICON.face(84, '#ffd23d', ''),
+];
+
+// ---------- background: drifting numbers and shapes ----------
+const bg = $('bg').getContext('2d');
+const GLYPHS = ['+', '−', '×', '÷', '=', '7', '3', '9', '½', '%', '5', 'π', '12', '8', '√'];
+function drawBg(t) {
+  bg.clearRect(0, 0, 1280, 720);
+  const hue = t < 8 ? 0 : t < 21 ? 1 : 2;
+  for (let i = 0; i < 26; i++) {
+    const sp = 20 + rnd(i) * 40;
+    const x = (rnd(i + 50) * 1400 + t * sp * (i % 2 ? 1 : -1) + 1400) % 1400 - 60;
+    const y = (rnd(i + 99) * 800 - t * (10 + rnd(i + 7) * 25) + 800) % 800 - 40;
+    bg.save();
+    bg.translate(x, y);
+    bg.rotate(Math.sin(t * 0.8 + i) * 0.4);
+    bg.globalAlpha = 0.09 + rnd(i + 3) * 0.1;
+    bg.font = `900 ${50 + rnd(i + 11) * 90}px Liberation Sans`;
+    bg.fillStyle = ['#fff', '#ffc53d', '#6d7cff'][(i + hue) % 3];
+    bg.fillText(GLYPHS[i % GLYPHS.length], 0, 0);
+    bg.restore();
+  }
+}
+
+// ---------- confetti / particle FX (deterministic bursts) ----------
+const fx = $('fx').getContext('2d');
+const COLORS = ['#ffc53d', '#ff5fa2', '#6d7cff', '#22d68a', '#ff8a3d', '#fff'];
+// burst: spawn time, origin, count, power
+const BURSTS = [
+  { t: 4.0, x: 640, y: 360, n: 70, p: 900 },
+  { t: 11.1, x: 430, y: 320, n: 40, p: 600 },
+  { t: 13.0, x: 430, y: 320, n: 40, p: 600 },
+  { t: 17.0, x: 255, y: 330, n: 80, p: 800 },
+  { t: 26.0, x: 640, y: 360, n: 160, p: 1100 },
+  { t: 27.6, x: 300, y: 600, n: 60, p: 900 },
+  { t: 27.9, x: 980, y: 600, n: 60, p: 900 },
+];
+function drawFx(t) {
+  fx.clearRect(0, 0, 1280, 720);
+  BURSTS.forEach((b, bi) => {
+    const age = t - b.t;
+    if (age < 0 || age > 2.6) return;
+    for (let i = 0; i < b.n; i++) {
+      const r = (k) => rnd(bi * 1000 + i * 7 + k);
+      const a = r(1) * Math.PI * 2, sp = b.p * (0.25 + r(2) * 0.75);
+      const x = b.x + Math.cos(a) * sp * age * (1 - age * 0.12);
+      const y = b.y + Math.sin(a) * sp * age * (1 - age * 0.12) + 700 * age * age * 0.5;
+      fx.save();
+      fx.translate(x, y);
+      fx.rotate(r(3) * 6 + age * (r(4) * 12 - 6));
+      fx.globalAlpha = clamp(1 - (age - 1.6) / 1, 0, 1);
+      fx.fillStyle = COLORS[Math.floor(r(5) * COLORS.length)];
+      fx.fillRect(-7, -4, 14, 8);
+      fx.restore();
+    }
+  });
+}
+
+// ---------- scenes ----------
+const scenes = ['s1', 's2', 's3', 's4', 's5', 's6'].map($);
+const BOUNDS = [0, 4, 8, 15, 21, 26, 30];
+
+// Scene 1: hook (0-4)
+function s1(t) {
+  tf($('h1'), 0, 0, 1, 0, pop(t, 0.1) > 0 ? 1 : 0);
+  $('h1').style.transform = `translateY(${(1 - eOut(prog(t, 0.1, 0.5))) * -120}px)`;
+  $('h2').style.transform = `scale(${pop(t, 0.5, 0.55)}) rotate(${Math.sin(t * 9) * 1.5}deg)`;
+  $('h2').style.opacity = t > 0.5 ? 1 : 0;
+  $('h3').style.transform = `translateY(${(1 - eOut(prog(t, 1.0, 1.4))) * 120}px)`;
+  $('h3').style.opacity = prog(t, 1.0, 1.3);
+  // text exits, countdown 3-2-1 from 1.9s
+  const out = eOut(prog(t, 1.85, 2.15));
+  ['h1', 'h2', 'h3'].forEach((id) => { $(id).style.opacity = (1 - out) * (id === 'h3' ? prog(t, 1.0, 1.3) : 1); });
+  const cd = $('cd'), n = cd.firstElementChild;
+  const step = Math.floor((t - 2.1) / 0.6);
+  if (t >= 2.1 && step < 3) {
+    const local = (t - 2.1) - step * 0.6;
+    n.textContent = 3 - step;
+    n.style.color = ['#fff', '#ffc53d', '#ff5fa2'][step];
+    cd.style.opacity = 1 - prog(local, 0.45, 0.6);
+    cd.style.transform = `scale(${lerp(2.2, 1, eOut(prog(local, 0, 0.25)))})`;
+  } else if (t >= 3.9) { cd.style.opacity = 0; } else { cd.style.opacity = 0; }
+  if (t >= 3.9) $('flash').style.opacity = 0;
+}
+
+// Scene 2: logo (4-8)
+function s2(t) {
+  const l = t - 4;
+  const r = $('rocket');
+  r.innerHTML = ICON.rocket(300);
+  // rocket zooms in from bottom-left, circles, settles top-right of logo
+  const x = lerp(-250, 960, eOut(prog(l, 0, 0.9)));
+  const y = lerp(760, 20, eOut(prog(l, 0, 0.9))) + Math.sin(l * 6) * 8;
+  const flameLen = 30 + Math.sin(l * 40) * 10;
+  r.style.transform = `translate(${x}px,${y}px) rotate(45deg)`;
+  const lg = $('logo');
+  lg.style.transform = `scale(${lerp(0.2, 1, eBack(prog(l, 0.3, 0.9)))}) rotate(${lerp(-8, -3, eOut(prog(l, 0.3, 0.9)))}deg)`;
+  lg.style.opacity = prog(l, 0.3, 0.45);
+  $('tag').style.opacity = prog(l, 1.3, 1.6);
+  $('tag').style.transform = `translateY(${(1 - eOut(prog(l, 1.3, 1.7))) * 60}px)`;
+  const mid = $('s2');
+  mid.style.opacity = 1 - prog(l, 3.7, 4.0) * 0; // handled by cut
+}
+
+// Scene 3: gameplay (8-15)
+const QS = [
+  { q: '7 × 8', a: '56', start: 8.3, type: 8.9, ok: 9.5, pts: 12 },
+  { q: '25% of 80', a: '20', start: 10.0, type: 10.4, ok: 11.0, pts: 14 },
+  { q: '3x + 4 = 19', a: '5', start: 11.6, type: 12.0, ok: 12.6, pts: 16 },
+  { q: '½ + ¼ = ?', a: '¾', start: 13.2, type: 13.5, ok: 14.0, pts: 20 },
+];
+function s3(t) {
+  const sc = prog(t, 8, 8.5);
+  $('qcard').style.transform = `translateX(${(1 - eOut(sc)) * -700}px)`;
+  $('hud').style.transform = `translateX(${(1 - eOut(sc)) * 600}px)`;
+  // current question
+  let cur = QS[0];
+  QS.forEach((q) => { if (t >= q.start - 0.05) cur = q; });
+  const idx = QS.indexOf(cur);
+  const qt = t - cur.start;
+  const typed = t >= cur.type ? (t >= cur.type + 0.18 && cur.a.length > 1 ? cur.a : cur.a.slice(0, 1)) : '';
+  const correct = t >= cur.ok;
+  const done = idx + (correct ? 1 : 0);
+  const timeLeft = clamp(1 - qt / 4.0);
+  const slide = eOut(prog(qt, 0, 0.25));
+  $('qcard').innerHTML = `
+    <div style="padding:34px 40px;opacity:${slide}">
+      <div style="display:flex;justify-content:space-between;align-items:center;color:#565c75;font-size:26px">
+        <span>QUESTION ${idx + 1}</span><span style="color:${timeLeft < 0.3 ? '#e5534b' : '#4c5fd5'}">${(timeLeft * 12).toFixed(0)}s</span></div>
+      <div style="height:16px;border-radius:9px;background:#eef0f8;margin-top:12px;overflow:hidden">
+        <div style="height:100%;width:${timeLeft * 100}%;background:linear-gradient(90deg,#6d7cff,#4c5fd5);border-radius:9px"></div></div>
+      <div style="font-size:${cur.q.length > 8 ? 78 : 112}px;text-align:center;margin-top:44px;transform:translateX(${(1 - slide) * 90}px)">${cur.q}</div>
+      <div style="margin:34px auto 0;width:300px;height:104px;border-radius:24px;font-size:76px;text-align:center;line-height:100px;
+           background:${correct ? '#e3f6ec' : '#eef0f8'};color:${correct ? '#146c43' : '#14172b'};
+           border:5px solid ${correct ? '#22a06b' : '#cfd3e4'};transform:scale(${correct ? 1 + 0.12 * Math.sin(prog(t, cur.ok, cur.ok + 0.25) * Math.PI) : 1})">
+        ${typed}${typed || correct ? '' : '<span style="opacity:' + (Math.floor(t * 3) % 2) + '">|</span>'}</div>
+    </div>`;
+  // HUD: points, streak, progress dots
+  const pts = QS.slice(0, done).reduce((s, q, i) => s + q.pts, 0);
+  const shown = Math.round(QS.slice(0, done).reduce((s, q) => s + q.pts, 0) * 10 * (1) );
+  const streak = done;
+  const lastOk = QS.filter((q) => t >= q.ok).map((q) => q.ok).pop() || -9;
+  const bump = 1 + 0.25 * Math.sin(prog(t, lastOk, lastOk + 0.3) * Math.PI);
+  $('hud').innerHTML = `
+    <div class="card" style="height:150px;padding:20px 28px;transform:scale(${bump});transform-origin:50% 50%">
+      <div style="color:#565c75;font-size:24px">POINTS</div>
+      <div style="font-size:72px;line-height:1;color:#4c5fd5;display:flex;align-items:center;gap:14px">${ICON.star(60)}${shown}</div></div>
+    <div class="card" style="height:150px;margin-top:34px;padding:20px 28px;display:flex;align-items:center;gap:20px;transform:scale(${bump})">
+      <div style="transform:scale(${1 + streak * 0.12}) rotate(${Math.sin(t * 14) * 4}deg);transform-origin:50% 90%">${ICON.flame(88)}</div>
+      <div><div style="color:#565c75;font-size:24px">STREAK</div><div style="font-size:64px;line-height:1;color:#ff7a1a">${streak}</div></div></div>
+    <div class="card" style="height:110px;margin-top:34px;padding:22px 28px;display:flex;gap:16px;align-items:center">
+      ${QS.map((q, i) => `<div style="width:56px;height:56px;border-radius:50%;background:${i < done ? '#22a06b' : '#eef0f8'};
+        border:4px solid ${i < done ? '#146c43' : '#cfd3e4'};transform:scale(${i === done - 1 ? 1 + 0.3 * Math.sin(prog(t, q.ok, q.ok + 0.3) * Math.PI) : 1})"></div>`).join('')}</div>`;
+  // big feedback
+  const fb = $('feedback');
+  const since = t - lastOk;
+  const words = ['CORRECT!', 'NICE!', 'ON FIRE!', 'UNSTOPPABLE!'];
+  if (since >= 0 && since < 0.9 && done > 0) {
+    fb.innerHTML = `<div class="mid" style="color:#22d68a;font-size:70px">${words[Math.min(done - 1, 3)]} <span style="color:#ffc53d">+${QS[done - 1].pts * 10}</span></div>`;
+    fb.style.transform = `scale(${eBack(prog(since, 0, 0.25))})`;
+    fb.style.opacity = 1 - prog(since, 0.7, 0.9);
+  } else fb.innerHTML = '';
+}
+
+// Scene 4: features (15-21)
+function s4(t) {
+  const l = t - 15;
+  const card = (title, sub) => `<div class="card" style="width:330px;height:420px;position:relative;text-align:center;padding-top:24px"><div style="font-size:34px;color:#14172b;font-style:italic">${title}</div><div style="font-size:21px;color:#565c75;font-weight:700;margin-top:4px">${sub}</div>`;
+  const place = (id, a) => { const e = $(id); const p = pop(t, a, 0.5); e.style.transform = `scale(${p}) rotate(${(1 - p) * 12}deg)`; e.style.opacity = t > a ? 1 : 0; };
+  place('chestBox', 15.2); place('badgeBox', 16.5); place('shopBox', 17.8);
+  // chest: opens at 17.0 (s), reveal star
+  const open = eOut(prog(t, 17.0, 17.3));
+  const shake = t > 16.4 && t < 17.0 ? Math.sin(t * 60) * 5 : 0;
+  const rise = eOut(prog(t, 17.1, 17.7));
+  $('chestBox').innerHTML = card('MYSTERY CHEST', 'a new surprise every day') +
+    `<div style="position:absolute;left:65px;top:150px;transform:rotate(${shake}deg)">${ICON.chest(200, open)}</div>
+     <div style="position:absolute;left:125px;top:${lerp(190, 100, rise)}px;opacity:${open};transform:scale(${0.4 + rise * 0.9}) rotate(${rise * 40}deg)">${ICON.star(80)}</div>
+     <div style="position:absolute;left:0;width:330px;top:350px;font-size:34px;color:#4c5fd5;opacity:${open}">+50 points!</div></div>`;
+  // badges
+  const bd = [ICON.flame(70), ICON.trophy(70), ICON.medal(70), ICON.bolt(70), ICON.star(70), ICON.medal(70, '#6d7cff')];
+  $('badgeBox').innerHTML = card('WIN BADGES', 'collect them all') +
+    `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:18px 6px;padding:28px 20px;justify-items:center">` +
+    bd.map((b, i) => { const p = pop(t, 17.3 + i * 0.18, 0.4); return `<div style="transform:scale(${p});opacity:${p > 0 ? 1 : 0}">${b}</div>`; }).join('') +
+    `</div><div style="position:absolute;left:0;width:330px;top:330px;font-size:26px;color:#565c75;opacity:${prog(t, 18.4, 18.6)}">Some are <span style="color:#7a3fd0">SECRET</span>?!</div></div>`;
+  // shop avatars
+  $('shopBox').innerHTML = card('CUSTOMISE', 'avatars, themes & more') +
+    `<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px;padding:26px 36px;justify-items:center">` +
+    AVATARS.slice(0, 4).map((a, i) => { const p = pop(t, 18.5 + i * 0.18, 0.4); return `<div style="transform:scale(${p}) rotate(${Math.sin(t * 5 + i) * 4 * p}deg);opacity:${p > 0 ? 1 : 0}">${a}</div>`; }).join('') +
+    `</div><div style="position:absolute;left:0;width:330px;top:350px;opacity:${prog(t, 19.4, 19.6)}"><span style="display:inline-block;background:#4c5fd5;color:#fff;border-radius:999px;font-size:24px;padding:8px 22px;letter-spacing:1px">SPEND YOUR POINTS</span></div></div>`;
+  $('s4title').innerHTML = `LOADS to <span style="color:var(--gold)">unlock</span>`;
+  $('s4title').style.transform = `scale(${pop(t, 15.0, 0.4)})`;
+}
+
+// Scene 5: grow (21-26)
+const TOPICS = [['Times tables', 0.95, '#22d68a'], ['Fractions', 0.82, '#6d7cff'], ['Percentages', 0.7, '#ffc53d'], ['Algebra', 0.88, '#ff5fa2'], ['Geometry', 0.6, '#ff8a3d']];
+function s5(t) {
+  const l = t - 21;
+  $('bars').innerHTML = TOPICS.map(([n, v, c], i) => {
+    const p = eOut(prog(l, 0.4 + i * 0.25, 1.6 + i * 0.25));
+    const e = pop(t, 21.1 + i * 0.12, 0.3);
+    const done = p >= 0.999;
+    return `<div style="display:flex;align-items:center;gap:22px;margin-bottom:22px;opacity:${e > 0 ? 1 : 0};transform:translateX(${(1 - e) * -200}px)">
+      <div style="width:230px;font-size:30px;text-align:right">${n}</div>
+      <div style="flex:1;height:52px;border-radius:26px;background:rgba(255,255,255,.14);overflow:hidden">
+        <div style="height:100%;width:${v * p * 100}%;background:${c};border-radius:26px;box-shadow:inset 0 -8px 0 rgba(0,0,0,.18)"></div></div>
+      <div style="width:90px;font-size:34px">${Math.round(v * p * 100)}%</div></div>`;
+  }).join('');
+  const sp = pop(t, 23.4, 0.5);
+  $('streakline').innerHTML = `<div style="display:inline-flex;align-items:center;gap:18px;background:#fff;color:#14172b;border-radius:999px;padding:12px 40px 12px 24px;transform:scale(${sp});box-shadow:0 8px 0 #cfd3e4">
+    ${ICON.flame(70)}<span style="font-size:44px;font-style:italic">14-day streak!</span><span style="font-size:30px;color:#4c5fd5;margin-left:8px">UNSTOPPABLE</span></div>`;
+  $('streakline').style.opacity = sp > 0 ? 1 : 0;
+}
+
+// Scene 6: CTA (26-30)
+function s6(t) {
+  const l = t - 26;
+  $('c1').style.transform = `translateY(${(1 - eOut(prog(l, 0, 0.4))) * -100}px)`;
+  $('c1').style.opacity = prog(l, 0, 0.3);
+  $('c2').style.transform = `scale(${pop(t, 26.5, 0.5)})`;
+  $('c2').style.opacity = t > 26.5 ? 1 : 0;
+  const g = pop(t, 27.5, 0.5);
+  $('c3').style.transform = `scale(${g * (1 + 0.05 * Math.sin(l * 8))}) rotate(${Math.sin(l * 5) * 2}deg)`;
+  $('c3').style.opacity = t > 27.5 ? 1 : 0;
+  $('c4').style.opacity = prog(l, 2.0, 2.4);
+  $('c4t').style.fontSize = '30px';
+}
+
+// ---------- master render ----------
+function render(t) {
+  const si = BOUNDS.findIndex((b, i) => t >= b && t < BOUNDS[i + 1]);
+  scenes.forEach((s, i) => { s.style.display = i === si ? 'block' : 'none'; });
+  drawBg(t);
+  [s1, s2, s3, s4, s5, s6][si](t);
+  drawFx(t);
+  // whoosh flash on every scene cut
+  let f = 0;
+  BOUNDS.slice(1, -1).forEach((b) => { const d = t - b; if (d >= 0 && d < 0.18) f = Math.max(f, 0.8 * (1 - d / 0.18)); });
+  $('flash').style.opacity = f;
+  // gentle zoom punch on beats at 128bpm? keep scene calm; add a slow push-in
+  const sceneT = t - BOUNDS[si];
+  scenes[si].style.transform = `scale(${1 + sceneT * 0.012})`;
+}
+window.render = render;
+window.DURATION = 30;
+
+const m = location.hash.match(/t=([\d.]+)/);
+if (m) render(parseFloat(m[1]));
+else if (!window.__RECORDING) {
+  const t0 = performance.now();
+  (function loop() { render(((performance.now() - t0) / 1000) % 30); requestAnimationFrame(loop); })();
+}
+</script>
+</body>
+</html>
