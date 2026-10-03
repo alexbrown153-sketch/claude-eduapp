@@ -14,9 +14,16 @@
 // roadmap file. The Suggestions screen numbers new suggestions from here, so
 // they slot straight onto the end of that file (see suggestions in ui.js).
 // Bump it whenever items are appended to the roadmap file.
-export const ROADMAP_LAST_ITEM_NUMBER = 153;
+export const ROADMAP_LAST_ITEM_NUMBER = 154;
 
 export const CHANGELOG = [
+  {
+    at: '2026-10-03T09:00+01:00',
+    label: 'Roadmap 154',
+    changes: [
+      'Someone sent in a suggestion that just said \u201cAn example.\u201d We couldn\u2019t tell what you wanted, so nothing has changed. Send another one that says what you\u2019d like and we\u2019ll have a go!',
+    ],
+  },
   {
     at: '2026-09-29T18:10+01:00',
     label: 'Roadmap 143–148, 153',
