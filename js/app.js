@@ -4,12 +4,13 @@
 
 import { Storage, TOPICS, YEAR7_TOPICS, ALL_TOPICS, activeTopics, backupProblem } from './storage.js';
 import { computeTodaysPlan } from './pacing.js';
-import { startSession, pickNextQuestion, recordAnswer, classifyAnswer, checkAnswer, isSessionComplete, finishSession, settleBossGate, bossProgress, hasReachedLength, settleDayClock, buildRetryQueue, buildCheckupQueue } from './session.js';
+import { startSession, pickNextQuestion, recordAnswer, classifyAnswer, checkAnswer, isSessionComplete, finishSession, settleBossGate, bossProgress, hasReachedLength, settleDayClock, sessionEndAt, rebaseTimedSession, regularCount, focusFromTopics, buildRetryQueue, buildCheckupQueue } from './session.js';
 import { getSimilarQuestion, rightFormHint } from './questionBank.js';
+import { findLevelUps } from './mastery.js';
 import { getBadgeDefinitions, evaluateBadges, highestTiersOnly } from './badges.js';
 import {
   computePersonalBests, findNewRecords, computeFixedMistakes, computeMistakesToFix, questionsOnDay,
-  compareTopicAccuracy, computeMonthlyRecap, countMapSteps, countsAsPractice,
+  compareTopicAccuracy, computeMonthlyRecap, countMapSteps, countsAsPractice, compareWithLastSession,
 } from './records.js';
 import { createWeekQuests, questProgress, settleQuests } from './quests.js';
 import { isChestAvailable, rollChest } from './chest.js';
@@ -46,6 +47,9 @@ const state = {
   currentQuestion: null,
   questionStartTime: null,
   timerInterval: null,
+  // Roadmap #178: when the app was hidden (iPad locked, app switched), or
+  // null while it is in front. Time away is taken off the clocks.
+  hiddenAt: null,
   // Roadmap #101: the "Try one like it" question on offer after a wrong
   // answer, or null. Only lives while that answer is on screen, so it isn't
   // saved with the in-progress session.
@@ -209,26 +213,30 @@ function describeProgress(meta, sessionCount) {
   return `${sessionCount} session${sessionCount === 1 ? '' : 's'}, ${availableBalance(m)} stars to spend and a ${m.currentStreakDays || 0}-day streak`;
 }
 
-function handleRestoreFile(file) {
-  ui.showBackupStatus('');
+// `recovering` (#187): the same picker, checks and confirmation, used from the
+// "couldn't be read" notice instead of Settings. The messages go to that
+// screen, and the confirmation doesn't compare with unreadable progress.
+function handleRestoreFile(file, recovering = false) {
+  const say = recovering ? (m) => ui.showRecoveryStatus(m) : (m, tone) => ui.showBackupStatus(m, tone);
+  say('');
   const notOurs = 'That file isn\u2019t a Sprint backup, so nothing was changed.';
   if (file.size > MAX_BACKUP_BYTES) {
-    ui.showBackupStatus('That file is too big to be a Sprint backup, so nothing was changed.', 'warn');
+    say('That file is too big to be a Sprint backup, so nothing was changed.', 'warn');
     return;
   }
   const reader = new FileReader();
-  reader.onerror = () => ui.showBackupStatus('That file couldn\u2019t be read, so nothing was changed.', 'warn');
+  reader.onerror = () => say('That file couldn\u2019t be read, so nothing was changed.', 'warn');
   reader.onload = () => {
     let backup;
     try {
       backup = JSON.parse(reader.result);
     } catch (e) {
-      ui.showBackupStatus(notOurs, 'warn');
+      say(notOurs, 'warn');
       return;
     }
     const problem = backupProblem(backup);
     if (problem) {
-      ui.showBackupStatus(problem, 'warn');
+      say(problem, 'warn');
       return;
     }
     const when = new Date(backup.exportedAt);
@@ -237,19 +245,21 @@ function handleRestoreFile(file) {
       : when.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' });
     const sure = window.confirm(
       `Restore the backup from ${whenText}? It has ${describeProgress(backup.data.meta, backup.data.sessions.length)}. `
-      + `This iPad has ${describeProgress(Storage.getMeta(), Storage.getSessions().length)} now. `
-      + 'Your progress here will be replaced by the backup.',
+      + (recovering
+        ? 'Your saved progress here couldn\u2019t be read, and will be replaced by the backup.'
+        : `This iPad has ${describeProgress(Storage.getMeta(), Storage.getSessions().length)} now. Your progress here will be replaced by the backup.`),
     );
     if (!sure) return;
     try {
       Storage.restoreBackup(backup);
     } catch (e) {
-      ui.showBackupStatus('Something went wrong while restoring, so your progress has been left just as it was.', 'warn');
+      say('Something went wrong while restoring, so your progress has been left just as it was.', 'warn');
       return;
     }
     settleDayClockIfNeeded(); // an older backup may predate the local-day switch
     applyCosmetics(Storage.getShopState());
     applyColourMode(Storage.getMeta().colourMode);
+    ui.leaveRecovery();
     goToStart();
     ui.showHomeNotice('Progress restored');
   };
@@ -337,6 +347,22 @@ function markParentNoteSeen() {
   ui.renderParentNote(null);
 }
 
+// Roadmap #30: a low-key hint on the Resume link, e.g. "7 of 10 questions"
+// or "3:10 left". '' if the saved session is odd or has nothing to say.
+function resumeDetail(saved) {
+  try {
+    if (!saved || !Array.isArray(saved.questions)) return '';
+    if (saved.lengthType === 'minutes') {
+      if (!Number.isFinite(saved.remainingMs)) return `${saved.lengthValue} minute sprint`;
+      const sec = Math.ceil(saved.remainingMs / 1000);
+      return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')} left`;
+    }
+    return `${Math.min(regularCount(saved), saved.lengthValue)} of ${saved.lengthValue} questions`;
+  } catch (e) {
+    return '';
+  }
+}
+
 function goToStart() {
   stopTimer();
   state.guest = null;
@@ -357,7 +383,9 @@ function goToStart() {
 
   const fix = mistakesToFix(sessions, today);
   ui.updateHeader(state.plan, state.meta, state.shopState, getEarnedBadgesSorted());
-  ui.renderStart(state.plan, state.mastery, state.meta, !!Storage.getInProgress(), {
+  const unfinished = Storage.getInProgress();
+  ui.renderStart(state.plan, state.mastery, state.meta, !!unfinished, {
+    resumeDetail: resumeDetail(unfinished),
     personalBests: computePersonalBests(sessions),
     chestAvailable: isChestAvailable(state.meta),
     backupReminderDue: isBackupReminderDue(state.meta, sessions),
@@ -747,18 +775,19 @@ function handleBuyStreakShield() {
 
 // mode defaults to today's plan (warm-up quiz or daily practice). A check-up
 // (#149), Fix (#128) or retry round (#127) passes its own mode and list.
-function beginSession({ lengthType, lengthValue, topicFocus, mode = state.plan.phase, queue = null, checkupQueue = null }) {
+function beginSession({ lengthType, lengthValue, topics = [], mode = state.plan.phase, queue = null, checkupQueue = null }) {
   if (ui.isParentNoteShowing()) markParentNoteSeen(); // #139: it's been seen
   state.retryQueue = null;
   state.guest = null;
   state.session = startSession({
     topicWeighting: state.plan.topicWeighting,
-    topicFocus,
+    ...focusFromTopics(topics, Boolean(Storage.getMeta().year7PackEnabled)),
     lengthType,
     lengthValue,
     mode,
     queue,
     checkupQueue,
+    mastery: state.mastery,
   });
   ui.showScreen('question');
   startTimerIfNeeded();
@@ -832,10 +861,17 @@ function wrongList(entry, session) {
 function resumeSession() {
   if (ui.isParentNoteShowing()) markParentNoteSeen();
   const raw = Storage.getInProgress();
-  state.session = { ...raw, usedWordProblemIds: new Set(raw.usedWordProblemIds) };
+  // #170: a timed session carries on with the clock it had when last saved.
+  state.session = { ...rebaseTimedSession(raw), usedWordProblemIds: new Set(raw.usedWordProblemIds) };
   // #148 AC6: a Year 7 chip session resumed after the switch was turned off
   // carries on with the ordinary mix instead.
-  if (YEAR7_TOPICS.includes(state.session.topicFocus) && !Storage.getMeta().year7PackEnabled) state.session.topicFocus = null;
+  // Same for a mix (#188), which keeps its other topics.
+  const focus = focusFromTopics(
+    state.session.topicFocusList || (state.session.topicFocus ? [state.session.topicFocus] : []),
+    Boolean(Storage.getMeta().year7PackEnabled),
+  );
+  state.session.topicFocus = focus.topicFocus;
+  state.session.topicFocusList = focus.topicFocusList;
   ui.showScreen('question');
   startTimerIfNeeded();
   // Through onNext rather than straight to nextQuestion: a session left
@@ -847,10 +883,11 @@ function resumeSession() {
 function startTimerIfNeeded() {
   stopTimer();
   if (state.session.lengthType !== 'minutes') return;
-  const endAt = state.session.startedAt + state.session.lengthValue * 60 * 1000;
-  ui.updateTimer(endAt - Date.now());
+  // Read the end time on every tick: time away (pausedMs) moves it (#178).
+  const session = state.session;
+  ui.updateTimer(sessionEndAt(session) - Date.now());
   state.timerInterval = setInterval(() => {
-    ui.updateTimer(Math.max(0, endAt - Date.now()));
+    ui.updateTimer(Math.max(0, sessionEndAt(session) - Date.now()));
   }, 1000);
 }
 
@@ -987,6 +1024,15 @@ function openDailyChestIfDue() {
   return reward;
 }
 
+// Roadmap #173: display-only, so a failure here must never block the summary.
+function beatLastLine(entry, sessionsBefore) {
+  try {
+    return compareWithLastSession(entry, sessionsBefore);
+  } catch (e) {
+    return null;
+  }
+}
+
 function onNext() {
   if (state.guest) { onGuestNext(); return; }
   // Roadmap #94: the moment the regular questions run out, decide whether
@@ -1036,9 +1082,17 @@ function onNext() {
       };
     }
 
+    // #172: topics that moved up a tier this session. Display-only.
+    let levelUps = [];
+    try {
+      levelUps = findLevelUps(session.startTiers, state.mastery);
+    } catch (e) { /* never block the summary */ }
+
     ui.updateHeader(state.plan, state.meta, state.shopState, getEarnedBadgesSorted());
     ui.renderSummary(entry, newlyEarnedBadges, state.meta, state.shopState, {
       newRecords,
+      beatLast: beatLastLine(entry, sessionsBefore),
+      levelUps,
       personalBests: computePersonalBests(sessions),
       chestReward,
       fixedToday,
@@ -1060,7 +1114,7 @@ function onNext() {
       const earned = entry.summary.pointsEarned
         + (chestReward && chestReward.type === 'points' ? chestReward.points : 0)
         + (quests ? quests.points : 0);
-      if (newlyEarnedBadges.length > 0) playSound('fanfare');
+      if (newlyEarnedBadges.length > 0 || levelUps.length > 0) playSound('fanfare');
       else if (earned > 0) playSound('coin');
     }
   } else {
@@ -1190,8 +1244,7 @@ games.bindGames({
 ui.bindStartHandlers({
   onStart: () => {
     const length = ui.getSelectedLength();
-    const topicFocus = ui.getSelectedTopic();
-    beginSession({ lengthType: length.type, lengthValue: length.value, topicFocus });
+    beginSession({ lengthType: length.type, lengthValue: length.value, topics: ui.getSelectedTopics() });
   },
   onResume: resumeSession,
   onBackupReminderSave: handleBackupReminderSave,
@@ -1213,7 +1266,7 @@ ui.bindSettingsHandlers({
   onClearProgress: handleClearProgress,
   onSyncConfigChange,
   onBackup: handleBackup,
-  onRestoreFile: handleRestoreFile,
+  onRestoreFile: (file) => handleRestoreFile(file),
   onSoundChange,
   onNoteSave,
   onNoteEdit,
@@ -1249,6 +1302,24 @@ ui.bindGlobalHandlers({
   onGotoSuggestions: goToSuggestions,
 });
 
+// Roadmap #187: when saved progress can't be read, nothing is written (see
+// storage.js) until the grown-up restores a backup or chooses Start fresh.
+ui.bindRecoveryHandlers({
+  onRestoreFile: (file) => handleRestoreFile(file, true),
+  onStartFresh: () => {
+    try {
+      Storage.startFresh();
+    } catch (e) {
+      return 'Sorry, that didn\u2019t work, so nothing has been erased. Please try again.';
+    }
+    ui.leaveRecovery();
+    applyCosmetics(Storage.getShopState());
+    applyColourMode(Storage.getMeta().colourMode);
+    goToStart();
+    return '';
+  },
+});
+
 // UTC→local date fix: the one-off changeover of saved streak data to local
 // days (see settleDayClock). A no-op once done, and on a fresh install.
 function settleDayClockIfNeeded() {
@@ -1256,19 +1327,58 @@ function settleDayClockIfNeeded() {
   if (settled) Storage.setMeta(settled);
 }
 
-settleDayClockIfNeeded();
-applyCosmetics(Storage.getShopState());
-applyColourMode(Storage.getMeta().colourMode);
 ui.initScrollIndicators();
-goToStart();
+if (Storage.startupState() === 'corrupt' || Storage.startupState() === 'missing') {
+  // #187: Home isn't built at all; the notice is all there is.
+  ui.showRecovery();
+} else {
+  if (!Storage.markInitialised()) ui.showStorageWarning();
+  settleDayClockIfNeeded();
+  applyCosmetics(Storage.getShopState());
+  applyColourMode(Storage.getMeta().colourMode);
+  goToStart();
+}
 
 // Roadmap #139: coming back to the app (the iPad unlocked, or back from
 // another app) starts a new visit, so a note saved before then can show.
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState !== 'visible') return;
+  if (document.visibilityState !== 'visible') {
+    pauseClocks();
+    return;
+  }
+  resumeClocks();
   state.visitStartedAt = Date.now();
   if (ui.currentScreen() === 'start') ui.renderParentNote(parentNoteToShow());
 });
+// iPad Safari doesn't always fire visibilitychange when a page is closed or
+// restored from its back-forward cache, so these cover the same ground.
+window.addEventListener('pagehide', pauseClocks);
+window.addEventListener('pageshow', resumeClocks);
+
+// Roadmap #178/#170: the app being hidden (iPad locked, another app in
+// front) stops the question clock, the timed-session clock and Beat the
+// Grown-Up's clock. Both are plain Date.now() sums, so the time away is added
+// back on return. Only on the question screen: Blitz voids itself when
+// hidden by design (gameScreens.js) and other screens have no clock.
+function pauseClocks() {
+  if (state.hiddenAt === null && ui.currentScreen() === 'question' && (state.session || state.guest)) {
+    state.hiddenAt = Date.now();
+  }
+}
+
+const TOAST_AFTER_MS = 2000; // a quick flick away isn't worth a message
+function resumeClocks() {
+  if (state.hiddenAt === null) return;
+  const away = Math.max(0, Date.now() - state.hiddenAt);
+  state.hiddenAt = null;
+  if (ui.currentScreen() !== 'question') return;
+  if (state.questionStartTime !== null) state.questionStartTime += away;
+  if (state.session && !state.guest) {
+    state.session.pausedMs = (state.session.pausedMs || 0) + away;
+    startTimerIfNeeded(); // restarts the throttled interval and redraws now
+  }
+  if (away >= TOAST_AFTER_MS) ui.showToast('Timer paused while you were away');
+}
 
 // Keeps the home-screen clock ticking while the app is left open — updating
 // even while another screen is active is harmless (the element just sits

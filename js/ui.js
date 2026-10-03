@@ -2,7 +2,7 @@
 // app.js decides what happens; this module only reads/writes the DOM.
 
 import { PHASE_LABELS } from './pacing.js';
-import { comboMultiplier, regularCount } from './session.js';
+import { comboMultiplier, regularCount, restrictWeighting, weightingPercents } from './session.js';
 import { computeStrengthSummary } from './mastery.js';
 import { SHOP_CATEGORIES, itemsByCategory, getItem, isOwned, availableBalance, STREAK_SHIELD, MAX_STREAK_SHIELDS } from './shop.js';
 import { getJokeOfTheDay, getRandomJoke } from './jokes.js';
@@ -251,10 +251,38 @@ function renderWordPanel(word) {
     <p class="word-meaning">${word.meaning}</p>`;
 }
 
+// The plan behind the preview, kept so ticking chips can redraw it (#188).
+let previewPlan = null;
+
+// Roadmap #188: what the weighting preview shows for the ticked chips. None
+// ticked (All topics): the daily mix as before. One: nothing, it's just that
+// topic. Two or more: "Your mix today", those topics only, adding up to 100.
+function refreshTopicPreview() {
+  const ticked = getSelectedTopics();
+  const box = el('topic-weighting-preview');
+  if (ticked.length === 1) {
+    box.hidden = true;
+    return;
+  }
+  box.hidden = false;
+  if (ticked.length === 0) {
+    renderTopicWeightingPreview(previewPlan);
+    return;
+  }
+  const pct = weightingPercents(restrictWeighting(previewPlan.topicWeighting, ticked));
+  const rows = Object.entries(pct)
+    .sort((a, b) => b[1] - a[1])
+    .map(([topic, p]) => `<div class="weighting-row"><span>${escapeHtml(TOPIC_LABELS[topic] || topic)}</span><span>${p}%</span></div>`)
+    .join('');
+  box.innerHTML = `<p class="weighting-title">Your mix today:</p>${rows}`;
+}
+
 function renderTopicWeightingPreview(plan) {
+  // Largest-remainder rounding, so the shown shares add up to exactly 100.
+  const pct = weightingPercents(plan.topicWeighting);
   const rows = Object.entries(plan.topicWeighting)
     .sort((a, b) => b[1] - a[1])
-    .map(([topic, w]) => `<div class="weighting-row"><span>${TOPIC_LABELS[topic] || topic}</span><span>${Math.round(w * 100)}%</span></div>`)
+    .map(([topic]) => `<div class="weighting-row"><span>${TOPIC_LABELS[topic] || topic}</span><span>${pct[topic]}%</span></div>`)
     .join('');
   el('topic-weighting-preview').innerHTML = `<p class="weighting-title">Today's mix if you practice all topics:</p>${rows}`;
 }
@@ -319,15 +347,18 @@ export function renderStart(plan, mastery, meta, hasInProgress, extras = {}) {
   selectClosestLengthButton(plan.sessionLengthSuggestion);
   el('custom-length-panel').hidden = true;
 
+  // Always starts on All topics; a mix is never remembered (#188).
   document.querySelectorAll('.topic-grid .choice-btn').forEach((btn) => {
     btn.classList.toggle('selected', btn.dataset.topic === '');
+    btn.setAttribute('aria-pressed', btn.dataset.topic === '' ? 'true' : 'false');
   });
   renderYear7Chips(meta, mastery);
-  renderTopicWeightingPreview(plan);
-  el('topic-weighting-preview').hidden = false;
+  previewPlan = plan;
+  refreshTopicPreview();
   hideStartWarning();
 
   el('resume-btn').hidden = !hasInProgress;
+  el('resume-btn').textContent = extras.resumeDetail ? `Resume: ${extras.resumeDetail}` : 'Resume your unfinished session';
   el('home-notice').hidden = true;
   renderBackupReminder(Boolean(extras.backupReminderDue));
 }
@@ -625,6 +656,16 @@ export function showHomeNotice(message) {
   el('home-notice').hidden = false;
 }
 
+// A brief message that never blocks a tap (pointer-events: none in CSS).
+let toastTimer = null;
+export function showToast(message, ms = 3000) {
+  const t = el('toast');
+  t.textContent = message;
+  t.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.hidden = true; }, ms);
+}
+
 // Roadmap #151: app.js decides whether a backup is due; this only shows the
 // card, plus #150's error message if a save from it failed.
 export function renderBackupReminder(show, error = '') {
@@ -638,9 +679,12 @@ export function getSelectedLength() {
   return { type: btn.dataset.lengthType, value: Number(btn.dataset.lengthValue) };
 }
 
-export function getSelectedTopic() {
-  const btn = document.querySelector('.topic-grid .choice-btn.selected');
-  return btn ? btn.dataset.topic || null : null;
+// The ticked topic chips (Roadmap #188), in screen order. Empty means
+// "All topics".
+export function getSelectedTopics() {
+  return [...document.querySelectorAll('.topic-grid .choice-btn.selected')]
+    .map((btn) => btn.dataset.topic)
+    .filter(Boolean);
 }
 
 export function showStartWarning(message) {
@@ -688,12 +732,25 @@ export function bindStartHandlers({ onStart, onResume, onBackupReminderSave, onB
     });
   });
 
-  // One selection across the core chips and the Year 7 chips (#148).
+  // Topic chips are toggles (#188), across the core chips and the Year 7
+  // chips (#148). "All topics" is exclusive: tapping it clears the rest,
+  // ticking any topic unticks it, and unticking the last topic puts it back.
+  const allChip = document.querySelector('.topic-grid .choice-btn[data-topic=""]');
+  const setChip = (b, on) => {
+    b.classList.toggle('selected', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  };
   document.querySelectorAll('.topic-grid .choice-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.topic-grid .choice-btn').forEach((b) => b.classList.remove('selected'));
-      btn.classList.add('selected');
-      el('topic-weighting-preview').hidden = btn.dataset.topic !== '';
+      const chips = [...document.querySelectorAll('.topic-grid .choice-btn')];
+      if (btn === allChip) {
+        chips.forEach((b) => setChip(b, b === allChip));
+      } else {
+        setChip(btn, !btn.classList.contains('selected'));
+        setChip(allChip, false);
+        if (!chips.some((b) => b !== allChip && b.classList.contains('selected'))) setChip(allChip, true);
+      }
+      refreshTopicPreview();
       hideStartWarning();
     });
   });
@@ -811,6 +868,54 @@ export function downloadJson(filename, data) {
   a.remove();
   // Revoked later, not straight away: Safari may still be reading it.
   setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+// ---------- Unreadable-progress notice (Roadmap #187) ----------
+
+export function showRecovery() {
+  document.body.classList.add('recovery-mode');
+  el('recover-main').hidden = false;
+  el('recover-confirm').hidden = true;
+  showRecoveryStatus('');
+  showScreen('recover');
+}
+
+export function leaveRecovery() {
+  document.body.classList.remove('recovery-mode');
+}
+
+export function showRecoveryStatus(message) {
+  el('recover-status').textContent = message;
+  el('recover-status').hidden = !message;
+}
+
+export function showStorageWarning() {
+  el('storage-warning').hidden = false;
+}
+
+export function bindRecoveryHandlers({ onRestoreFile, onStartFresh }) {
+  el('recover-file').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (file) onRestoreFile(file);
+  });
+  // "Start fresh" takes two taps, with a plain-words screen in between.
+  el('recover-fresh-btn').addEventListener('click', () => {
+    el('recover-main').hidden = true;
+    el('recover-confirm').hidden = false;
+    el('recover-fresh-error').hidden = true;
+  });
+  el('recover-fresh-back-btn').addEventListener('click', () => {
+    el('recover-confirm').hidden = true;
+    el('recover-main').hidden = false;
+  });
+  el('recover-fresh-yes-btn').addEventListener('click', () => {
+    const error = onStartFresh();
+    if (error) {
+      el('recover-fresh-error').textContent = error;
+      el('recover-fresh-error').hidden = false;
+    }
+  });
 }
 
 export function showBackupStatus(message, tone = 'ok') {
@@ -2021,6 +2126,10 @@ export function renderSummary(entry, newlyEarnedBadges = [], meta = {}, shopStat
     ${bossRow(entry)}
   `;
 
+  renderLevelUps(extras.levelUps || []);
+  const compare = el('summary-compare');
+  compare.hidden = !extras.beatLast;
+  compare.textContent = extras.beatLast ? extras.beatLast.text : '';
   renderSummaryNotes(extras.fixedToday || [], extras.shieldUsed ? meta.currentStreakDays : 0, extras.fixResult);
   renderTakeaways(entry, extras.mastery);
   renderWrongList(extras.wrongList || [], Boolean(extras.canRetry));
@@ -2052,6 +2161,24 @@ export function renderSummary(entry, newlyEarnedBadges = [], meta = {}, shopStat
       </div>
     `;
   }
+}
+
+// Roadmap #172: "Level up!" for each topic that moved up a tier, at most 3
+// named and "+N more" for the rest. Reuses the reward pop (.reward-celebrate),
+// which prefers-reduced-motion switches off.
+const MAX_LEVEL_UPS_SHOWN = 3;
+function renderLevelUps(ups) {
+  const target = el('level-ups');
+  if (ups.length === 0) {
+    target.hidden = true;
+    target.innerHTML = '';
+    return;
+  }
+  const lines = ups.slice(0, MAX_LEVEL_UPS_SHOWN)
+    .map((u) => `<li>${escapeHtml(TOPIC_LABELS[u.topic] || u.topic)} is now <strong>Level ${u.to} of 5</strong></li>`);
+  if (ups.length > MAX_LEVEL_UPS_SHOWN) lines.push(`<li>+${ups.length - MAX_LEVEL_UPS_SHOWN} more</li>`);
+  target.hidden = false;
+  target.innerHTML = `<p class="level-ups-title">Level up!</p><ul class="level-ups-list">${lines.join('')}</ul>`;
 }
 
 // Roadmap #111: how the points add up, so the jump in the top-bar ⭐ is
@@ -2703,6 +2830,7 @@ export function renderShop(shopState, meta) {
         <div class="shop-item ${equipped ? 'equipped' : ''}">
           ${preview}
           <div class="shop-item-label">${item.label}</div>
+          ${item.season ? `<div class="shop-item-season">${item.season}</div>` : ''}
           <button class="shop-item-action ${owned ? 'owned' : ''}" data-item-id="${item.id}" ${equipped || disabled ? 'disabled' : ''}>${actionLabel}</button>
         </div>
       `;

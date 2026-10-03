@@ -14,9 +14,22 @@
 // roadmap file. The Suggestions screen numbers new suggestions from here, so
 // they slot straight onto the end of that file (see suggestions in ui.js).
 // Bump it whenever items are appended to the roadmap file.
-export const ROADMAP_LAST_ITEM_NUMBER = 153;
+export const ROADMAP_LAST_ITEM_NUMBER = 188;
 
 export const CHANGELOG = [
+  {
+    at: '2026-10-02T21:45+01:00',
+    label: 'Roadmap 170, 172\u2013173, 178, 185, 187\u2013188',
+    changes: [
+      'On Home you can now tick lots of topics at once to build your own mix, like Fractions and Geometry. Tap All topics to go back to everything.',
+      'When a topic moves up a level, the end of your session now says \u201cLevel up!\u201d and tells you the new level.',
+      'After a session, a little line tells you how you did compared with last time, so you can try to beat it.',
+      'Four new colour themes are in the Shop: Winter Frost, Spring Blossom, Summer Sunshine and Autumn Leaves.',
+      'The timer now waits for you if you lock the iPad or go to another app. Your sprint clock and your time for each question stop while you\u2019re away.',
+      'If you stop a timed sprint and come back later, it carries on with the time you had left. The Resume button on Home now shows how far you got.',
+      'If Sprint ever can\u2019t read your saved progress, it now tells you and waits, instead of quietly starting again. A grown-up can bring your progress back from a backup file.',
+    ],
+  },
   {
     at: '2026-09-29T18:10+01:00',
     label: 'Roadmap 143–148, 153',

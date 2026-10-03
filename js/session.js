@@ -3,8 +3,8 @@
 // and persists progress incrementally so an interrupted session on a tablet
 // doesn't lose data.
 
-import { Storage, TOPICS } from './storage.js';
-import { selectDifficultyTier, updateMastery, weightedRandomPick, EXPECTED_TIME_MS, tierFromMastery } from './mastery.js';
+import { Storage, TOPICS, YEAR7_TOPICS } from './storage.js';
+import { selectDifficultyTier, updateMastery, weightedRandomPick, EXPECTED_TIME_MS, tierFromMastery, snapshotTiers } from './mastery.js';
 import { getQuestion, questionVariant, getNewVersion } from './questionBank.js';
 import { getSpotQuestion, hasSpotTemplate } from './spotMistake.js';
 import { localDateStr, daysBetweenLocalDates, sessionLocalDay, addDays } from './dates.js';
@@ -19,7 +19,7 @@ import { localDateStr, daysBetweenLocalDates, sessionLocalDay, addDays } from '.
 // what's left in the same order. In these sessions a "Try one like it"
 // follow-up never uses up a place in the list. Retry and Fix have no boss;
 // the check-up does, like any session.
-export function startSession({ topicWeighting, topicFocus, lengthType, lengthValue, mode, queue = null, checkupQueue = null }) {
+export function startSession({ topicWeighting, topicFocus, lengthType, lengthValue, mode, queue = null, checkupQueue = null, mastery = null, topicFocusList = null }) {
   const listed = queue || checkupQueue;
   return {
     sessionId: `s_${Date.now()}`,
@@ -28,6 +28,10 @@ export function startSession({ topicWeighting, topicFocus, lengthType, lengthVal
     lengthType: listed ? 'questions' : lengthType,
     lengthValue: listed ? listed.length : lengthValue,
     topicFocus: listed ? null : (topicFocus || null),
+    // #188: "Choose your own mix": 2+ topics ticked. Then topicFocus is null
+    // and questions come from these topics, weighted like the daily mix. A
+    // session saved before this has no list: read as null.
+    topicFocusList: listed || !Array.isArray(topicFocusList) ? null : topicFocusList,
     topicWeighting,
     ...(queue ? { queue } : {}),
     ...(checkupQueue ? { checkupQueue } : {}),
@@ -38,6 +42,12 @@ export function startSession({ topicWeighting, topicFocus, lengthType, lengthVal
     reviewExtras: {},
     questions: [],
     startedAt: Date.now(),
+    // Roadmap #178: milliseconds spent with the app hidden (iPad locked, or
+    // another app in front). A timed session's clock doesn't run during it.
+    pausedMs: 0,
+    // #172: every topic's tier at the start, to spot level-ups on the
+    // summary. Saved with the in-progress session, never in the log.
+    ...(mastery ? { startTiers: snapshotTiers(mastery) } : {}),
     score: 0,
     streak: 0,
     bestStreak: 0,
@@ -124,7 +134,7 @@ export const BOSS_UNLOCK_ACCURACY = 0.8;
 // Only the core topics: Year 7 topics (#148) are never the boss's topic.
 function strongestTopic(session, mastery) {
   const practised = Object.entries(mastery).filter(([t, rec]) => TOPICS.includes(t) && rec.questionsSeen > 0);
-  if (practised.length === 0) return session.topicFocus || weightedRandomPick(session.topicWeighting);
+  if (practised.length === 0) return session.topicFocus || pickMixTopic(session, true) || weightedRandomPick(session.topicWeighting);
   return practised.sort((a, b) => b[1].masteryScore - a[1].masteryScore)[0][0];
 }
 
@@ -207,6 +217,54 @@ export function bossProgress(session) {
   };
 }
 
+// ---------- Choose your own mix (Roadmap #188) ----------
+
+// The daily weighting cut down to the ticked topics and scaled to add up to
+// 1. Year 7 topics aren't in the daily weighting (it only covers TOPICS), so
+// a ticked one gets the average of the others' weights: an equal share.
+export function restrictWeighting(weighting, topics) {
+  const known = topics.map((t) => weighting[t]).filter((w) => w > 0);
+  const fallback = known.length ? known.reduce((a, b) => a + b, 0) / known.length : 1;
+  const raw = topics.map((t) => (weighting[t] > 0 ? weighting[t] : fallback));
+  const total = raw.reduce((a, b) => a + b, 0);
+  const out = {};
+  topics.forEach((t, i) => { out[t] = raw[i] / total; });
+  return out;
+}
+
+// Whole-number percentages of a weighting that add up to exactly 100
+// (largest-remainder rounding), for the "Your mix today" preview.
+export function weightingPercents(weights) {
+  const entries = Object.entries(weights);
+  const exact = entries.map(([, w]) => w * 100);
+  const out = exact.map(Math.floor);
+  let spare = 100 - out.reduce((a, b) => a + b, 0);
+  exact
+    .map((x, i) => [x - Math.floor(x), i])
+    .sort((a, b) => b[0] - a[0])
+    .forEach(([, i]) => { if (spare > 0) { out[i] += 1; spare -= 1; } });
+  return Object.fromEntries(entries.map(([t], i) => [t, out[i]]));
+}
+
+// A topic for the next question from the session's mix, or null when it has
+// none. coreOnly: the boss never comes from a Year 7 topic (#148).
+function pickMixTopic(session, coreOnly = false) {
+  const list = Array.isArray(session.topicFocusList)
+    ? session.topicFocusList.filter((t) => !coreOnly || TOPICS.includes(t))
+    : [];
+  return list.length ? weightedRandomPick(restrictWeighting(session.topicWeighting, list)) : null;
+}
+
+// Turns the ticked topics into the session's focus fields: none = no focus,
+// one = exactly the old single-topic focus, 2+ = a mix. Year 7 topics are
+// dropped while that pack is off (#148), so none can be asked then.
+export function focusFromTopics(topics, year7On) {
+  const list = (topics || []).filter((t) => year7On || !YEAR7_TOPICS.includes(t));
+  if (list.length === 0) return { topicFocus: null, topicFocusList: null };
+  if (list.length === 1) return { topicFocus: list[0], topicFocusList: null };
+  return { topicFocus: null, topicFocusList: list };
+}
+
 // Roadmap ideas.md #80: question sourcing is back to pure auto-generation
 // (arithmetic/fdp/geometry/ratio/algebra/dataHandling procedurally, word
 // problems from the hand-authored bank) — no PDF import involved, so this
@@ -227,7 +285,7 @@ export function pickNextQuestion(session, mastery) {
     const q = pickCheckupQuestion(session, mastery, session.checkupQueue[next]);
     if (q) return q;
   }
-  const topic = session.topicFocus || weightedRandomPick(session.topicWeighting);
+  const topic = session.topicFocus || pickMixTopic(session) || weightedRandomPick(session.topicWeighting);
   const record = mastery[topic];
   const tier = selectDifficultyTier(record);
   const spot = maybeSpotQuestion(session, topic, tier);
@@ -438,7 +496,13 @@ export function recordAnswer(session, mastery, question, userInput, timeMs, { fo
   session.bossBonus = (session.bossBonus || 0) + bossBonus;
 
   Storage.setMastery(mastery);
-  Storage.setInProgress({ ...session, usedWordProblemIds: [...session.usedWordProblemIds] });
+  Storage.setInProgress({
+    ...session,
+    usedWordProblemIds: [...session.usedWordProblemIds],
+    // #170: a timed session saves how much clock was left, so Resume (even
+    // an hour later) carries on from there. See rebaseTimedSession.
+    ...(session.lengthType === 'minutes' ? { remainingMs: Math.max(0, sessionEndAt(session) - Date.now()) } : {}),
+  });
 
   return { correct, pointsEarned, streak: session.streak, multiplier, bossBonus };
 }
@@ -450,8 +514,26 @@ export function hasReachedLength(session) {
   if (session.lengthType === 'questions') {
     return regular >= session.lengthValue;
   }
-  const elapsedMs = Date.now() - session.startedAt;
-  return elapsedMs >= session.lengthValue * 60 * 1000;
+  return Date.now() >= sessionEndAt(session);
+}
+
+// Roadmap #178: when a timed (minutes) session's clock runs out. Time spent
+// with the app hidden (pausedMs) is added on, so locking the iPad doesn't
+// burn the sprint. A save from before this change has no pausedMs: 0.
+export function sessionEndAt(session) {
+  return session.startedAt + (session.pausedMs || 0) + session.lengthValue * 60 * 1000;
+}
+
+// Roadmap #170: makes a session read back from storage carry on with the
+// clock it had at its last save, however long ago that was. Timed sessions
+// only. remainingMs was written at the last answer; startedAt is moved so
+// that "now + remaining" is the new end. A save from before this change has
+// no remainingMs, so it gets a full clock rather than an arbitrary one.
+export function rebaseTimedSession(session, now = Date.now()) {
+  if (session.lengthType !== 'minutes') return session;
+  const total = session.lengthValue * 60 * 1000;
+  const remaining = Number.isFinite(session.remainingMs) ? Math.min(total, Math.max(0, session.remainingMs)) : total;
+  return { ...session, startedAt: now + remaining - total, pausedMs: 0 };
 }
 
 // A session saved before the boss existed has no bossDone flag; treat it as

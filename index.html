@@ -48,10 +48,35 @@
   </div>
 </header>
 
+<!-- Roadmap #187: shown only if the browser won't keep anything (private mode, full storage). -->
+<p id="storage-warning" class="storage-warning" role="status" hidden>Progress can&rsquo;t be saved on this device right now.</p>
+
 <main id="app">
 <div class="scroll-indicator scroll-indicator-top" id="scroll-indicator-top" role="button" aria-label="Scroll up" hidden>&#9652;</div>
 <div id="app-scroll">
 <div id="app-inner">
+
+  <!-- Roadmap #187: shown instead of Home when saved progress can't be read.
+       Nothing is written to storage until a button here is used. -->
+  <section id="screen-recover" class="screen">
+    <div class="card recover-card">
+      <div id="recover-main">
+        <h2 class="recover-title">Your saved progress couldn&rsquo;t be read.</h2>
+        <p class="recover-text">Nothing has been changed or deleted. If you have a backup file, you can bring your progress back from it.</p>
+        <p id="recover-status" class="backup-status backup-status-warn" role="status" hidden></p>
+        <label for="recover-file" class="primary-btn backup-restore-label">Restore from a backup file</label>
+        <input type="file" id="recover-file" hidden />
+        <button id="recover-fresh-btn" type="button" class="secondary-btn">Start fresh</button>
+      </div>
+      <div id="recover-confirm" hidden>
+        <h2 class="recover-title">Ask a grown-up</h2>
+        <p class="recover-text">Starting fresh begins again with no points, badges or history. The old data that couldn&rsquo;t be read is kept aside on this device, but it won&rsquo;t show in the app.</p>
+        <p id="recover-fresh-error" class="backup-status backup-status-warn" role="status" hidden></p>
+        <button id="recover-fresh-yes-btn" type="button" class="danger-btn recover-btn">Yes, start fresh</button>
+        <button id="recover-fresh-back-btn" type="button" class="secondary-btn recover-btn">Go back</button>
+      </div>
+    </div>
+  </section>
 
   <!-- START SCREEN -->
   <section id="screen-start" class="screen">
@@ -126,8 +151,8 @@
           </div>
         </div>
 
-        <h2 class="section-heading">Topic focus (optional)</h2>
-        <div class="choice-grid topic-grid" id="topic-choices">
+        <h2 class="section-heading">Pick your topics (optional)</h2>
+        <div class="choice-grid topic-grid" id="topic-choices" role="group" aria-label="Topics">
           <button class="choice-btn chip" data-topic="">All topics</button>
           <button class="choice-btn chip" data-topic="arithmetic">Arithmetic</button>
           <button class="choice-btn chip" data-topic="fdp">Fractions / %</button>
@@ -301,9 +326,12 @@
   <section id="screen-summary" class="screen">
     <div id="summary-avatar" class="summary-avatar"></div>
     <h2 class="section-heading" id="summary-heading">Session complete!</h2>
+    <div id="level-ups" class="level-ups reward-celebrate" role="status" hidden></div>
     <div id="new-records" class="new-records" role="status" hidden></div>
     <div id="chest-reward" class="chest-reward" hidden></div>
     <div class="summary-card" id="summary-card"></div>
+    <!-- Roadmap #173: one calm line comparing with the last session. -->
+    <p id="summary-compare" class="summary-compare" hidden></p>
     <div id="summary-notes" class="summary-notes" hidden></div>
     <div id="summary-takeaways" class="summary-takeaways"></div>
     <!-- Roadmap #127: this session's misses, with "Try these again". -->
@@ -766,6 +794,9 @@
     </div>
   </div>
 </footer>
+
+<!-- Brief message (e.g. "Timer paused while you were away"); never takes taps. -->
+<div id="toast" class="toast" role="status" hidden></div>
 
 <!-- pdf.js (the one CDN script, a deliberate exception to the no-network
      rule) is no longer loaded here: since Roadmap #114 it's fetched only when

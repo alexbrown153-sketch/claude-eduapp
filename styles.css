@@ -123,6 +123,37 @@ body[data-theme="theme-berry"] {
   --primary-tint: #f3e8ff;
   --accent-ink: #7e22ce;
 }
+/* Seasonal themes (Roadmap #185). Contrast checked: white on --primary is
+   at least 4.9:1, and --accent-ink on --primary-tint, --surface and --bg is
+   at least 6:1, in both light and dark. */
+body[data-theme="theme-winter"] {
+  --accent: #22b8e0;
+  --primary: #0e7490;
+  --primary-edge: #155e75;
+  --primary-tint: #e0f4fa;
+  --accent-ink: #155e75;
+}
+body[data-theme="theme-spring"] {
+  --accent: #f472b6;
+  --primary: #be185d;
+  --primary-edge: #9d174d;
+  --primary-tint: #fde7f1;
+  --accent-ink: #9d174d;
+}
+body[data-theme="theme-summer"] {
+  --accent: #facc15;
+  --primary: #a16207;
+  --primary-edge: #854d0e;
+  --primary-tint: #fef3c7;
+  --accent-ink: #854d0e;
+}
+body[data-theme="theme-autumn"] {
+  --accent: #d9822b;
+  --primary: #8a4b1f;
+  --primary-edge: #6b3a17;
+  --primary-tint: #f6ebdf;
+  --accent-ink: #6b3a17;
+}
 
 /* ---------- Dark mode (Roadmap #87) ----------
    Chosen in Settings > Appearance; app.js resolves Light / Dark / Match
@@ -161,6 +192,10 @@ html[data-mode="dark"] body {
 html[data-mode="dark"] body[data-theme="theme-sunset"] { --primary-tint: #3d2a22; --accent-ink: #ffb08f; }
 html[data-mode="dark"] body[data-theme="theme-forest"] { --primary-tint: #1f3a2b; --accent-ink: #86dcae; }
 html[data-mode="dark"] body[data-theme="theme-berry"] { --primary-tint: #35254a; --accent-ink: #d4a6f2; }
+html[data-mode="dark"] body[data-theme="theme-winter"] { --primary-tint: #183641; --accent-ink: #7fd8f0; }
+html[data-mode="dark"] body[data-theme="theme-spring"] { --primary-tint: #3f2030; --accent-ink: #f9a8d0; }
+html[data-mode="dark"] body[data-theme="theme-summer"] { --primary-tint: #3a2f12; --accent-ink: #f7d060; }
+html[data-mode="dark"] body[data-theme="theme-autumn"] { --primary-tint: #3a2a1d; --accent-ink: #e8b583; }
 
 /* ---------- Cosmetic fonts ----------
    Each sets --font-body, so headings, buttons, keypad and inputs all follow
@@ -3434,3 +3469,76 @@ button.header-badges-group:active { background: var(--surface-2); }
 @media (max-width: 599px) {
   .games-grid, .game-actions { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* A brief message at the top of the screen. pointer-events: none so it can
+   never sit in the way of Check, Next or the keypad (Roadmap #178). */
+.toast {
+  position: fixed;
+  top: calc(12px + env(safe-area-inset-top, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 32px);
+  padding: 10px 18px;
+  border-radius: var(--radius-pill);
+  background: var(--ink);
+  color: var(--surface);
+  font-weight: var(--fw-bold);
+  font-size: var(--fs-sm);
+  box-shadow: var(--shadow-2);
+  pointer-events: none;
+  z-index: 1000;
+}
+.toast[hidden] { display: none; }
+
+/* Roadmap #187: the "saved progress couldn't be read" notice. While it is up
+   there is no header or footer, so nothing else can be tapped. */
+body.recovery-mode .app-header,
+body.recovery-mode #app-footer { display: none; }
+.recover-card { max-width: 560px; margin: var(--space-8) auto; }
+.recover-title { font-size: var(--fs-lg); margin: 0 0 var(--space-3); }
+.recover-text { margin: 0 0 var(--space-3); line-height: var(--lh-body); color: var(--ink); }
+.storage-warning {
+  margin: 0;
+  padding: 8px 16px;
+  text-align: center;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
+  background: var(--warn-bg);
+  color: var(--warn-ink);
+}
+.storage-warning[hidden] { display: none; }
+
+/* Roadmap #173: small and quiet, so it never competes with a NEW RECORD banner. */
+.summary-compare {
+  margin: var(--space-3) 0 0;
+  font-size: var(--fs-sm);
+  color: var(--ink-soft);
+  text-align: center;
+}
+
+/* Roadmap #172: the "Level up!" card at the top of the summary. Same look as
+   the NEW RECORD banner; its pop (.reward-celebrate) is off for reduced motion. */
+.level-ups {
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--ink);
+  border: 2px solid var(--primary);
+  box-shadow: var(--shadow-2);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.level-ups[hidden] { display: none; }
+.level-ups-title { margin: 0 0 6px; font-size: 1.5rem; font-weight: 900; letter-spacing: 0.04em; color: var(--accent-ink); }
+.level-ups-list { list-style: none; margin: 0; padding: 0; font-size: 1rem; line-height: 1.6; }
+
+/* Seasonal theme tag in the Shop (#185). */
+.shop-item-season { font-size: var(--fs-xs); font-weight: var(--fw-bold); color: var(--ink-soft); }
+
+/* Roadmap #188: topic chips are toggles, so a ticked chip also gets a tick
+   mark, not just a colour change. */
+.topic-grid .choice-btn.selected::before { content: "\2713\00a0"; }
+
+/* Both buttons on the "Ask a grown-up" screen: same width, same alignment. */
+.recover-btn { display: block; width: 100%; margin-top: var(--space-3); min-height: var(--btn-h); }

@@ -2,7 +2,8 @@
 // moving average of a per-question score that rewards correctness first,
 // speed second — no full ELO system needed at this scale.
 
-import { TOPICS } from './storage.js';
+import { TOPICS, ALL_TOPICS } from './storage.js';
+import { MIN_TIER_QUESTIONS } from './badges.js';
 
 export const EXPECTED_TIME_MS = { 1: 8000, 2: 12000, 3: 18000, 4: 25000, 5: 35000 };
 
@@ -42,6 +43,31 @@ export function updateMastery(masteryRecord, correct, tier, actualTimeMs, todayS
   if (masteryRecord.history.length > 50) masteryRecord.history.shift();
 
   return masteryRecord;
+}
+
+// ---------- Level-ups (Roadmap #172) ----------
+
+// Each topic's current tier, for a session to keep from its start.
+export function snapshotTiers(mastery) {
+  const tiers = {};
+  ALL_TOPICS.forEach((t) => {
+    if (mastery[t]) tiers[t] = mastery[t].difficultyLevel || tierFromMastery(mastery[t].masteryScore);
+  });
+  return tiers;
+}
+
+// Topics whose tier is higher now than in `startTiers`: [{ topic, from, to }].
+// A drop, or a rise that fell back again, is not listed (only start vs end
+// is compared; two tiers in one session is one entry with the final tier).
+// A topic needs MIN_TIER_QUESTIONS answers in total, so a topic still sitting
+// on the untouched default tier 3 can't "level up" from its first few
+// answers. No snapshot (a session saved before this existed) = no level-ups.
+export function findLevelUps(startTiers, mastery) {
+  if (!startTiers || typeof startTiers !== 'object') return [];
+  return ALL_TOPICS
+    .filter((t) => mastery[t] && Number.isInteger(startTiers[t]))
+    .map((t) => ({ topic: t, from: startTiers[t], to: mastery[t].difficultyLevel }))
+    .filter(({ topic, from, to }) => to > from && mastery[topic].questionsSeen >= MIN_TIER_QUESTIONS);
 }
 
 // Picks the difficulty tier for the next question in a topic: mostly the

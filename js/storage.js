@@ -111,8 +111,23 @@ function readJSON(key, fallback) {
   }
 }
 
+// Roadmap #187: while the saved progress can't be read (corrupt, or gone), the
+// app is in "safe mode" and NOTHING is written under this profile's keys: the
+// next ordinary save would overwrite recoverable data with fresh defaults.
+// Only a deliberate restore or "Start fresh" (below) lifts it. `unavailable`
+// is the separate case where the browser won't store anything at all (private
+// mode, quota): practice carries on, saves are skipped quietly.
+let writesBlocked = false;
+let storageUnavailable = false;
+
 function writeJSON(key, value) {
+  if (writesBlocked || storageUnavailable) return;
   localStorage.setItem(key, JSON.stringify(value));
+}
+
+function removeKey(key) {
+  if (writesBlocked || storageUnavailable) return;
+  localStorage.removeItem(key);
 }
 
 // ---------- Backup and restore (Roadmap #150) ----------
@@ -123,7 +138,12 @@ function writeJSON(key, value) {
 // `inprogress` is a half-finished session, and `suggestions` are feedback,
 // not progress. Everything else under NS is backed up, so keys added later
 // are included automatically — add a new key here if it's device-only.
-const DEVICE_ONLY_KEYS = ['sync', 'weatherCache', 'inprogress', 'suggestions'];
+//
+// #187 adds two: `initialised` (a marker that this device has held progress
+// before, so a later vanishing `meta` isn't mistaken for a first run) and
+// `corruptSalvage` (the raw text of unreadable progress, kept by "Start
+// fresh" in case a grown-up wants to recover it by hand).
+const DEVICE_ONLY_KEYS = ['sync', 'weatherCache', 'inprogress', 'suggestions', 'initialised', 'corruptSalvage'];
 
 export const BACKUP_FORMAT_VERSION = 1;
 const CURRENT_SCHEMA_VERSION = 1; // defaultMeta().schemaVersion
@@ -139,6 +159,12 @@ function backedUpKeyNames() {
 const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const isCount = (v) => typeof v === 'number' && Number.isFinite(v) && v >= 0;
 
+// The shape rule shared by backup files and the startup check (#187): meta
+// and mastery are objects, sessions is a list. Only this top-level shape is
+// checked live, not every field: a stray null score in mastery still runs
+// today, and shouldn't lock the child out of the app.
+const hasCoreShape = (meta, mastery, sessions) => isObject(meta) && isObject(mastery) && Array.isArray(sessions);
+
 // Checks a parsed backup file before anything is written. Returns null if
 // it's fine, or a friendly message saying why not.
 export function backupProblem(file) {
@@ -150,7 +176,7 @@ export function backupProblem(file) {
     return 'That backup was made by a newer version of Sprint, so it can\u2019t be loaded here. Nothing was changed.';
   }
   const d = file.data;
-  if (!isObject(d) || !isObject(d.meta) || !isObject(d.mastery) || !Array.isArray(d.sessions)) return damaged;
+  if (!isObject(d) || !hasCoreShape(d.meta, d.mastery, d.sessions)) return damaged;
   if (d.badges !== undefined && !Array.isArray(d.badges)) return damaged;
   if (d.customQuestions !== undefined && !Array.isArray(d.customQuestions)) return damaged;
   if (d.shop !== undefined && (!isObject(d.shop) || (d.shop.ownedItemIds !== undefined && !Array.isArray(d.shop.ownedItemIds)))) return damaged;
@@ -172,8 +198,87 @@ function nextLocalId(prefix) {
   return `${prefix}_${Date.now()}_${localIdCounter}`;
 }
 
+// ---------- Startup safety check (Roadmap #187) ----------
+
+const CORE_KEYS = ['meta', 'mastery', 'sessions'];
+const SALVAGE_KEY = `${NS}:corruptSalvage`;
+const MARKER_KEY = `${NS}:initialised`;
+
+// Reads the three core keys strictly, without writing anything. Returns
+//  { state: 'ok' }                       healthy, or a genuine first run;
+//  { state: 'corrupt', keys: [...] }     present but unreadable / wrong type;
+//  { state: 'missing' }                  `meta` is gone though progress existed;
+//  { state: 'unavailable' }              the browser won't give us storage.
+// "Progress existed" = the `initialised` marker, or a mastery/sessions key
+// still there. An absent marker alone never means "missing": a brand new
+// profile has none.
+export function inspectStorage() {
+  try {
+    const raw = {};
+    CORE_KEYS.forEach((name) => { raw[name] = localStorage.getItem(`${NS}:${name}`); });
+    const marker = localStorage.getItem(MARKER_KEY) !== null;
+    const keys = CORE_KEYS.filter((name) => {
+      if (raw[name] === null) return false;
+      try {
+        const v = JSON.parse(raw[name]);
+        return name === 'sessions' ? !Array.isArray(v) : !isObject(v);
+      } catch (e) {
+        return true;
+      }
+    });
+    if (keys.length > 0) return { state: 'corrupt', keys };
+    if (raw.meta === null && (marker || raw.mastery !== null || raw.sessions !== null)) return { state: 'missing' };
+    return { state: 'ok' };
+  } catch (e) {
+    return { state: 'unavailable' };
+  }
+}
+
+// Runs once, as soon as this module loads, i.e. before any other module has
+// had the chance to save anything.
+let startupStatus = inspectStorage();
+writesBlocked = startupStatus.state === 'corrupt' || startupStatus.state === 'missing';
+storageUnavailable = startupStatus.state === 'unavailable';
+
 export const Storage = {
   TOPICS,
+
+  // 'ok' | 'corrupt' | 'missing' | 'unavailable' — see inspectStorage.
+  startupState() {
+    return startupStatus.state;
+  },
+  // Notes that this device holds progress (see inspectStorage). Returns false
+  // if the browser refused the write, i.e. progress can't be saved here.
+  markInitialised() {
+    if (writesBlocked || storageUnavailable) return !storageUnavailable;
+    try {
+      localStorage.setItem(MARKER_KEY, '1');
+      return true;
+    } catch (e) {
+      storageUnavailable = true;
+      return false;
+    }
+  },
+  // "Start fresh" after an unreadable-progress notice. The raw text of the
+  // three core keys goes to corruptSalvage FIRST; if that can't be saved the
+  // error is thrown and nothing has been erased. Then everything of this
+  // profile (except suggestions and the salvage) is cleared and a fresh
+  // profile with its marker is written.
+  startFresh() {
+    const raw = {};
+    CORE_KEYS.forEach((name) => {
+      const v = localStorage.getItem(`${NS}:${name}`);
+      if (v !== null) raw[name] = v;
+    });
+    localStorage.setItem(SALVAGE_KEY, JSON.stringify({ savedAt: new Date().toISOString(), raw }));
+    Object.keys(localStorage)
+      .filter((k) => k.startsWith(`${NS}:`) && k !== SALVAGE_KEY && k !== `${NS}:suggestions`)
+      .forEach((k) => localStorage.removeItem(k));
+    writesBlocked = false;
+    startupStatus = { state: 'ok' };
+    writeJSON(`${NS}:meta`, defaultMeta());
+    Storage.markInitialised();
+  },
   newId: nextLocalId,
 
   getMeta() {
@@ -198,9 +303,11 @@ export const Storage = {
   },
 
   getSessions() {
-    return readJSON(`${NS}:sessions`, []);
+    const list = readJSON(`${NS}:sessions`, []);
+    return Array.isArray(list) ? list : []; // a wrong-shaped value is #187's job to catch
   },
   addSession(session) {
+    if (writesBlocked || storageUnavailable) return;
     const sessions = Storage.getSessions();
     sessions.push(session);
     writeJSON(`${NS}:sessions`, sessions);
@@ -326,7 +433,7 @@ export const Storage = {
     writeJSON(`${NS}:rewardGoal`, goal);
   },
   clearRewardGoal() {
-    localStorage.removeItem(`${NS}:rewardGoal`);
+    removeKey(`${NS}:rewardGoal`);
   },
 
   // Roadmap #139: the note from a grown-up, { text, savedAt, seenAt }, or
@@ -340,7 +447,7 @@ export const Storage = {
     writeJSON(`${NS}:parentNote`, note);
   },
   clearParentNote() {
-    localStorage.removeItem(`${NS}:parentNote`);
+    removeKey(`${NS}:parentNote`);
   },
 
   // ---------- Games (Roadmap #143-#147) ----------
@@ -417,7 +524,7 @@ export const Storage = {
     writeJSON(`${NS}:inprogress`, state);
   },
   clearInProgress() {
-    localStorage.removeItem(`${NS}:inprogress`);
+    removeKey(`${NS}:inprogress`);
   },
 
   // The backup file for "Back up my progress" (#150): every non-device key
@@ -452,12 +559,17 @@ export const Storage = {
   // Per #151, lastBackupAt becomes the time of the restore (the device now
   // matches a file exactly) and any reminder snooze is cleared.
   restoreBackup(file) {
+    if (storageUnavailable) throw new Error('Sprint: storage is unavailable'); // writeJSON would skip silently
     const snapshot = {};
     backedUpKeyNames().forEach((name) => {
       snapshot[name] = localStorage.getItem(`${NS}:${name}`);
     });
     const names = Object.keys(file.data)
       .filter((name) => /^[A-Za-z0-9_]+$/.test(name) && !DEVICE_ONLY_KEYS.includes(name));
+    // A restore is one of the two ways out of safe mode (#187); if it fails,
+    // safe mode is back on and the unreadable data is exactly as it was.
+    const wasBlocked = writesBlocked;
+    writesBlocked = false;
     try {
       Object.keys(snapshot).forEach((name) => localStorage.removeItem(`${NS}:${name}`));
       names.forEach((name) => {
@@ -465,7 +577,10 @@ export const Storage = {
       });
       writeJSON(`${NS}:meta`, { ...file.data.meta, lastBackupAt: new Date().toISOString(), backupReminderSnoozedUntil: null });
       localStorage.removeItem(`${NS}:inprogress`);
+      localStorage.setItem(MARKER_KEY, '1');
+      startupStatus = { state: 'ok' };
     } catch (e) {
+      writesBlocked = wasBlocked;
       backedUpKeyNames().forEach((name) => localStorage.removeItem(`${NS}:${name}`));
       Object.entries(snapshot).forEach(([name, raw]) => {
         if (raw !== null) localStorage.setItem(`${NS}:${name}`, raw);
@@ -485,7 +600,13 @@ export const Storage = {
   // screen instead, where it's clear what's being thrown away.
   resetAll() {
     Object.keys(localStorage)
-      .filter((k) => k.startsWith(`${NS}:`) && k !== `${NS}:suggestions`)
+      .filter((k) => k.startsWith(`${NS}:`) && k !== `${NS}:suggestions` && k !== SALVAGE_KEY)
       .forEach((k) => localStorage.removeItem(k));
+    // Fresh defaults and the marker go straight back, so a reset profile is
+    // never mistaken for lost progress by the startup check (#187).
+    if (!writesBlocked && !storageUnavailable) {
+      writeJSON(`${NS}:meta`, defaultMeta());
+      Storage.markInitialised();
+    }
   },
 };

@@ -170,3 +170,37 @@ Future roadmap ideas
 152. Change the top-bar title and browser tab from "Tiffin 11+ Maths Prep" and "Tiffin Prep" to wording that fits ongoing practice now the exam has passed
 153. The app styling is a little bland, give the app a new look and feel which feels modern, welcoming and easy to use.
 154. An example.
+155. Replay only the questions he got wrong in a quick "fix my mistakes" round
+156. Add a daily mini-challenge of five questions that takes under two minutes
+157. Add a streak freeze so one missed day doesn't wipe a long streak
+158. Add a "tricky ones" list that saves questions he keeps getting wrong so he can revisit them
+159. Add a "show me another way" button to worked explanations, with friendlier, shorter wording
+160. Add step-by-step hints he can tap before answering, costing a few points
+161. Add picture-based explanations for fractions, ratio and shapes
+162. Accept both 0.5 and 1/2 as answers, with a gentle note on which form was asked for
+163. Add a calm mode with no timer and softer wording for days when confidence is low
+164. Add a mock paper mode with a full-length exam-style set of questions and a results page
+165. Add a weekly progress card for a parent showing strong topics, shaky topics and time practised
+166. Add sound effects and small celebrations, with a mute switch
+167. Add read-aloud for word problems
+168. Add topic "boss rounds" that unlock when mastery reaches a set level
+169. Add a personal records page for fastest answer, longest streak and best accuracy
+170. Let him resume an unfinished session after leaving halfway
+171. Add a times-tables grid (12 by 12) that colours in each fact as it becomes quick and reliable
+172. Show a "Level up!" moment when a topic moves up a difficulty tier, naming the topic and the new tier
+173. Show a "Beat yesterday" line on the summary comparing today's accuracy and speed to his last session
+174. Mark topics as "getting rusty" on the progress screen when not practised for a while, with a one-tap "Quick refresh" session
+175. Add a "This looks wrong" button on every question that sends a note through the existing suggestions relay
+176. Add an accessibility settings group: larger text, a dyslexia-friendly font option, and reduced motion for reward animations
+177. Make the app installable on the iPad home screen and usable offline with a manifest and service worker (needs Alex's approval first, as it adds a service worker)
+178. Pause the session timer automatically when the app goes into the background or the iPad locks
+179. Add a "Maths fact of the day" to the side panels, in the same style as the joke and word of the day
+180. Add a unit-conversion drill (length, mass, capacity, time) as a quick-fire topic with tap-to-choose answers
+181. Add a fraction wall and number line as optional picture aids in fractions explanations
+182. Add a "Mixed methods" question type asking which method is quickest, then showing the clever way after the answer
+183. Add a printable one-page progress summary for Alex that works from the browser's print dialog
+184. Add a sticker album that fills with collectable stickers from the daily chest
+185. Add seasonal and holiday themes to the shop, bought with points
+186. Add a "one more question?" prompt at the end of a session on a good run, offering a bonus question for double points
+187. Add a startup safety check that detects corrupted or missing saved progress and offers to restore from the last backup file, never silently overwriting saved data
+188. Add a "Choose your own mix" start option where he ticks the topics he fancies today

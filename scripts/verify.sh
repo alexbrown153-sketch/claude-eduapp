@@ -35,6 +35,9 @@ done
 echo "3. Worker tests"
 ( cd worker && node --test ) || fail "worker tests"
 
+echo "3b. App logic tests"
+node --test tests/*.test.mjs || fail "app logic tests (tests/)"
+
 echo "4. The changelog watermark moved"
 # Without this the same items get reprocessed on every future run, forever.
 processed=$(grep -oE 'ROADMAP_LAST_ITEM_NUMBER = [0-9]+' js/changelog.js | grep -oE '[0-9]+$')

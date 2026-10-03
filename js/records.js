@@ -268,7 +268,7 @@ export function hasFastRun(entry, run = 5, underMs = 10000) {
 // measurement, not practice) and retry rounds (only the child's own misses).
 // Boss questions are left out too: they come a tier up from the strongest
 // topic, so they'd skew it.
-const COMPARE_EXCLUDED_MODES = ['diagnostic', 'retry'];
+export const COMPARE_EXCLUDED_MODES = ['diagnostic', 'retry'];
 
 // Per-topic accuracy in two local-date ranges (A = earlier, B = later), by
 // the day each session finished. Returns { [topic]: { a, b, comparable,
@@ -308,6 +308,68 @@ export function compareTopicAccuracy(sessions, rangeA, rangeB) {
     t.rise = b.right / b.total - a.right / a.total;
   });
   return out;
+}
+
+// ---------- Beat last time (Roadmap #173) ----------
+
+// The questions that count when comparing two sessions: not the boss (a tier
+// up) and not "Try one like it" follow-ups. Same set for accuracy and speed.
+function comparableQuestions(s) {
+  return (s.questions || []).filter((q) => q && !q.boss && !Number.isInteger(q.followUpOf));
+}
+
+// { pct, avgMs } for a session, or null if it can't be compared (a mode left
+// out, or fewer than MIN_QUESTIONS_FOR_ACCURACY counted questions). avgMs is
+// null on an old session that never saved its timings. pct is a whole number.
+function comparisonStats(s) {
+  if (!countsAsPractice(s) || COMPARE_EXCLUDED_MODES.includes(s.mode)) return null;
+  const qs = comparableQuestions(s);
+  if (qs.length < MIN_QUESTIONS_FOR_ACCURACY) return null;
+  const right = qs.filter((q) => q.correct).length;
+  const timed = s.summary && Number.isFinite(s.summary.avgTimeMs) && qs.every((q) => Number.isFinite(q.timeMs));
+  return {
+    pct: Math.round((100 * right) / qs.length),
+    avgMs: timed ? qs.reduce((sum, q) => sum + q.timeMs, 0) / qs.length : null,
+  };
+}
+
+// Speed only counts as different when the gap is a whole second or more.
+const SPEED_GAP_MS = 1000;
+
+// One encouraging line comparing a just-finished session (`entry`) with the
+// latest earlier session that qualifies, or null for nothing to say: no
+// earlier one, or this one is a warm-up / retry / too short. `sessionsBefore`
+// is the log without `entry`, oldest first. Display-only: nothing is stored.
+// The wording is always positive or neutral (SPEC §8): never "worse".
+export function compareWithLastSession(entry, sessionsBefore) {
+  const now = comparisonStats(entry);
+  if (!now) return null;
+  let last = null;
+  for (let i = sessionsBefore.length - 1; i >= 0 && !last; i -= 1) {
+    if (comparisonStats(sessionsBefore[i])) last = sessionsBefore[i];
+  }
+  if (!last) return null;
+  const before = comparisonStats(last);
+
+  const accGain = now.pct - before.pct;
+  const bothTimed = now.avgMs !== null && before.avgMs !== null;
+  const gapMs = bothTimed ? before.avgMs - now.avgMs : 0; // positive = quicker now
+  const quicker = bothTimed && gapMs >= SPEED_GAP_MS;
+  // "yesterday" only when that session really finished on the day before.
+  const yesterday = sessionLocalDay(last) === addDays(sessionLocalDay(entry), -1);
+  const ref = yesterday ? 'yesterday' : 'last time';
+
+  if (accGain > 0 && quicker) {
+    return { better: true, text: `${yesterday ? 'Beat yesterday' : 'Beat your last session'}: more right and quicker!` };
+  }
+  if (accGain > 0) return { better: true, text: `More right than ${ref} (+${accGain}%).` };
+  if (quicker) {
+    return { better: true, text: `Quicker than ${ref} (${Math.round(gapMs / 1000)}s faster per question).` };
+  }
+  const secs = before.avgMs !== null ? Math.round(before.avgMs / 1000) : null;
+  const each = secs === null ? '' : (secs < 1 ? ', under 1s each' : `, ${secs}s each`);
+  const lead = yesterday ? 'Yesterday' : 'Last time';
+  return { better: false, text: `${lead}: ${before.pct}%${each}. Have another go to beat it!` };
 }
 
 // ---------- Monthly recap (Roadmap #141) ----------

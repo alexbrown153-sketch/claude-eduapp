@@ -12,6 +12,13 @@ export const SHOP_ITEMS = [
   { id: 'theme-sunset', category: 'theme', label: 'Sunset Orange', cost: 150, swatch: '#ff8a5b' },
   { id: 'theme-forest', category: 'theme', label: 'Forest Green', cost: 150, swatch: '#34c47c' },
   { id: 'theme-berry', category: 'theme', label: 'Berry Purple', cost: 200, swatch: '#b86ef0' },
+  // Seasonal themes (Roadmap #185): ordinary buyable themes, on sale all year.
+  // `season` is shown as a small label under the name. Never rename an id:
+  // saved shop data refers to it.
+  { id: 'theme-winter', category: 'theme', label: 'Winter Frost', cost: 200, swatch: '#22b8e0', season: 'Winter' },
+  { id: 'theme-spring', category: 'theme', label: 'Spring Blossom', cost: 200, swatch: '#f472b6', season: 'Spring' },
+  { id: 'theme-summer', category: 'theme', label: 'Summer Sunshine', cost: 250, swatch: '#facc15', season: 'Summer' },
+  { id: 'theme-autumn', category: 'theme', label: 'Autumn Leaves', cost: 250, swatch: '#d9822b', season: 'Autumn' },
 
   // Fonts — set --font-body via [data-font] on <body>.
   { id: 'font-default', category: 'font', label: 'Classic', cost: 0 },
